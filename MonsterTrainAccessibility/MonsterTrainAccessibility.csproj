@@ -1,0 +1,73 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <AssemblyName>MonsterTrainAccessibility</AssemblyName>
+    <RootNamespace>MonsterTrainAccessibility</RootNamespace>
+    <LangVersion>8.0</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+
+    <!-- Default game path - override with environment variable or command line -->
+    <MonsterTrainPath Condition="'$(MONSTER_TRAIN_PATH)' != ''">$(MONSTER_TRAIN_PATH)</MonsterTrainPath>
+    <MonsterTrainPath Condition="'$(MonsterTrainPath)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Monster Train</MonsterTrainPath>
+
+    <!-- Output settings -->
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <!-- BepInEx References (from local compiled BepInEx) -->
+  <ItemGroup>
+    <Reference Include="BepInEx">
+      <HintPath>..\BepInEx\core\BepInEx.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="0Harmony">
+      <HintPath>..\BepInEx\core\0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!-- Unity References (from game folder) -->
+  <ItemGroup>
+    <Reference Include="UnityEngine">
+      <HintPath>$(MonsterTrainPath)\MonsterTrain_Data\Managed\UnityEngine.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(MonsterTrainPath)\MonsterTrain_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>$(MonsterTrainPath)\MonsterTrain_Data\Managed\UnityEngine.UI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>$(MonsterTrainPath)\MonsterTrain_Data\Managed\UnityEngine.IMGUIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.InputLegacyModule">
+      <HintPath>$(MonsterTrainPath)\MonsterTrain_Data\Managed\UnityEngine.InputLegacyModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!-- Game Assembly Reference (for type information) -->
+  <ItemGroup>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(MonsterTrainPath)\MonsterTrain_Data\Managed\Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!-- Include Tolk.cs wrapper -->
+  <ItemGroup>
+    <Compile Include="..\tolk\Tolk.cs" Link="Tolk.cs" />
+  </ItemGroup>
+
+  <!-- Package references for .NET Standard compatibility -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>

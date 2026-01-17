@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(superpowers:brainstorming)",
+      "WebFetch(domain:steamcommunity.com)",
+      "Bash(dir \"C:\\\\Users\\\\Usuario\\\\downloads\\\\monstertrain\\\\tolk\" /s)",
+      "Bash(find:*)",
+      "Bash(dir:*)",
+      "Bash(powershell -Command \"Get-ChildItem -Recurse -Directory | Select-Object FullName\")",
+      "Bash(powershell -Command \"Get-ChildItem -Recurse | Select-Object FullName, PSIsContainer\")",
+      "Bash(powershell:*)",
+      "Bash(grep:*)",
+      "Bash(dotnet build:*)",
+      "WebSearch",
+      "WebFetch(domain:www.pcgamingwiki.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.vintageisthenewold.com)",
+      "Bash(Select-String -Pattern \"winhttp|doorstop\")",
+      "Bash(ls:*)",
+      "Bash(xcopy:*)"
+    ]
+  }
+}

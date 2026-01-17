@@ -1,0 +1,13 @@
+{
+  "Title": "Monster Train Accessibility",
+  "Description": "Full accessibility mod for totally blind players. Provides screen reader support via NVDA, JAWS, or Windows Narrator, and complete keyboard navigation for all game elements including menus, battles, card drafts, and map navigation.",
+  "CosmeticOnly": false,
+  "ChangeLog": "Initial release - Full keyboard navigation and screen reader support",
+  "Tags": [
+    "Accessibility",
+    "Screen Reader",
+    "Blind",
+    "Keyboard",
+    "NVDA"
+  ]
+}

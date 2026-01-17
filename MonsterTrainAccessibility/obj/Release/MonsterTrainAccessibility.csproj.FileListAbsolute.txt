@@ -1,0 +1,10 @@
+C:\Users\Usuario\Downloads\monstertrain\MonsterTrainAccessibility\obj\Release\MonsterTrainAccessibility.csproj.AssemblyReference.cache
+C:\Users\Usuario\Downloads\monstertrain\MonsterTrainAccessibility\obj\Release\MonsterTrainAccessibility.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Usuario\Downloads\monstertrain\MonsterTrainAccessibility\obj\Release\MonsterTrainAccessibility.AssemblyInfoInputs.cache
+C:\Users\Usuario\Downloads\monstertrain\MonsterTrainAccessibility\obj\Release\MonsterTrainAccessibility.AssemblyInfo.cs
+C:\Users\Usuario\Downloads\monstertrain\MonsterTrainAccessibility\obj\Release\MonsterTrainAccessibility.csproj.CoreCompileInputs.cache
+C:\Users\Usuario\Downloads\monstertrain\MonsterTrainAccessibility\bin\Release\MonsterTrainAccessibility.deps.json
+C:\Users\Usuario\Downloads\monstertrain\MonsterTrainAccessibility\bin\Release\MonsterTrainAccessibility.dll
+C:\Users\Usuario\Downloads\monstertrain\MonsterTrainAccessibility\bin\Release\MonsterTrainAccessibility.pdb
+C:\Users\Usuario\Downloads\monstertrain\MonsterTrainAccessibility\obj\Release\MonsterTrainAccessibility.dll
+C:\Users\Usuario\Downloads\monstertrain\MonsterTrainAccessibility\obj\Release\MonsterTrainAccessibility.pdb
