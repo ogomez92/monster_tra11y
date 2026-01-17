@@ -11,7 +11,6 @@ namespace MonsterTrainAccessibility.Patches
     /// <summary>
     /// Detect when main menu is shown
     /// </summary>
-    [HarmonyPatch]
     public static class MainMenuScreenPatch
     {
         // Target: MainMenuScreen.Initialize
@@ -55,7 +54,6 @@ namespace MonsterTrainAccessibility.Patches
     /// <summary>
     /// Detect when combat starts
     /// </summary>
-    [HarmonyPatch]
     public static class CombatStartPatch
     {
         public static void TryPatch(Harmony harmony)
@@ -96,7 +94,6 @@ namespace MonsterTrainAccessibility.Patches
     /// <summary>
     /// Detect card draft screen
     /// </summary>
-    [HarmonyPatch]
     public static class CardDraftScreenPatch
     {
         public static void TryPatch(Harmony harmony)
@@ -142,7 +139,6 @@ namespace MonsterTrainAccessibility.Patches
     /// <summary>
     /// Detect clan/class selection screen
     /// </summary>
-    [HarmonyPatch]
     public static class ClassSelectionScreenPatch
     {
         public static void TryPatch(Harmony harmony)
@@ -183,7 +179,6 @@ namespace MonsterTrainAccessibility.Patches
     /// <summary>
     /// Detect map screen
     /// </summary>
-    [HarmonyPatch]
     public static class MapScreenPatch
     {
         public static void TryPatch(Harmony harmony)
@@ -230,7 +225,6 @@ namespace MonsterTrainAccessibility.Patches
     /// <summary>
     /// Generic screen manager patch to catch all screen transitions
     /// </summary>
-    [HarmonyPatch]
     public static class ScreenManagerPatch
     {
         public static void TryPatch(Harmony harmony)

@@ -15,17 +15,8 @@ if %ERRORLEVEL% NEQ 0 (
     exit /b 1
 )
 
-:: Default Monster Train path
-set "DEFAULT_PATH=C:\Program Files (x86)\Steam\steamapps\common\Monster Train"
-
-:: Ask user for game path
-echo Enter Monster Train installation path
-echo (Press Enter to use default):
-echo.
-set /p "GAME_PATH=%DEFAULT_PATH%: "
-
-:: Use default if empty
-if "%GAME_PATH%"=="" set "GAME_PATH=%DEFAULT_PATH%"
+:: Game path
+set "GAME_PATH=C:\Program Files (x86)\Steam\steamapps\common\Monster Train"
 
 :: Remove trailing backslash if present
 if "%GAME_PATH:~-1%"=="\" set "GAME_PATH=%GAME_PATH:~0,-1%"
@@ -124,27 +115,14 @@ exit /b 0
 
 :deploy
 echo.
-echo Deploying to BepInEx plugins folder...
+echo Deploying to release folder...
 
-:: Prefer game folder BepInEx for development, fall back to Workshop
-set "GAME_BEPINEX=%GAME_PATH%\BepInEx\plugins"
-set "WORKSHOP_BEPINEX=C:\Program Files (x86)\Steam\steamapps\workshop\content\1102190\2187468759\BepInEx\plugins"
+:: Use relative release folder
+set "PLUGINS_PATH=..\release"
 
-:: Check which location exists (prefer game folder)
-if exist "%GAME_PATH%\BepInEx" (
-    set "PLUGINS_PATH=%GAME_BEPINEX%"
-    echo Using game folder BepInEx location
-) else if exist "%WORKSHOP_BEPINEX%" (
-    set "PLUGINS_PATH=%WORKSHOP_BEPINEX%"
-    echo Using Workshop BepInEx location
-) else (
-    echo ERROR: BepInEx not found! Copy BepInEx to game folder or enable mod loader in-game.
-    goto :eof
-)
-
-:: Create plugins folder if it doesn't exist
+:: Create release folder if it doesn't exist
 if not exist "%PLUGINS_PATH%" (
-    echo Creating plugins folder...
+    echo Creating release folder...
     mkdir "%PLUGINS_PATH%"
 )
 
@@ -204,7 +182,4 @@ echo ========================================
 echo  Deployment complete!
 echo ========================================
 echo Files copied to: %PLUGINS_PATH%
-echo.
-echo Don't forget to install Tolk.dll for screen reader support!
-echo Download from: https://github.com/dkager/tolk/releases
 goto :eof

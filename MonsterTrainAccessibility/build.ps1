@@ -37,22 +37,8 @@ Write-Host " Monster Train Accessibility Mod Builder"
 Write-Host "========================================"
 Write-Host ""
 
-# Default game path
-$DefaultPath = "C:\Program Files (x86)\Steam\steamapps\common\Monster Train"
-
-# If GamePath not provided, prompt user
-if ([string]::IsNullOrEmpty($GamePath)) {
-    Write-Host "Enter Monster Train installation path"
-    Write-Host "(Press Enter to use default):"
-    Write-Host ""
-    $userInput = Read-Host -Prompt $DefaultPath
-
-    if ([string]::IsNullOrEmpty($userInput)) {
-        $GamePath = $DefaultPath
-    } else {
-        $GamePath = $userInput
-    }
-}
+# Game path
+$GamePath = "C:\Program Files (x86)\Steam\steamapps\common\Monster Train"
 
 # Remove trailing backslash
 $GamePath = $GamePath.TrimEnd('\')
@@ -170,27 +156,14 @@ if (-not $Deploy) {
 
 if ($Deploy) {
     Write-Host ""
-    Write-Host "Deploying to BepInEx plugins folder..."
+    Write-Host "Deploying to release folder..."
 
-    # Prefer game folder BepInEx for development, fall back to Workshop
-    $gameFolderBepInEx = Join-Path $GamePath "BepInEx\plugins"
-    $workshopBepInEx = "C:\Program Files (x86)\Steam\steamapps\workshop\content\1102190\2187468759\BepInEx\plugins"
+    # Use relative release folder
+    $pluginsPath = "..\release"
 
-    # Check which location exists (prefer game folder)
-    if (Test-Path (Join-Path $GamePath "BepInEx")) {
-        $pluginsPath = $gameFolderBepInEx
-        Write-Host "Using game folder BepInEx location"
-    } elseif (Test-Path $workshopBepInEx) {
-        $pluginsPath = $workshopBepInEx
-        Write-Host "Using Workshop BepInEx location"
-    } else {
-        Write-Error "BepInEx not found! Copy BepInEx to game folder or enable mod loader in-game."
-        exit 1
-    }
-
-    # Create plugins folder if needed
+    # Create release folder if needed
     if (-not (Test-Path $pluginsPath)) {
-        Write-Host "Creating plugins folder..."
+        Write-Host "Creating release folder..."
         New-Item -ItemType Directory -Path $pluginsPath -Force | Out-Null
     }
 
@@ -249,9 +222,6 @@ if ($Deploy) {
     Write-Host " Deployment complete!"
     Write-Host "========================================"
     Write-Host "Files copied to: $pluginsPath"
-    Write-Host ""
-    Write-Host "Don't forget to install Tolk.dll for screen reader support!"
-    Write-Host "Download from: https://github.com/dkager/tolk/releases"
 }
 
 Write-Host ""

@@ -12,7 +12,6 @@ namespace MonsterTrainAccessibility.Patches
     /// <summary>
     /// Detect cards drawn
     /// </summary>
-    [HarmonyPatch]
     public static class CardDrawPatch
     {
         public static void TryPatch(Harmony harmony)
@@ -93,7 +92,6 @@ namespace MonsterTrainAccessibility.Patches
     /// <summary>
     /// Detect card played
     /// </summary>
-    [HarmonyPatch]
     public static class CardPlayedPatch
     {
         public static void TryPatch(Harmony harmony)
@@ -156,7 +154,6 @@ namespace MonsterTrainAccessibility.Patches
     /// <summary>
     /// Detect card discarded
     /// </summary>
-    [HarmonyPatch]
     public static class CardDiscardedPatch
     {
         public static void TryPatch(Harmony harmony)
@@ -219,7 +216,6 @@ namespace MonsterTrainAccessibility.Patches
     /// <summary>
     /// Detect deck shuffled
     /// </summary>
-    [HarmonyPatch]
     public static class DeckShuffledPatch
     {
         public static void TryPatch(Harmony harmony)
@@ -261,7 +257,6 @@ namespace MonsterTrainAccessibility.Patches
     /// <summary>
     /// Detect hand changed (for refreshing accessible hand info)
     /// </summary>
-    [HarmonyPatch]
     public static class HandChangedPatch
     {
         public static void TryPatch(Harmony harmony)

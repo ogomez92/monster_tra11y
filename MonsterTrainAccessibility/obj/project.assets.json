@@ -538,11 +538,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\Usuario\\Downloads\\monstertrain\\MonsterTrainAccessibility\\MonsterTrainAccessibility.csproj",
+      "projectUniqueName": "T:\\code\\mods\\monstertrain\\MonsterTrainAccessibility\\MonsterTrainAccessibility.csproj",
       "projectName": "MonsterTrainAccessibility",
-      "projectPath": "C:\\Users\\Usuario\\Downloads\\monstertrain\\MonsterTrainAccessibility\\MonsterTrainAccessibility.csproj",
+      "projectPath": "T:\\code\\mods\\monstertrain\\MonsterTrainAccessibility\\MonsterTrainAccessibility.csproj",
       "packagesPath": "C:\\Users\\Usuario\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\Usuario\\Downloads\\monstertrain\\MonsterTrainAccessibility\\obj\\",
+      "outputPath": "T:\\code\\mods\\monstertrain\\MonsterTrainAccessibility\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"

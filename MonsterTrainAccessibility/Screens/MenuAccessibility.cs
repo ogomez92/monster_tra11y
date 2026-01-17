@@ -1,21 +1,142 @@
 using MonsterTrainAccessibility.Core;
 using System;
 using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.UI;
 
 namespace MonsterTrainAccessibility.Screens
 {
     /// <summary>
-    /// Handles accessibility for main menu and settings screens
+    /// Handles accessibility for menus by reading Unity's EventSystem selection.
+    /// Instead of maintaining a fake menu, we track what the game has selected
+    /// and read the text from the actual UI elements.
     /// </summary>
-    public class MenuAccessibility
+    public class MenuAccessibility : MonoBehaviour
     {
-        private ListFocusContext _mainMenuContext;
-        private ListFocusContext _settingsContext;
-        private ListFocusContext _clanSelectContext;
+        private GameObject _lastSelectedObject;
+        private float _pollInterval = 0.1f;
+        private float _pollTimer = 0f;
+        private bool _isActive = true;
 
-        public MenuAccessibility()
+        private void Update()
         {
-            // Contexts will be created when screens are entered
+            if (!_isActive)
+                return;
+
+            _pollTimer += Time.unscaledDeltaTime;
+            if (_pollTimer < _pollInterval)
+                return;
+
+            _pollTimer = 0f;
+            CheckForSelectionChange();
+        }
+
+        /// <summary>
+        /// Check if the game's UI selection has changed and announce it
+        /// </summary>
+        private void CheckForSelectionChange()
+        {
+            if (EventSystem.current == null)
+                return;
+
+            GameObject currentSelected = EventSystem.current.currentSelectedGameObject;
+
+            // Selection changed?
+            if (currentSelected != _lastSelectedObject)
+            {
+                _lastSelectedObject = currentSelected;
+
+                if (currentSelected != null)
+                {
+                    string text = GetTextFromGameObject(currentSelected);
+                    if (!string.IsNullOrEmpty(text))
+                    {
+                        MonsterTrainAccessibility.ScreenReader?.AnnounceFocus(text);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Extract readable text from a UI GameObject.
+        /// Tries multiple approaches to find text.
+        /// </summary>
+        private string GetTextFromGameObject(GameObject go)
+        {
+            if (go == null)
+                return null;
+
+            // Try to get text from the object itself or its children
+            string text = null;
+
+            // 1. Try Unity UI Text component
+            var uiText = go.GetComponentInChildren<Text>();
+            if (uiText != null && !string.IsNullOrEmpty(uiText.text))
+            {
+                text = uiText.text;
+            }
+
+            // 2. Try TextMeshPro (uses reflection since we may not have the assembly reference)
+            if (string.IsNullOrEmpty(text))
+            {
+                text = GetTMPText(go);
+            }
+
+            // 3. Try the GameObject name as fallback
+            if (string.IsNullOrEmpty(text))
+            {
+                // Clean up the name - remove common Unity suffixes
+                text = go.name;
+                text = text.Replace("(Clone)", "");
+                text = text.Replace("Button", "");
+                text = text.Replace("Btn", "");
+                text = text.Trim();
+
+                // Add spaces before capital letters (CamelCase to words)
+                text = System.Text.RegularExpressions.Regex.Replace(text, "([a-z])([A-Z])", "$1 $2");
+            }
+
+            return text?.Trim();
+        }
+
+        /// <summary>
+        /// Try to get TextMeshPro text using reflection
+        /// </summary>
+        private string GetTMPText(GameObject go)
+        {
+            try
+            {
+                // Look for TMP_Text component (base class for both TextMeshProUGUI and TextMeshPro)
+                var components = go.GetComponentsInChildren<Component>();
+                foreach (var component in components)
+                {
+                    if (component == null)
+                        continue;
+
+                    var type = component.GetType();
+
+                    // Check if it's a TextMeshPro type
+                    if (type.Name.Contains("TextMeshPro") || type.Name == "TMP_Text")
+                    {
+                        var textProperty = type.GetProperty("text");
+                        if (textProperty != null)
+                        {
+                            string text = textProperty.GetValue(component) as string;
+                            if (!string.IsNullOrEmpty(text))
+                            {
+                                return text;
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting TMP text: {ex.Message}");
+            }
+
+            return null;
         }
 
         /// <summary>
@@ -24,234 +145,62 @@ namespace MonsterTrainAccessibility.Screens
         public void OnMainMenuEntered(object screen)
         {
             MonsterTrainAccessibility.LogInfo("Main menu entered");
+            _isActive = true;
+            _lastSelectedObject = null;
 
-            _mainMenuContext = new ListFocusContext("Main Menu", OnMainMenuBack);
+            // Announce that we're at the main menu
+            MonsterTrainAccessibility.ScreenReader?.AnnounceScreen("Main Menu");
 
-            // Add menu items - these will be populated from actual game UI
-            // For now, we create placeholder items that represent typical menu options
-            _mainMenuContext.AddItem(new FocusableMenuItem
+            // Read the currently selected item if any
+            if (EventSystem.current != null && EventSystem.current.currentSelectedGameObject != null)
             {
-                Id = "new_game",
-                Label = "New Game",
-                Description = "Start a new run",
-                OnActivate = () => ActivateMenuItem("new_game", screen)
-            });
-
-            _mainMenuContext.AddItem(new FocusableMenuItem
-            {
-                Id = "continue",
-                Label = "Continue",
-                Description = "Resume your current run",
-                OnActivate = () => ActivateMenuItem("continue", screen)
-            });
-
-            _mainMenuContext.AddItem(new FocusableMenuItem
-            {
-                Id = "logbook",
-                Label = "Logbook",
-                Description = "View your collection and stats",
-                OnActivate = () => ActivateMenuItem("logbook", screen)
-            });
-
-            _mainMenuContext.AddItem(new FocusableMenuItem
-            {
-                Id = "settings",
-                Label = "Settings",
-                Description = "Game options",
-                OnActivate = () => ActivateMenuItem("settings", screen)
-            });
-
-            _mainMenuContext.AddItem(new FocusableMenuItem
-            {
-                Id = "quit",
-                Label = "Quit",
-                Description = "Exit the game",
-                OnActivate = () => ActivateMenuItem("quit", screen)
-            });
-
-            MonsterTrainAccessibility.FocusManager.SetContext(_mainMenuContext, false);
-        }
-
-        /// <summary>
-        /// Called when clan/class selection screen is entered
-        /// </summary>
-        public void OnClanSelectionEntered(object screen, List<ClanInfo> clans, bool isPrimary)
-        {
-            string contextName = isPrimary ? "Primary Clan Selection" : "Allied Clan Selection";
-            MonsterTrainAccessibility.LogInfo($"{contextName} entered");
-
-            _clanSelectContext = new ListFocusContext(contextName, () => OnClanSelectBack(screen));
-
-            foreach (var clan in clans)
-            {
-                _clanSelectContext.AddItem(new FocusableMenuItem
+                string text = GetTextFromGameObject(EventSystem.current.currentSelectedGameObject);
+                if (!string.IsNullOrEmpty(text))
                 {
-                    Id = clan.Id,
-                    Label = clan.Name,
-                    Description = clan.Description,
-                    OnActivate = () => SelectClan(clan, screen)
-                });
+                    MonsterTrainAccessibility.ScreenReader?.Queue(text);
+                }
             }
-
-            MonsterTrainAccessibility.FocusManager.SetContext(_clanSelectContext);
-
-            // Announce helpful instructions
-            string instructions = isPrimary
-                ? "Choose your primary clan. Use Up and Down arrows to browse, Enter to select."
-                : "Choose your allied clan. Use Up and Down arrows to browse, Enter to select.";
-
-            MonsterTrainAccessibility.ScreenReader?.Queue(instructions);
         }
 
         /// <summary>
-        /// Called when settings menu is entered
+        /// Force re-read the current selection
         /// </summary>
-        public void OnSettingsEntered(object screen)
+        public void RereadCurrentSelection()
         {
-            MonsterTrainAccessibility.LogInfo("Settings entered");
-
-            _settingsContext = new ListFocusContext("Settings", () => OnSettingsBack(screen));
-
-            // Settings menu items would be populated from actual settings
-            _settingsContext.AddItem(new FocusableMenuItem
+            if (EventSystem.current != null && EventSystem.current.currentSelectedGameObject != null)
             {
-                Id = "audio",
-                Label = "Audio Settings",
-                OnActivate = () => ActivateMenuItem("audio", screen)
-            });
-
-            _settingsContext.AddItem(new FocusableMenuItem
+                string text = GetTextFromGameObject(EventSystem.current.currentSelectedGameObject);
+                if (!string.IsNullOrEmpty(text))
+                {
+                    MonsterTrainAccessibility.ScreenReader?.Speak(text, true);
+                }
+                else
+                {
+                    MonsterTrainAccessibility.ScreenReader?.Speak("Unknown item", true);
+                }
+            }
+            else
             {
-                Id = "video",
-                Label = "Video Settings",
-                OnActivate = () => ActivateMenuItem("video", screen)
-            });
-
-            _settingsContext.AddItem(new FocusableMenuItem
-            {
-                Id = "gameplay",
-                Label = "Gameplay Settings",
-                OnActivate = () => ActivateMenuItem("gameplay", screen)
-            });
-
-            _settingsContext.AddItem(new FocusableMenuItem
-            {
-                Id = "accessibility",
-                Label = "Accessibility Settings",
-                Description = "Configure screen reader and navigation options",
-                OnActivate = () => OpenAccessibilitySettings()
-            });
-
-            _settingsContext.AddItem(new FocusableMenuItem
-            {
-                Id = "back",
-                Label = "Back",
-                OnActivate = () => OnSettingsBack(screen)
-            });
-
-            MonsterTrainAccessibility.FocusManager.SetContext(_settingsContext);
+                MonsterTrainAccessibility.ScreenReader?.Speak("Nothing selected", true);
+            }
         }
 
         /// <summary>
-        /// Handle game over / results screen
+        /// Pause menu reading (e.g., during loading)
         /// </summary>
-        public void OnResultsScreenEntered(object screen, RunResults results)
+        public void Pause()
         {
-            MonsterTrainAccessibility.LogInfo("Results screen entered");
-
-            var context = new ListFocusContext("Run Complete", () => OnResultsBack(screen));
-
-            // Announce results
-            string resultAnnouncement = results.Won
-                ? $"Victory! You reached covenant {results.CovenantLevel}."
-                : "Defeat. The pyre was destroyed.";
-
-            MonsterTrainAccessibility.ScreenReader?.Speak(resultAnnouncement, true);
-
-            // Add navigation options
-            context.AddItem(new FocusableMenuItem
-            {
-                Id = "stats",
-                Label = "View Statistics",
-                Description = $"Score: {results.Score}. Floors cleared: {results.FloorsCleared}",
-                OnActivate = () => ReadDetailedStats(results)
-            });
-
-            context.AddItem(new FocusableMenuItem
-            {
-                Id = "main_menu",
-                Label = "Return to Main Menu",
-                OnActivate = () => ReturnToMainMenu(screen)
-            });
-
-            MonsterTrainAccessibility.FocusManager.SetContext(context);
+            _isActive = false;
         }
 
-        #region Helper Methods
-
-        private void ActivateMenuItem(string itemId, object screen)
+        /// <summary>
+        /// Resume menu reading
+        /// </summary>
+        public void Resume()
         {
-            // This will be implemented to actually trigger the game's UI
-            MonsterTrainAccessibility.LogInfo($"Activating menu item: {itemId}");
-
-            // For now, announce the action
-            MonsterTrainAccessibility.ScreenReader?.Speak($"Selected {itemId}", true);
+            _isActive = true;
+            _lastSelectedObject = null; // Force re-announce
         }
-
-        private void SelectClan(ClanInfo clan, object screen)
-        {
-            MonsterTrainAccessibility.LogInfo($"Selected clan: {clan.Name}");
-            MonsterTrainAccessibility.ScreenReader?.Speak($"Selected {clan.Name}", true);
-            // Actual clan selection would be triggered here
-        }
-
-        private void OnMainMenuBack()
-        {
-            // At main menu, confirm quit
-            MonsterTrainAccessibility.ScreenReader?.Speak(
-                "Press Escape again to quit the game", true);
-        }
-
-        private void OnClanSelectBack(object screen)
-        {
-            MonsterTrainAccessibility.ScreenReader?.Speak("Going back", true);
-            // Would trigger actual back navigation
-        }
-
-        private void OnSettingsBack(object screen)
-        {
-            MonsterTrainAccessibility.FocusManager.GoBack();
-        }
-
-        private void OnResultsBack(object screen)
-        {
-            ReturnToMainMenu(screen);
-        }
-
-        private void OpenAccessibilitySettings()
-        {
-            // Open BepInEx config or custom accessibility settings UI
-            MonsterTrainAccessibility.ScreenReader?.Speak(
-                "Accessibility settings can be configured in the BepInEx config file", true);
-        }
-
-        private void ReadDetailedStats(RunResults results)
-        {
-            string stats = $"Score: {results.Score}. " +
-                          $"Floors cleared: {results.FloorsCleared}. " +
-                          $"Enemies defeated: {results.EnemiesDefeated}. " +
-                          $"Cards played: {results.CardsPlayed}.";
-
-            MonsterTrainAccessibility.ScreenReader?.Speak(stats, true);
-        }
-
-        private void ReturnToMainMenu(object screen)
-        {
-            MonsterTrainAccessibility.ScreenReader?.Speak("Returning to main menu", true);
-            // Would trigger actual navigation
-        }
-
-        #endregion
     }
 
     /// <summary>

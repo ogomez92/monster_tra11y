@@ -1,6 +1,6 @@
 is_global = true
 build_property.RootNamespace = MonsterTrainAccessibility
-build_property.ProjectDir = C:\Users\Usuario\Downloads\monstertrain\MonsterTrainAccessibility\
+build_property.ProjectDir = T:\code\mods\monstertrain\MonsterTrainAccessibility\
 build_property.EnableComHosting = 
 build_property.EnableGeneratedComInterfaceComImportInterop = 
 build_property.CsWinRTUseWindowsUIXamlProjections = false

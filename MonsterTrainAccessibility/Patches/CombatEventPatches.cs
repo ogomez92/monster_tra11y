@@ -10,7 +10,6 @@ namespace MonsterTrainAccessibility.Patches
     /// <summary>
     /// Detect player turn start
     /// </summary>
-    [HarmonyPatch]
     public static class PlayerTurnStartPatch
     {
         public static void TryPatch(Harmony harmony)
@@ -52,7 +51,6 @@ namespace MonsterTrainAccessibility.Patches
     /// <summary>
     /// Detect player turn end
     /// </summary>
-    [HarmonyPatch]
     public static class PlayerTurnEndPatch
     {
         public static void TryPatch(Harmony harmony)
@@ -93,7 +91,6 @@ namespace MonsterTrainAccessibility.Patches
     /// <summary>
     /// Detect damage dealt
     /// </summary>
-    [HarmonyPatch]
     public static class DamageAppliedPatch
     {
         public static void TryPatch(Harmony harmony)
@@ -164,7 +161,6 @@ namespace MonsterTrainAccessibility.Patches
     /// <summary>
     /// Detect unit death
     /// </summary>
-    [HarmonyPatch]
     public static class UnitDeathPatch
     {
         public static void TryPatch(Harmony harmony)
@@ -242,7 +238,6 @@ namespace MonsterTrainAccessibility.Patches
     /// <summary>
     /// Detect status effect application
     /// </summary>
-    [HarmonyPatch]
     public static class StatusEffectPatch
     {
         public static void TryPatch(Harmony harmony)
@@ -316,7 +311,6 @@ namespace MonsterTrainAccessibility.Patches
     /// <summary>
     /// Detect battle end (victory)
     /// </summary>
-    [HarmonyPatch]
     public static class BattleVictoryPatch
     {
         public static void TryPatch(Harmony harmony)

@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "vcYi9N5ikrU=",
+  "dgSpecHash": "kZJUAiz99C4=",
   "success": true,
-  "projectFilePath": "C:\\Users\\Usuario\\Downloads\\monstertrain\\MonsterTrainAccessibility\\MonsterTrainAccessibility.csproj",
+  "projectFilePath": "T:\\code\\mods\\monstertrain\\MonsterTrainAccessibility\\MonsterTrainAccessibility.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\Usuario\\.nuget\\packages\\microsoft.netcore.platforms\\1.1.0\\microsoft.netcore.platforms.1.1.0.nupkg.sha512",
     "C:\\Users\\Usuario\\.nuget\\packages\\microsoft.netframework.referenceassemblies\\1.0.3\\microsoft.netframework.referenceassemblies.1.0.3.nupkg.sha512",

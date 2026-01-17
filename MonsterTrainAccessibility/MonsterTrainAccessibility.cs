@@ -2,6 +2,7 @@ using BepInEx;
 using BepInEx.Logging;
 using HarmonyLib;
 using MonsterTrainAccessibility.Core;
+using MonsterTrainAccessibility.Patches;
 using MonsterTrainAccessibility.Screens;
 using System;
 using UnityEngine;
@@ -55,20 +56,19 @@ namespace MonsterTrainAccessibility
                 // Initialize focus management
                 FocusManager = new VirtualFocusManager();
 
-                // Initialize screen handlers
-                MenuHandler = new MenuAccessibility();
+                // Initialize screen handlers (non-MonoBehaviour ones)
                 BattleHandler = new BattleAccessibility();
                 DraftHandler = new CardDraftAccessibility();
                 MapHandler = new MapAccessibility();
 
                 // Apply Harmony patches
                 _harmony = new Harmony(GUID);
-                _harmony.PatchAll();
+                ApplyPatches();
 
                 Log.LogInfo($"{NAME} loaded successfully!");
 
-                // Create the input handler GameObject (must be done after Awake)
-                CreateInputHandler();
+                // Create the handler GameObjects (must be done after Awake)
+                CreateHandlers();
             }
             catch (Exception ex)
             {
@@ -77,12 +77,40 @@ namespace MonsterTrainAccessibility
             }
         }
 
-        private void CreateInputHandler()
+        private void ApplyPatches()
         {
-            // Create a persistent GameObject for input handling
-            var inputHandlerGO = new GameObject("MonsterTrainAccessibility_InputHandler");
-            DontDestroyOnLoad(inputHandlerGO);
-            InputHandler = inputHandlerGO.AddComponent<InputInterceptor>();
+            // Screen transition patches
+            MainMenuScreenPatch.TryPatch(_harmony);
+            CombatStartPatch.TryPatch(_harmony);
+            CardDraftScreenPatch.TryPatch(_harmony);
+            ClassSelectionScreenPatch.TryPatch(_harmony);
+            MapScreenPatch.TryPatch(_harmony);
+            ScreenManagerPatch.TryPatch(_harmony);
+
+            // Combat event patches
+            PlayerTurnStartPatch.TryPatch(_harmony);
+            PlayerTurnEndPatch.TryPatch(_harmony);
+            DamageAppliedPatch.TryPatch(_harmony);
+            UnitDeathPatch.TryPatch(_harmony);
+            StatusEffectPatch.TryPatch(_harmony);
+            BattleVictoryPatch.TryPatch(_harmony);
+
+            // Card event patches
+            CardDrawPatch.TryPatch(_harmony);
+            CardPlayedPatch.TryPatch(_harmony);
+            CardDiscardedPatch.TryPatch(_harmony);
+            DeckShuffledPatch.TryPatch(_harmony);
+            HandChangedPatch.TryPatch(_harmony);
+        }
+
+        private void CreateHandlers()
+        {
+            // Create a persistent GameObject for all MonoBehaviour handlers
+            var handlerGO = new GameObject("MonsterTrainAccessibility_Handlers");
+            DontDestroyOnLoad(handlerGO);
+
+            InputHandler = handlerGO.AddComponent<InputInterceptor>();
+            MenuHandler = handlerGO.AddComponent<MenuAccessibility>();
         }
 
         private void OnDestroy()
@@ -91,6 +119,7 @@ namespace MonsterTrainAccessibility
             ScreenReader?.Shutdown();
             _harmony?.UnpatchSelf();
 
+            // Destroy the handler GameObject (contains both InputHandler and MenuHandler)
             if (InputHandler != null && InputHandler.gameObject != null)
             {
                 Destroy(InputHandler.gameObject);

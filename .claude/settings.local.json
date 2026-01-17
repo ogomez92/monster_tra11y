@@ -17,7 +17,8 @@
       "WebFetch(domain:www.vintageisthenewold.com)",
       "Bash(Select-String -Pattern \"winhttp|doorstop\")",
       "Bash(ls:*)",
-      "Bash(xcopy:*)"
+      "Bash(xcopy:*)",
+      "Bash(stat:*)"
     ]
   }
 }
