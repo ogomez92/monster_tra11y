@@ -1,10 +1,11 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 namespace MonsterTrainAccessibility.Core
 {
     /// <summary>
-    /// MonoBehaviour that intercepts keyboard input for accessibility navigation.
-    /// Runs every frame and checks for key presses.
+    /// MonoBehaviour that handles accessibility hotkeys.
+    /// Navigation is handled by the game's EventSystem - we just provide info hotkeys.
     /// </summary>
     public class InputInterceptor : MonoBehaviour
     {
@@ -36,52 +37,20 @@ namespace MonsterTrainAccessibility.Core
             }
 
             var config = MonsterTrainAccessibility.AccessibilitySettings;
-            var focus = MonsterTrainAccessibility.FocusManager;
 
-            if (config == null || focus == null)
+            if (config == null)
                 return;
 
-            // Navigation keys
-            if (Input.GetKeyDown(config.NavigateUpKey.Value))
+            // Information hotkeys - these don't interfere with game navigation
+            if (Input.GetKeyDown(config.ReadCurrentKey.Value))
             {
-                focus.NavigateUp();
+                RereadCurrentSelection();
                 _inputCooldown = INPUT_COOLDOWN_TIME;
             }
-            else if (Input.GetKeyDown(config.NavigateDownKey.Value))
+            else if (Input.GetKeyDown(config.ReadTextKey.Value))
             {
-                focus.NavigateDown();
+                ReadAllScreenText();
                 _inputCooldown = INPUT_COOLDOWN_TIME;
-            }
-            else if (Input.GetKeyDown(config.NavigateLeftKey.Value))
-            {
-                focus.NavigateLeft();
-                _inputCooldown = INPUT_COOLDOWN_TIME;
-            }
-            else if (Input.GetKeyDown(config.NavigateRightKey.Value))
-            {
-                focus.NavigateRight();
-                _inputCooldown = INPUT_COOLDOWN_TIME;
-            }
-
-            // Activation
-            else if (Input.GetKeyDown(config.ActivateKey.Value) ||
-                     Input.GetKeyDown(config.AlternateActivateKey.Value))
-            {
-                focus.Activate();
-                _inputCooldown = INPUT_COOLDOWN_TIME;
-            }
-
-            // Back/Cancel
-            else if (Input.GetKeyDown(config.BackKey.Value))
-            {
-                focus.GoBack();
-                _inputCooldown = INPUT_COOLDOWN_TIME;
-            }
-
-            // Information hotkeys
-            else if (Input.GetKeyDown(config.ReadCurrentKey.Value))
-            {
-                focus.RereadCurrentFocus();
             }
             else if (Input.GetKeyDown(config.ReadHandKey.Value))
             {
@@ -104,17 +73,22 @@ namespace MonsterTrainAccessibility.Core
                 config.CycleVerbosity();
             }
 
-            // Number keys for quick card selection (1-9)
-            for (int i = 1; i <= 9; i++)
-            {
-                KeyCode key = KeyCode.Alpha1 + (i - 1);
-                if (Input.GetKeyDown(key))
-                {
-                    SelectCardByNumber(i);
-                    _inputCooldown = INPUT_COOLDOWN_TIME;
-                    break;
-                }
-            }
+        }
+
+        /// <summary>
+        /// Re-read the currently selected UI element
+        /// </summary>
+        private void RereadCurrentSelection()
+        {
+            MonsterTrainAccessibility.MenuHandler?.RereadCurrentSelection();
+        }
+
+        /// <summary>
+        /// Read all text on screen (patch notes, descriptions, etc.)
+        /// </summary>
+        private void ReadAllScreenText()
+        {
+            MonsterTrainAccessibility.MenuHandler?.ReadAllScreenText();
         }
 
         /// <summary>
@@ -179,18 +153,6 @@ namespace MonsterTrainAccessibility.Core
             {
                 // Could also read gold/other resources outside battle
                 MonsterTrainAccessibility.ScreenReader?.Speak("Not in battle", true);
-            }
-        }
-
-        /// <summary>
-        /// Quick-select a card by number key
-        /// </summary>
-        private void SelectCardByNumber(int cardNumber)
-        {
-            var battle = MonsterTrainAccessibility.BattleHandler;
-            if (battle != null && battle.IsInBattle)
-            {
-                battle.SelectCardByIndex(cardNumber - 1);
             }
         }
 

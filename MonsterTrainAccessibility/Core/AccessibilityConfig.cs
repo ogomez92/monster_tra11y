@@ -24,6 +24,7 @@ namespace MonsterTrainAccessibility.Core
 
         // Information hotkeys
         public ConfigEntry<KeyCode> ReadCurrentKey { get; private set; }
+        public ConfigEntry<KeyCode> ReadTextKey { get; private set; }
         public ConfigEntry<KeyCode> ReadHandKey { get; private set; }
         public ConfigEntry<KeyCode> ReadFloorsKey { get; private set; }
         public ConfigEntry<KeyCode> ReadEnemiesKey { get; private set; }
@@ -120,6 +121,13 @@ namespace MonsterTrainAccessibility.Core
                 "ReadCurrent",
                 KeyCode.C,
                 "Key to re-read the currently focused item"
+            );
+
+            ReadTextKey = config.Bind(
+                "Keys.Information",
+                "ReadText",
+                KeyCode.T,
+                "Key to read all text content on screen (patch notes, descriptions, etc.)"
             );
 
             ReadHandKey = config.Bind(

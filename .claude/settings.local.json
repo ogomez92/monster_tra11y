@@ -18,7 +18,8 @@
       "Bash(Select-String -Pattern \"winhttp|doorstop\")",
       "Bash(ls:*)",
       "Bash(xcopy:*)",
-      "Bash(stat:*)"
+      "Bash(stat:*)",
+      "Bash(del \"T:\\\\code\\\\mods\\\\monstertrain\\\\MonsterTrainAccessibility\\\\Utilities\\\\GameStateReader.cs\")"
     ]
   }
 }
