@@ -22,10 +22,12 @@ The csproj automatically copies the built DLL to the game's plugins folder after
 
 ## Architecture
 
+All game data access uses **runtime reflection** since there's no public API. Game types are discovered at runtime and methods are cached for performance.
+
 ### Core Components (MonsterTrainAccessibility/Core/)
 
 - **ScreenReaderOutput**: Wrapper for Tolk library - handles speech output, braille, and screen reader detection. All accessibility output goes through this.
-- **InputInterceptor**: Unity MonoBehaviour that handles accessibility hotkeys (F1, C, T, H, F, E, R, V, 1-9). Navigation is handled by the game's native EventSystem.
+- **InputInterceptor**: Unity MonoBehaviour that handles accessibility hotkeys (F1, C, T, H, L, N, R, V, 1-9). Navigation is handled by the game's native EventSystem.
 - **AccessibilityConfig**: BepInEx configuration - verbosity levels, keybindings, announcement settings.
 
 ### Help System (MonsterTrainAccessibility/Help/)
@@ -35,7 +37,7 @@ Context-sensitive help that announces available keys based on current game scree
 - **IHelpContext**: Interface for help providers - each screen/mode implements this
 - **HelpSystem**: Coordinator that selects the active context and speaks help text
 - **ScreenStateTracker**: Static enum tracking current game screen (MainMenu, Battle, etc.)
-- **Contexts/**: Individual help providers:
+- **Contexts/**: Individual help providers (higher priority wins):
   - `GlobalHelp` (priority 0): Fallback for any screen
   - `MainMenuHelp` (40): Main menu navigation
   - `ClanSelectionHelp` (50): Clan/class selection
@@ -43,7 +45,9 @@ Context-sensitive help that announces available keys based on current game scree
   - `ShopHelp` (70): Shop purchases
   - `EventHelp` (70): Event choices
   - `CardDraftHelp` (80): Card draft selection
+  - `BattleIntroHelp` (85): Pre-battle screen
   - `BattleHelp` (90): Battle information keys
+  - `TutorialHelp` (95): Tutorial popups
   - `BattleTargetingHelp` (100): Floor targeting mode
 
 ### Battle Systems (MonsterTrainAccessibility/Battle/)
@@ -52,7 +56,10 @@ Context-sensitive help that announces available keys based on current game scree
 
 ### Screen Handlers (MonsterTrainAccessibility/Screens/)
 
-- **MenuAccessibility**: MonoBehaviour that polls `EventSystem.current.currentSelectedGameObject` and reads text from selected UI elements. Handles all menu screens, card drafts, map, shop, events. Has `ReadAllScreenText()` for reading patch notes and long text areas.
+- **MenuAccessibility**: MonoBehaviour that polls `EventSystem.current.currentSelectedGameObject` and reads text from selected UI elements. Handles all menu screens, card drafts, map, shop, events. Key methods:
+  - `GetTextFromGameObject()`: Main entry point for extracting readable text from UI elements
+  - `GetCardUIText()`: Extracts full card details (name, type, cost, description) from CardUI components
+  - `ReadAllScreenText()`: For reading patch notes and long text areas
 - **BattleAccessibility**: Uses reflection to access game managers (`CardManager`, `SaveManager`, `RoomManager`, `PlayerManager`) and read actual game state for hand, floors, units, resources.
 - **CardDraftAccessibility**: Announces screen transitions (simplified - UI handled by MenuAccessibility).
 - **MapAccessibility**: Announces screen transitions (simplified - UI handled by MenuAccessibility).
@@ -71,10 +78,12 @@ Context-sensitive help that announces available keys based on current game scree
 | Key | Action |
 |-----|--------|
 | H | Read hand (all cards) |
-| F | Read floors (all units) |
-| E | Read enemies (enemy positions) |
+| L | Read floors (all units) - L for Levels |
+| N | Read enemies (enemy positions) - N for eNemies |
 | R | Read resources (ember, pyre, cards) |
 | 1-9 | Select card by position in hand |
+
+Note: F and E are avoided because they conflict with the game's native shortcuts (F = Toggle Unit Details, E = End Turn).
 
 #### Floor Targeting Keys (when playing a card)
 | Key | Action |

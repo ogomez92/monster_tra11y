@@ -17,9 +17,12 @@ namespace MonsterTrainAccessibility.Help.Contexts
         public string GetHelpText()
         {
             return "Map screen. Navigate your path through each ring. " +
+                   "Each node announces its coordinate (Ring number and position: Left, Center, or Right), " +
+                   "node type and description, and available directions you can go. " +
+                   "If you hear 'Current position', that's where you are now. " +
                    "Up/Down arrows: Move between rings. " +
                    "Left/Right arrows: Choose between left path, center battle, or right path. " +
-                   "Enter: Select the current node. " +
+                   "Enter: Select and go to the focused node. " +
                    "C: Re-read current node details. " +
                    "T: Read all available choices for this ring. " +
                    "Node types: Battle (required fight), Merchant (buy/sell cards), " +

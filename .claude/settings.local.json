@@ -19,7 +19,9 @@
       "Bash(ls:*)",
       "Bash(xcopy:*)",
       "Bash(stat:*)",
-      "Bash(del \"T:\\\\code\\\\mods\\\\monstertrain\\\\MonsterTrainAccessibility\\\\Utilities\\\\GameStateReader.cs\")"
+      "Bash(del \"T:\\\\code\\\\mods\\\\monstertrain\\\\MonsterTrainAccessibility\\\\Utilities\\\\GameStateReader.cs\")",
+      "Bash(dotnet clean:*)",
+      "Bash(wc:*)"
     ]
   }
 }

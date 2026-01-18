@@ -14,14 +14,20 @@ namespace MonsterTrainAccessibility.Help.Contexts
             return ScreenStateTracker.CurrentScreen == GameScreen.Shop;
         }
 
+        public bool PassesAdditionalChecks()
+        {
+            return true;
+        }
+
         public string GetHelpText()
         {
-            return "Arrow keys: Browse shop items. " +
-                   "Enter: Purchase selected item. " +
-                   "C: Re-read current item and price. " +
-                   "T: Read all shop items. " +
-                   "R: Read current gold. " +
-                   "Escape: Leave shop.";
+            return @"Shop Controls:
+Arrow keys: Browse shop items
+Enter: Purchase selected item
+C: Re-read current item and price
+G: Read current gold
+T: Read all text on screen
+Escape: Leave shop";
         }
     }
 }

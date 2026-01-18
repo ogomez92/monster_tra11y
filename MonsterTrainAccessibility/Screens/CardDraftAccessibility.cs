@@ -52,6 +52,21 @@ namespace MonsterTrainAccessibility.Screens
             MonsterTrainAccessibility.ScreenReader?.AnnounceScreen("Duplicate a Card");
             MonsterTrainAccessibility.ScreenReader?.Queue("Select a card to add a copy to your deck.");
         }
+
+        /// <summary>
+        /// Called when an enhancer card selection screen is entered (after purchasing an upgrade stone)
+        /// </summary>
+        public void OnEnhancerCardSelectionEntered(string enhancerName, int cardCount)
+        {
+            MonsterTrainAccessibility.LogInfo($"Enhancer card selection: {enhancerName}, {cardCount} cards");
+
+            string announcement = !string.IsNullOrEmpty(enhancerName)
+                ? $"Apply {enhancerName}"
+                : "Select Card to Upgrade";
+
+            MonsterTrainAccessibility.ScreenReader?.AnnounceScreen(announcement);
+            MonsterTrainAccessibility.ScreenReader?.Queue($"Select a card to upgrade and press Enter. {cardCount} cards available.");
+        }
     }
 
     /// <summary>

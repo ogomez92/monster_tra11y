@@ -278,13 +278,14 @@ namespace MonsterTrainAccessibility.Patches
                     }
                     else
                     {
-                        MonsterTrainAccessibility.LogWarning("Could not find suitable AddStatusEffect overload to patch");
+                        // Expected in some game versions - not a critical patch
+                        MonsterTrainAccessibility.LogInfo("AddStatusEffect method not found - status announcements disabled");
                     }
                 }
             }
             catch (Exception ex)
             {
-                MonsterTrainAccessibility.LogWarning($"Skipping AddStatusEffect patch: {ex.Message}");
+                MonsterTrainAccessibility.LogInfo($"Skipping AddStatusEffect patch: {ex.Message}");
             }
         }
 
@@ -628,7 +629,8 @@ namespace MonsterTrainAccessibility.Patches
                     }
                     else
                     {
-                        MonsterTrainAccessibility.LogWarning("Could not find ascend method to patch");
+                        // Expected in some game versions - ascend is announced via other means
+                        MonsterTrainAccessibility.LogInfo("Ascend method not found - will use alternative detection");
                     }
                 }
             }

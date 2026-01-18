@@ -42,9 +42,10 @@ namespace MonsterTrainAccessibility.Core
             if (config == null)
                 return;
 
-            // Skip most input handling if floor targeting is active
-            // (FloorTargetingSystem handles its own input)
-            if (FloorTargetingSystem.Instance?.IsTargeting == true)
+            // Skip most input handling if floor or unit targeting is active
+            // (Targeting systems handle their own input)
+            if (FloorTargetingSystem.Instance?.IsTargeting == true ||
+                UnitTargetingSystem.Instance?.IsTargeting == true)
             {
                 // Only allow help key during targeting
                 if (Input.GetKeyDown(config.HelpKey.Value))
@@ -105,11 +106,37 @@ namespace MonsterTrainAccessibility.Core
             {
                 ReadResources();
             }
+            else if (Input.GetKeyDown(config.ReadGoldKey.Value))
+            {
+                ReadGold();
+                _inputCooldown = INPUT_COOLDOWN_TIME;
+            }
             else if (Input.GetKeyDown(config.ToggleVerbosityKey.Value))
             {
                 config.CycleVerbosity();
             }
+            else if (Input.GetKeyDown(config.EndTurnKey.Value))
+            {
+                EndTurn();
+                _inputCooldown = INPUT_COOLDOWN_TIME;
+            }
 
+        }
+
+        /// <summary>
+        /// End the player's turn
+        /// </summary>
+        private void EndTurn()
+        {
+            var battle = MonsterTrainAccessibility.BattleHandler;
+            if (battle != null && battle.IsInBattle)
+            {
+                battle.EndTurn();
+            }
+            else
+            {
+                MonsterTrainAccessibility.ScreenReader?.Queue("Not in battle");
+            }
         }
 
         /// <summary>
@@ -191,6 +218,95 @@ namespace MonsterTrainAccessibility.Core
                 // Could also read gold/other resources outside battle
                 MonsterTrainAccessibility.ScreenReader?.Queue("Not in battle");
             }
+        }
+
+        /// <summary>
+        /// Read current gold amount
+        /// </summary>
+        private void ReadGold()
+        {
+            int gold = GetCurrentGold();
+            if (gold >= 0)
+            {
+                MonsterTrainAccessibility.ScreenReader?.Speak($"{gold} gold", true);
+            }
+            else
+            {
+                MonsterTrainAccessibility.ScreenReader?.Queue("Gold not available");
+            }
+        }
+
+        /// <summary>
+        /// Get the player's current gold from SaveManager
+        /// </summary>
+        public static int GetCurrentGold()
+        {
+            try
+            {
+                // Find SaveManager instance
+                var saveManagerType = System.Type.GetType("SaveManager, Assembly-CSharp");
+                if (saveManagerType == null)
+                {
+                    // Try finding it in loaded assemblies
+                    foreach (var assembly in System.AppDomain.CurrentDomain.GetAssemblies())
+                    {
+                        saveManagerType = assembly.GetType("SaveManager");
+                        if (saveManagerType != null) break;
+                    }
+                }
+
+                if (saveManagerType != null)
+                {
+                    // Try to get instance
+                    var instanceProp = saveManagerType.GetProperty("Instance",
+                        System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+                    object saveManager = instanceProp?.GetValue(null);
+
+                    if (saveManager == null)
+                    {
+                        // Try FindObjectOfType
+                        var findMethod = typeof(UnityEngine.Object).GetMethod("FindObjectOfType",
+                            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static,
+                            null, new[] { typeof(System.Type) }, null);
+                        if (findMethod != null)
+                        {
+                            saveManager = findMethod.Invoke(null, new object[] { saveManagerType });
+                        }
+                    }
+
+                    if (saveManager != null)
+                    {
+                        // Try GetGold method
+                        var getGoldMethod = saveManagerType.GetMethod("GetGold", System.Type.EmptyTypes);
+                        if (getGoldMethod != null)
+                        {
+                            var result = getGoldMethod.Invoke(saveManager, null);
+                            if (result is int gold)
+                            {
+                                return gold;
+                            }
+                        }
+
+                        // Try gold field/property
+                        var goldProp = saveManagerType.GetProperty("Gold") ??
+                                      saveManagerType.GetProperty("CurrentGold");
+                        if (goldProp != null)
+                        {
+                            var result = goldProp.GetValue(saveManager);
+                            if (result is int gold)
+                            {
+                                return gold;
+                            }
+                        }
+                    }
+                }
+            }
+            catch (System.Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting gold: {ex.Message}");
+            }
+
+            return -1;
         }
 
         /// <summary>

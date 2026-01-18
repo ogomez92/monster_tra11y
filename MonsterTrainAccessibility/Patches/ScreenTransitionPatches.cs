@@ -1,4 +1,5 @@
 using HarmonyLib;
+using MonsterTrainAccessibility.Core;
 using MonsterTrainAccessibility.Help;
 using System;
 
@@ -77,7 +78,7 @@ namespace MonsterTrainAccessibility.Patches
                     }
                     else
                     {
-                        MonsterTrainAccessibility.LogWarning("Could not find method to patch on BattleIntroScreen");
+                        MonsterTrainAccessibility.LogInfo("BattleIntroScreen methods not found - will use alternative detection");
                     }
                 }
             }
@@ -272,6 +273,222 @@ namespace MonsterTrainAccessibility.Patches
             catch (Exception ex)
             {
                 MonsterTrainAccessibility.LogError($"Error in MapScreen patch: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Patch for merchant/shop screen
+    /// </summary>
+    public static class MerchantScreenPatch
+    {
+        public static void TryPatch(Harmony harmony)
+        {
+            try
+            {
+                var targetType = AccessTools.TypeByName("MerchantScreen");
+                if (targetType != null)
+                {
+                    var method = AccessTools.Method(targetType, "Initialize") ??
+                                 AccessTools.Method(targetType, "Setup") ??
+                                 AccessTools.Method(targetType, "Open") ??
+                                 AccessTools.Method(targetType, "Show");
+
+                    if (method != null)
+                    {
+                        var postfix = new HarmonyMethod(typeof(MerchantScreenPatch).GetMethod(nameof(Postfix)));
+                        harmony.Patch(method, postfix: postfix);
+                        MonsterTrainAccessibility.LogInfo($"Patched MerchantScreen.{method.Name}");
+                    }
+                    else
+                    {
+                        MonsterTrainAccessibility.LogInfo("MerchantScreen methods not found");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Failed to patch MerchantScreen: {ex.Message}");
+            }
+        }
+
+        public static void Postfix()
+        {
+            try
+            {
+                ScreenStateTracker.SetScreen(Help.GameScreen.Shop);
+
+                // Announce gold when entering shop
+                int gold = InputInterceptor.GetCurrentGold();
+                string goldText = gold >= 0 ? $"You have {gold} gold." : "";
+
+                MonsterTrainAccessibility.ScreenReader?.AnnounceScreen($"Shop. {goldText}");
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in MerchantScreen patch: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Patch for enhancer/upgrade card selection screen
+    /// </summary>
+    public static class EnhancerSelectionScreenPatch
+    {
+        private static string _lastEnhancerName = null;
+
+        public static void TryPatch(Harmony harmony)
+        {
+            try
+            {
+                // Try different possible class names for the upgrade card selection screen
+                var targetNames = new[] {
+                    "UpgradeSelectionScreen",
+                    "EnhancerSelectionScreen",
+                    "CardUpgradeSelectionScreen",
+                    "UpgradeScreen",
+                    "EnhancerScreen"
+                };
+
+                foreach (var name in targetNames)
+                {
+                    var targetType = AccessTools.TypeByName(name);
+                    if (targetType != null)
+                    {
+                        var method = AccessTools.Method(targetType, "Initialize") ??
+                                     AccessTools.Method(targetType, "Setup") ??
+                                     AccessTools.Method(targetType, "Show") ??
+                                     AccessTools.Method(targetType, "Open");
+
+                        if (method != null)
+                        {
+                            var postfix = new HarmonyMethod(typeof(EnhancerSelectionScreenPatch).GetMethod(nameof(Postfix)));
+                            harmony.Patch(method, postfix: postfix);
+                            MonsterTrainAccessibility.LogInfo($"Patched {name}.{method.Name}");
+                            return;
+                        }
+                    }
+                }
+
+                MonsterTrainAccessibility.LogInfo("EnhancerSelectionScreen not found - will use alternative detection");
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Failed to patch EnhancerSelectionScreen: {ex.Message}");
+            }
+        }
+
+        public static void SetEnhancerName(string name)
+        {
+            _lastEnhancerName = name;
+        }
+
+        public static void Postfix(object __instance)
+        {
+            try
+            {
+                // Try to get the card count from the screen
+                int cardCount = 0;
+                var instanceType = __instance.GetType();
+
+                // Look for cards list or count
+                var getCardsMethod = instanceType.GetMethod("GetCards", System.Type.EmptyTypes) ??
+                                     instanceType.GetMethod("GetCardList", System.Type.EmptyTypes);
+                if (getCardsMethod != null)
+                {
+                    var cards = getCardsMethod.Invoke(__instance, null) as System.Collections.IList;
+                    if (cards != null)
+                        cardCount = cards.Count;
+                }
+
+                // Also try cards field
+                if (cardCount == 0)
+                {
+                    var fields = instanceType.GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                    foreach (var field in fields)
+                    {
+                        if (field.Name.ToLower().Contains("card"))
+                        {
+                            var value = field.GetValue(__instance);
+                            if (value is System.Collections.IList list)
+                            {
+                                cardCount = list.Count;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                MonsterTrainAccessibility.DraftHandler?.OnEnhancerCardSelectionEntered(_lastEnhancerName, cardCount);
+                _lastEnhancerName = null;
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in EnhancerSelectionScreen patch: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Detect game over / run summary screen (victory or defeat)
+    /// </summary>
+    public static class GameOverScreenPatch
+    {
+        public static void TryPatch(Harmony harmony)
+        {
+            try
+            {
+                // Try different possible class names for the game over screen
+                var targetNames = new[] {
+                    "GameOverScreen",
+                    "RunSummaryScreen",
+                    "VictoryScreen",
+                    "DefeatScreen",
+                    "RunEndScreen",
+                    "EndRunScreen"
+                };
+
+                foreach (var name in targetNames)
+                {
+                    var targetType = AccessTools.TypeByName(name);
+                    if (targetType != null)
+                    {
+                        var method = AccessTools.Method(targetType, "Initialize") ??
+                                     AccessTools.Method(targetType, "Setup") ??
+                                     AccessTools.Method(targetType, "Show") ??
+                                     AccessTools.Method(targetType, "Open");
+
+                        if (method != null)
+                        {
+                            var postfix = new HarmonyMethod(typeof(GameOverScreenPatch).GetMethod(nameof(Postfix)));
+                            harmony.Patch(method, postfix: postfix);
+                            MonsterTrainAccessibility.LogInfo($"Patched {name}.{method.Name}");
+                            return;
+                        }
+                    }
+                }
+
+                MonsterTrainAccessibility.LogInfo("GameOverScreen not found - will use alternative detection");
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Failed to patch GameOverScreen: {ex.Message}");
+            }
+        }
+
+        public static void Postfix(object __instance)
+        {
+            try
+            {
+                MonsterTrainAccessibility.LogInfo("Game over screen entered");
+
+                // Read all stats from the screen
+                MonsterTrainAccessibility.MenuHandler?.OnGameOverScreenEntered(__instance);
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in GameOverScreen patch: {ex.Message}");
             }
         }
     }

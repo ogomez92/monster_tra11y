@@ -29,8 +29,12 @@ namespace MonsterTrainAccessibility.Core
         public ConfigEntry<KeyCode> ReadFloorsKey { get; private set; }
         public ConfigEntry<KeyCode> ReadEnemiesKey { get; private set; }
         public ConfigEntry<KeyCode> ReadResourcesKey { get; private set; }
+        public ConfigEntry<KeyCode> ReadGoldKey { get; private set; }
         public ConfigEntry<KeyCode> ToggleVerbosityKey { get; private set; }
         public ConfigEntry<KeyCode> HelpKey { get; private set; }
+
+        // Action keys
+        public ConfigEntry<KeyCode> EndTurnKey { get; private set; }
 
         // Announcement preferences
         public ConfigEntry<bool> AnnounceCardDraws { get; private set; }
@@ -142,15 +146,15 @@ namespace MonsterTrainAccessibility.Core
             ReadFloorsKey = config.Bind(
                 "Keys.Information",
                 "ReadFloors",
-                KeyCode.F,
-                "Key to read all floor information"
+                KeyCode.L,
+                "Key to read all floor information (L for Levels). Note: F conflicts with game's Toggle Unit Details"
             );
 
             ReadEnemiesKey = config.Bind(
                 "Keys.Information",
                 "ReadEnemies",
-                KeyCode.E,
-                "Key to read enemy information and intents"
+                KeyCode.N,
+                "Key to read enemy information and intents (N for eNemies). Note: E conflicts with game's End Turn"
             );
 
             ReadResourcesKey = config.Bind(
@@ -158,6 +162,13 @@ namespace MonsterTrainAccessibility.Core
                 "ReadResources",
                 KeyCode.R,
                 "Key to read ember, gold, and pyre health"
+            );
+
+            ReadGoldKey = config.Bind(
+                "Keys.Information",
+                "ReadGold",
+                KeyCode.G,
+                "Key to read current gold amount"
             );
 
             ToggleVerbosityKey = config.Bind(
@@ -172,6 +183,14 @@ namespace MonsterTrainAccessibility.Core
                 "Help",
                 KeyCode.F1,
                 "Key to show context-sensitive help for current screen"
+            );
+
+            // ========== Action Keys ==========
+            EndTurnKey = config.Bind(
+                "Keys.Actions",
+                "EndTurn",
+                KeyCode.E,
+                "Key to end your turn during battle"
             );
 
             // ========== Announcement Preferences ==========

@@ -102,10 +102,12 @@ The mod automatically reads text when:
 | Key | Action |
 |-----|--------|
 | H | Read all cards in hand |
-| F | Read all floor information |
-| E | Read enemy information and intents |
+| L | Read all floor information (L for Levels) |
+| N | Read enemy information and intents (N for eNemies) |
 | R | Read resources (ember, pyre health) |
 | 1-9 | Select card by position in hand (1 = first card, etc.) |
+
+**Note**: F and E are avoided because they conflict with the game's native shortcuts (F = Toggle Unit Details, E = End Turn).
 
 ### Floor Targeting (when playing a card that requires floor selection)
 | Key | Action |
@@ -177,8 +179,8 @@ You can edit this file to customize:
 The battle screen uses the game's native navigation. Use hotkeys for information:
 
 - Press **H** to hear all cards in your hand
-- Press **F** to hear floor status and units
-- Press **E** to hear enemy information
+- Press **L** to hear floor status and units (L for Levels)
+- Press **N** to hear enemy information (N for eNemies)
 - Press **R** to hear ember and pyre health
 - Press **F1** for context-sensitive help listing all available keys
 
@@ -198,10 +200,10 @@ The battle screen uses the game's native navigation. Use hotkeys for information
 1. **Press F1 for Help**: On any screen, press F1 to hear all available keyboard shortcuts for that context
 2. **Start Simple**: Begin with the tutorial to learn the game flow
 3. **Read Text**: Press T to read patch notes, event descriptions, or any screen text
-4. **Use Battle Hotkeys**: H, F, E, R provide quick status updates during battle
+4. **Use Battle Hotkeys**: H, L, N, R provide quick status updates during battle
 5. **Quick Card Selection**: Press 1-9 to instantly select cards by position instead of navigating
 6. **Check Ember**: Press R regularly to know your available resources
-7. **Enemy Intents**: Press E to hear what enemies plan to do next turn
+7. **Enemy Intents**: Press N to hear what enemies plan to do next turn
 8. **Re-read Items**: Press C to re-read the currently focused menu item
 
 ## Troubleshooting

@@ -35,6 +35,7 @@ namespace MonsterTrainAccessibility
         // Help and targeting systems
         public static HelpSystem HelpSystem { get; private set; }
         public static FloorTargetingSystem FloorTargeting { get; private set; }
+        public static UnitTargetingSystem UnitTargeting { get; private set; }
 
         // Screen-specific handlers
         public static MenuAccessibility MenuHandler { get; private set; }
@@ -97,6 +98,9 @@ namespace MonsterTrainAccessibility
             CardDraftScreenPatch.TryPatch(_harmony);
             ClassSelectionScreenPatch.TryPatch(_harmony);
             MapScreenPatch.TryPatch(_harmony);
+            MerchantScreenPatch.TryPatch(_harmony);
+            EnhancerSelectionScreenPatch.TryPatch(_harmony);
+            GameOverScreenPatch.TryPatch(_harmony);
             ScreenManagerPatch.TryPatch(_harmony);
 
             // Combat event patches
@@ -127,6 +131,7 @@ namespace MonsterTrainAccessibility
             InputHandler = handlerGO.AddComponent<InputInterceptor>();
             MenuHandler = handlerGO.AddComponent<MenuAccessibility>();
             FloorTargeting = handlerGO.AddComponent<FloorTargetingSystem>();
+            UnitTargeting = handlerGO.AddComponent<UnitTargetingSystem>();
         }
 
         /// <summary>
@@ -145,7 +150,8 @@ namespace MonsterTrainAccessibility
                 new BattleIntroHelp(),      // Priority 85 - pre-battle screen
                 new BattleHelp(),           // Priority 90
                 new TutorialHelp(),         // Priority 95 - tutorial popups
-                new BattleTargetingHelp()   // Priority 100 - highest
+                new BattleTargetingHelp(),  // Priority 100 - floor targeting
+                new UnitTargetingHelp()     // Priority 101 - unit targeting (highest)
             );
             Log.LogInfo("Registered help contexts");
         }

@@ -28,6 +28,13 @@ namespace MonsterTrainAccessibility.Screens
         private float _textCheckInterval = 0.5f;
         private float _textCheckTimer = 0f;
 
+        // Upgrade selection screen tracking
+        private bool _upgradeScreenHelperAnnounced = false;
+        private string _lastUpgradeScreenCheck = null;
+
+        // Dialog tracking - to avoid re-announcing dialog text when navigating between buttons
+        private string _lastAnnouncedDialogText = null;
+
         // Blacklist of panel names that should be ignored when scanning for text
         private static readonly HashSet<string> _panelBlacklist = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -102,6 +109,9 @@ namespace MonsterTrainAccessibility.Screens
                 // First, check for tutorial panels specifically (highest priority)
                 CheckForTutorialText();
 
+                // Check for upgrade selection screen
+                CheckForUpgradeSelectionScreen();
+
                 // Get a hash of current visible text to detect changes
                 var sb = new StringBuilder();
                 var rootObjects = UnityEngine.SceneManagement.SceneManager.GetActiveScene().GetRootGameObjects();
@@ -175,6 +185,161 @@ namespace MonsterTrainAccessibility.Screens
         }
 
         /// <summary>
+        /// Check for upgrade selection screen (when player needs to select a card to upgrade)
+        /// </summary>
+        private void CheckForUpgradeSelectionScreen()
+        {
+            try
+            {
+                // Look for upgrade selection screen indicators
+                var rootObjects = UnityEngine.SceneManagement.SceneManager.GetActiveScene().GetRootGameObjects();
+
+                foreach (var root in rootObjects)
+                {
+                    if (!root.activeInHierarchy) continue;
+
+                    // Look for screens that indicate card upgrade selection
+                    string screenId = FindUpgradeSelectionScreen(root.transform);
+                    if (!string.IsNullOrEmpty(screenId))
+                    {
+                        // Check if this is a new screen (not the same we already announced)
+                        if (screenId != _lastUpgradeScreenCheck)
+                        {
+                            _lastUpgradeScreenCheck = screenId;
+                            _upgradeScreenHelperAnnounced = false;
+                        }
+
+                        // Announce helper if not already done
+                        if (!_upgradeScreenHelperAnnounced)
+                        {
+                            _upgradeScreenHelperAnnounced = true;
+                            MonsterTrainAccessibility.ScreenReader?.AnnounceScreen("Select Card to Upgrade");
+                            MonsterTrainAccessibility.ScreenReader?.Queue("Use arrow keys to browse cards and press Enter to apply the upgrade.");
+                            MonsterTrainAccessibility.LogInfo("Upgrade selection screen detected");
+                        }
+                        return;
+                    }
+                }
+
+                // If no upgrade screen found, reset the tracking
+                if (_lastUpgradeScreenCheck != null)
+                {
+                    _lastUpgradeScreenCheck = null;
+                    _upgradeScreenHelperAnnounced = false;
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error checking upgrade selection screen: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Find upgrade selection screen by looking for characteristic UI elements
+        /// </summary>
+        private string FindUpgradeSelectionScreen(Transform root)
+        {
+            // Look for GameObjects with names indicating upgrade selection
+            var upgradeIndicators = new[] {
+                "UpgradeSelectionScreen", "EnhancerSelectionScreen", "CardUpgradeScreen",
+                "UpgradeScreen", "CardSelection", "SelectCardScreen",
+                "UpgradeCardSelection", "EnhancerCardList", "CardListScreen",
+                "UpgradeCards", "CardPicker", "CardChoiceScreen"
+            };
+
+            foreach (var indicator in upgradeIndicators)
+            {
+                var found = FindChildRecursive(root, indicator);
+                if (found != null && found.gameObject.activeInHierarchy)
+                {
+                    MonsterTrainAccessibility.LogInfo($"Found upgrade indicator: {indicator}");
+                    return indicator + "_" + found.GetInstanceID();
+                }
+            }
+
+            // Check all components to find CardUI elements and upgrade-related text
+            var allComponents = root.GetComponentsInChildren<Component>(false);
+
+            // Count active CardUI elements
+            var cardUIs = allComponents
+                .Where(c => c.GetType().Name == "CardUI" && c.gameObject.activeInHierarchy)
+                .ToList();
+
+            // If we have multiple cards visible and we're not in battle, this might be upgrade selection
+            if (cardUIs.Count >= 3)
+            {
+                // Check we're not in battle (don't have floor/room elements active)
+                bool inBattle = allComponents.Any(c =>
+                    (c.GetType().Name.Contains("RoomState") || c.GetType().Name.Contains("CombatManager"))
+                    && c.gameObject.activeInHierarchy);
+
+                if (!inBattle)
+                {
+                    // Look for any upgrade-related text
+                    foreach (var comp in allComponents)
+                    {
+                        if (!comp.gameObject.activeInHierarchy) continue;
+
+                        string typeName = comp.GetType().Name;
+                        if (typeName.Contains("Text"))
+                        {
+                            string content = null;
+                            var textProp = comp.GetType().GetProperty("text");
+                            if (textProp != null)
+                            {
+                                content = textProp.GetValue(comp) as string;
+                            }
+
+                            if (!string.IsNullOrEmpty(content))
+                            {
+                                string lowerContent = content.ToLower();
+                                // Look for upgrade-related keywords
+                                if (lowerContent.Contains("upgrade") ||
+                                    lowerContent.Contains("choose") ||
+                                    lowerContent.Contains("select") ||
+                                    lowerContent.Contains("apply") ||
+                                    lowerContent.Contains("spell") && lowerContent.Contains("unit"))
+                                {
+                                    MonsterTrainAccessibility.LogInfo($"Found upgrade text: {content.Substring(0, Math.Min(50, content.Length))}");
+                                    return "UpgradeScreen_Cards_" + cardUIs.Count;
+                                }
+                            }
+                        }
+                    }
+
+                    // Even without specific text, multiple cards outside battle suggests upgrade selection
+                    // Check if we're in shop context (GameScreen.Shop or just left shop)
+                    if (Help.ScreenStateTracker.CurrentScreen == Help.GameScreen.Shop ||
+                        Help.ScreenStateTracker.CurrentScreen == Help.GameScreen.Map)
+                    {
+                        MonsterTrainAccessibility.LogInfo($"Multiple cards ({cardUIs.Count}) detected outside battle - likely upgrade screen");
+                        return "UpgradeScreen_MultiCard_" + cardUIs.Count;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Find a child transform by name (case-insensitive, partial match)
+        /// </summary>
+        private Transform FindChildRecursive(Transform parent, string nameContains)
+        {
+            string lowerName = nameContains.ToLower();
+            foreach (Transform child in parent)
+            {
+                if (child.name.ToLower().Contains(lowerName))
+                    return child;
+
+                var found = FindChildRecursive(child, nameContains);
+                if (found != null)
+                    return found;
+            }
+            return null;
+        }
+
+        /// <summary>
         /// Check if a GameObject is actually visible (not hidden by CanvasGroup or blacklisted)
         /// </summary>
         private bool IsActuallyVisible(GameObject go)
@@ -196,6 +361,10 @@ namespace MonsterTrainAccessibility.Screens
 
                 // Check for Canvas that's disabled via reflection
                 if (IsCanvasDisabled(current.gameObject))
+                    return false;
+
+                // Check for Dialog component that's not showing
+                if (IsHiddenDialog(current.gameObject))
                     return false;
 
                 current = current.parent;
@@ -259,6 +428,278 @@ namespace MonsterTrainAccessibility.Screens
         }
 
         /// <summary>
+        /// Check if a GameObject has a Dialog component that's not currently showing
+        /// </summary>
+        private bool IsHiddenDialog(GameObject go)
+        {
+            try
+            {
+                foreach (var component in go.GetComponents<Component>())
+                {
+                    if (component == null) continue;
+                    var type = component.GetType();
+                    if (type.Name == "Dialog")
+                    {
+                        // Log all fields and properties to discover the visibility indicator
+                        var sb = new StringBuilder();
+                        sb.AppendLine($"=== Dialog component fields/properties on {go.name} ===");
+
+                        foreach (var field in type.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
+                        {
+                            try
+                            {
+                                var value = field.GetValue(component);
+                                sb.AppendLine($"  Field: {field.Name} ({field.FieldType.Name}) = {value}");
+                            }
+                            catch { }
+                        }
+
+                        foreach (var prop in type.GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
+                        {
+                            try
+                            {
+                                if (prop.CanRead && prop.GetIndexParameters().Length == 0)
+                                {
+                                    var value = prop.GetValue(component);
+                                    sb.AppendLine($"  Property: {prop.Name} ({prop.PropertyType.Name}) = {value}");
+                                }
+                            }
+                            catch { }
+                        }
+
+                        MonsterTrainAccessibility.LogInfo(sb.ToString());
+
+                        // Try common visibility properties/methods on Dialog
+                        // Check for IsShowing property
+                        var isShowingProp = type.GetProperty("IsShowing", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                        if (isShowingProp != null)
+                        {
+                            bool isShowing = (bool)isShowingProp.GetValue(component);
+                            if (!isShowing)
+                                return true;
+                        }
+
+                        // Check for isShowing field
+                        var isShowingField = type.GetField("isShowing", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                        if (isShowingField != null)
+                        {
+                            bool isShowing = (bool)isShowingField.GetValue(component);
+                            if (!isShowing)
+                                return true;
+                        }
+
+                        // Check for showing field
+                        var showingField = type.GetField("showing", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                        if (showingField != null)
+                        {
+                            bool showing = (bool)showingField.GetValue(component);
+                            if (!showing)
+                                return true;
+                        }
+
+                        // Check for isOpen property
+                        var isOpenProp = type.GetProperty("isOpen", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                        if (isOpenProp != null)
+                        {
+                            bool isOpen = (bool)isOpenProp.GetValue(component);
+                            if (!isOpen)
+                                return true;
+                        }
+
+                        // Check if the overlay Image has alpha = 0 (dialog hidden)
+                        var overlayField = type.GetField("overlay", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                        if (overlayField != null)
+                        {
+                            var overlay = overlayField.GetValue(component);
+                            if (overlay != null)
+                            {
+                                var overlayType = overlay.GetType();
+                                var colorProp = overlayType.GetProperty("color", BindingFlags.Public | BindingFlags.Instance);
+                                if (colorProp != null)
+                                {
+                                    var color = colorProp.GetValue(overlay);
+                                    if (color != null)
+                                    {
+                                        var aField = color.GetType().GetField("a", BindingFlags.Public | BindingFlags.Instance);
+                                        if (aField != null)
+                                        {
+                                            float alpha = (float)aField.GetValue(color);
+                                            MonsterTrainAccessibility.LogInfo($"Dialog overlay alpha: {alpha}");
+                                            if (alpha <= 0.01f)
+                                                return true;
+                                        }
+                                    }
+                                }
+
+                                // Also check if the overlay GameObject is inactive
+                                var overlayGoProp = overlayType.GetProperty("gameObject", BindingFlags.Public | BindingFlags.Instance);
+                                if (overlayGoProp != null)
+                                {
+                                    var overlayGo = overlayGoProp.GetValue(overlay) as GameObject;
+                                    if (overlayGo != null && !overlayGo.activeInHierarchy)
+                                    {
+                                        MonsterTrainAccessibility.LogInfo("Dialog overlay is inactive");
+                                        return true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+            return false;
+        }
+
+        /// <summary>
+        /// Get text for buttons inside Dialog popups (Yes/No confirmation dialogs).
+        /// Returns the dialog content text along with the button label.
+        /// </summary>
+        private string GetDialogButtonText(GameObject go)
+        {
+            try
+            {
+                // Check if this looks like a dialog button
+                string goName = go.name.ToLower();
+                bool isDialogButton = goName.Contains("button") &&
+                    (goName.Contains("yes") || goName.Contains("no") || goName.Contains("ok") ||
+                     goName.Contains("cancel") || goName.Contains("confirm"));
+
+                // Also check if any parent is a Dialog
+                if (!isDialogButton)
+                {
+                    // Walk up and see if we're inside a Dialog
+                    Transform current = go.transform.parent;
+                    int depth = 0;
+                    while (current != null && depth < 6)
+                    {
+                        foreach (var comp in current.GetComponents<Component>())
+                        {
+                            if (comp != null && comp.GetType().Name == "Dialog")
+                            {
+                                isDialogButton = true;
+                                break;
+                            }
+                        }
+                        if (isDialogButton) break;
+                        current = current.parent;
+                        depth++;
+                    }
+                }
+
+                if (!isDialogButton)
+                    return null;
+
+                // Find the Dialog component in parent hierarchy
+                Transform parent = go.transform.parent;
+                Component dialogComponent = null;
+                int searchDepth = 0;
+
+                while (parent != null && dialogComponent == null && searchDepth < 8)
+                {
+                    foreach (var comp in parent.GetComponents<Component>())
+                    {
+                        if (comp != null && comp.GetType().Name == "Dialog")
+                        {
+                            dialogComponent = comp;
+                            break;
+                        }
+                    }
+                    parent = parent.parent;
+                    searchDepth++;
+                }
+
+                if (dialogComponent == null)
+                    return null;
+
+                // Get the contentLabel field from the Dialog component
+                var dialogType = dialogComponent.GetType();
+                var contentLabelField = dialogType.GetField("contentLabel", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+
+                if (contentLabelField == null)
+                {
+                    MonsterTrainAccessibility.LogInfo("Dialog contentLabel field not found");
+                    return null;
+                }
+
+                var contentLabel = contentLabelField.GetValue(dialogComponent);
+                if (contentLabel == null)
+                {
+                    MonsterTrainAccessibility.LogInfo("Dialog contentLabel is null");
+                    return null;
+                }
+
+                // contentLabel is a TMP_Text, get its text
+                string dialogText = null;
+                var textProp = contentLabel.GetType().GetProperty("text", BindingFlags.Public | BindingFlags.Instance);
+                if (textProp != null)
+                {
+                    dialogText = textProp.GetValue(contentLabel) as string;
+                }
+
+                if (string.IsNullOrEmpty(dialogText))
+                {
+                    MonsterTrainAccessibility.LogInfo("Dialog contentLabel text is empty");
+                    return null;
+                }
+
+                // Strip rich text tags
+                dialogText = BattleAccessibility.StripRichTextTags(dialogText.Trim());
+
+                // Get the button label
+                string buttonLabel = GetDirectText(go);
+                if (string.IsNullOrEmpty(buttonLabel))
+                {
+                    // Try getting from name
+                    buttonLabel = CleanGameObjectName(go.name);
+                }
+
+                // Check if this is the same dialog we already announced
+                // If so, only read the button label, not the full dialog text
+                if (_lastAnnouncedDialogText == dialogText)
+                {
+                    MonsterTrainAccessibility.LogInfo($"Dialog button (same dialog): '{buttonLabel}'");
+                    return buttonLabel;
+                }
+
+                // New dialog - announce full text and remember it
+                _lastAnnouncedDialogText = dialogText;
+                MonsterTrainAccessibility.LogInfo($"Dialog button detected (new): '{dialogText}' - Button: '{buttonLabel}'");
+
+                return $"Dialog: {dialogText}. {buttonLabel}";
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting dialog button text: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Check if the given GameObject is inside a Dialog context (has a Dialog component in parent hierarchy).
+        /// </summary>
+        private bool IsInDialogContext(GameObject go)
+        {
+            if (go == null) return false;
+
+            Transform current = go.transform;
+            int depth = 0;
+            while (current != null && depth < 8)
+            {
+                foreach (var comp in current.GetComponents<Component>())
+                {
+                    if (comp != null && comp.GetType().Name == "Dialog")
+                    {
+                        return true;
+                    }
+                }
+                current = current.parent;
+                depth++;
+            }
+            return false;
+        }
+
+        /// <summary>
         /// Find large text content in dialogs/popups
         /// </summary>
         private void FindLargeTextContent(Transform transform, StringBuilder sb)
@@ -314,8 +755,30 @@ namespace MonsterTrainAccessibility.Screens
                 // Reset scroll content tracking when selection changes
                 _lastScrollContent = null;
 
-                if (currentSelected != null)
+                if (currentSelected != null && IsActuallyVisible(currentSelected))
                 {
+                    // Check if this is floor targeting mode (Tower Selectable = floor selection for playing cards)
+                    if (currentSelected.name.Contains("Tower") && currentSelected.name.Contains("Selectable"))
+                    {
+                        // Activate floor targeting system
+                        ActivateFloorTargeting();
+                        return;
+                    }
+
+                    // Check if this is unit targeting mode (targeting a specific character)
+                    if (IsUnitTargetingElement(currentSelected))
+                    {
+                        ActivateUnitTargeting();
+                        return;
+                    }
+
+                    // Check if we're still in a dialog context - if not, clear the tracking
+                    // so the dialog text will be announced again if the same dialog appears
+                    if (!IsInDialogContext(currentSelected))
+                    {
+                        _lastAnnouncedDialogText = null;
+                    }
+
                     string text = GetTextFromGameObject(currentSelected);
                     if (!string.IsNullOrEmpty(text))
                     {
@@ -328,6 +791,71 @@ namespace MonsterTrainAccessibility.Screens
                         _lastScrollContent = GetScrollViewContentText(currentSelected);
                     }
                 }
+            }
+        }
+
+        /// <summary>
+        /// Check if the current element indicates unit targeting mode
+        /// </summary>
+        private bool IsUnitTargetingElement(GameObject go)
+        {
+            string name = go.name.ToLower();
+
+            // Common patterns for unit targeting UI elements
+            if (name.Contains("character") && name.Contains("select"))
+                return true;
+            if (name.Contains("target") && (name.Contains("select") || name.Contains("overlay")))
+                return true;
+            if (name.Contains("unit") && name.Contains("select"))
+                return true;
+
+            // Check for CharacterUI or similar components that might indicate targeting
+            var components = go.GetComponents<Component>();
+            foreach (var comp in components)
+            {
+                string compName = comp.GetType().Name.ToLower();
+                if (compName.Contains("charactertarget") || compName.Contains("targetselect"))
+                    return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Activate floor targeting mode when the game enters floor selection
+        /// </summary>
+        private void ActivateFloorTargeting()
+        {
+            var targeting = MonsterTrainAccessibility.FloorTargeting;
+            if (targeting != null && !targeting.IsTargeting)
+            {
+                MonsterTrainAccessibility.LogInfo("Detected floor selection mode, activating FloorTargetingSystem");
+                // Start targeting without callbacks - we'll let the game handle actual card playing
+                // Our system just provides audio feedback for floor navigation
+                targeting.StartTargeting(null, (floor) => {
+                    // User confirmed floor - do nothing, game handles it
+                    MonsterTrainAccessibility.LogInfo($"Floor {floor} confirmed by user");
+                }, () => {
+                    // User cancelled - do nothing, game handles it
+                    MonsterTrainAccessibility.LogInfo("Floor targeting cancelled by user");
+                });
+            }
+        }
+
+        /// <summary>
+        /// Activate unit targeting mode when the game enters unit selection
+        /// </summary>
+        private void ActivateUnitTargeting()
+        {
+            var targeting = MonsterTrainAccessibility.UnitTargeting;
+            if (targeting != null && !targeting.IsTargeting)
+            {
+                MonsterTrainAccessibility.LogInfo("Detected unit selection mode, activating UnitTargetingSystem");
+                targeting.StartTargeting(null, (index) => {
+                    MonsterTrainAccessibility.LogInfo($"Unit {index} confirmed by user");
+                }, () => {
+                    MonsterTrainAccessibility.LogInfo("Unit targeting cancelled by user");
+                });
             }
         }
 
@@ -355,6 +883,27 @@ namespace MonsterTrainAccessibility.Screens
                     }
                     return text;
                 }
+            }
+
+            // Check for dialog buttons (Yes/No buttons inside Dialog popups)
+            text = GetDialogButtonText(go);
+            if (!string.IsNullOrEmpty(text))
+            {
+                return text;
+            }
+
+            // Check for cards in hand (CardUI component) - full card details
+            text = GetCardUIText(go);
+            if (!string.IsNullOrEmpty(text))
+            {
+                return text;
+            }
+
+            // Check for shop items (MerchantGoodDetailsUI, MerchantServiceUI)
+            text = GetShopItemText(go);
+            if (!string.IsNullOrEmpty(text))
+            {
+                return text;
             }
 
             // 1. Check for Fight button on BattleIntro screen - get battle name
@@ -385,17 +934,1265 @@ namespace MonsterTrainAccessibility.Screens
                 return text;
             }
 
-            // 4. Try to get text with context (handles short button labels)
+            // 4. Check for map branch choice elements
+            text = GetBranchChoiceText(go);
+            if (!string.IsNullOrEmpty(text))
+            {
+                return text;
+            }
+
+            // 5. Try to get text with context (handles short button labels)
             text = GetTextWithContext(go);
             if (!string.IsNullOrEmpty(text))
             {
                 return text;
             }
 
-            // 5. Try the GameObject name as fallback (but make it more readable)
+            // 6. Try the GameObject name as fallback (but make it more readable)
             text = CleanGameObjectName(go.name);
 
             return text?.Trim();
+        }
+
+        /// <summary>
+        /// Get text for map branch choice elements (when choosing between paths)
+        /// </summary>
+        private string GetBranchChoiceText(GameObject go)
+        {
+            try
+            {
+                // Check if this is a branch choice element or map navigation arrow
+                string goName = go.name.ToLower();
+                bool isBranchChoice = goName.Contains("branch") || goName.Contains("choice");
+                bool isMapArrow = goName.Contains("arrow") || goName.Contains("navigation") ||
+                                  goName.Contains("left") || goName.Contains("right");
+
+                // Also check parent names
+                if (!isBranchChoice && !isMapArrow && go.transform.parent != null)
+                {
+                    string parentName = go.transform.parent.name.ToLower();
+                    isBranchChoice = parentName.Contains("branch") || parentName.Contains("choice");
+                    isMapArrow = parentName.Contains("arrow") || parentName.Contains("navigation");
+                }
+
+                if (!isBranchChoice && !isMapArrow)
+                    return null;
+
+                MonsterTrainAccessibility.LogInfo($"Found map choice element: {go.name}");
+
+                // First, try to find the currently visible tooltip on screen
+                string visibleTooltip = GetVisibleMapTooltip();
+                if (!string.IsNullOrEmpty(visibleTooltip))
+                {
+                    // Determine direction if it's an arrow
+                    string direction = "";
+                    if (goName.Contains("left"))
+                        direction = "Left path: ";
+                    else if (goName.Contains("right"))
+                        direction = "Right path: ";
+
+                    return direction + visibleTooltip;
+                }
+
+                // Try to get destination node info from the button component
+                string destInfo = GetMapArrowDestination(go);
+                if (!string.IsNullOrEmpty(destInfo))
+                {
+                    return destInfo;
+                }
+
+                // Look for node type indicators in children (icons, labels)
+                var nodeType = GetBranchNodeType(go);
+
+                // Look for enemy names or battle info in tooltip or children
+                string enemyInfo = GetBranchEnemyInfo(go);
+
+                if (!string.IsNullOrEmpty(nodeType))
+                {
+                    if (!string.IsNullOrEmpty(enemyInfo))
+                    {
+                        return $"{nodeType}: {enemyInfo}";
+                    }
+                    return nodeType;
+                }
+
+                // Fallback: try to find any meaningful text in children
+                string childText = GetFirstMeaningfulChildText(go);
+                if (!string.IsNullOrEmpty(childText))
+                {
+                    return $"Path: {childText}";
+                }
+
+                return "Map path option";
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting branch choice text: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Find and read the currently visible tooltip on the map screen
+        /// </summary>
+        private string GetVisibleMapTooltip()
+        {
+            try
+            {
+                // Find all active tooltip displays in the scene
+                var allObjects = UnityEngine.Object.FindObjectsOfType<GameObject>();
+                foreach (var obj in allObjects)
+                {
+                    if (!obj.activeInHierarchy) continue;
+
+                    string name = obj.name.ToLower();
+                    // Look for tooltip display objects
+                    if (name.Contains("tooltip") && (name.Contains("display") || name.Contains("panel") || name.Contains("popup")))
+                    {
+                        // Check if it has visible text
+                        string title = null;
+                        string body = null;
+
+                        // Try to get TMP text from children
+                        var children = obj.GetComponentsInChildren<Transform>(true);
+                        foreach (var child in children)
+                        {
+                            if (!child.gameObject.activeInHierarchy) continue;
+
+                            string childName = child.name.ToLower();
+                            string text = GetTMPTextDirect(child.gameObject);
+
+                            if (!string.IsNullOrEmpty(text))
+                            {
+                                text = BattleAccessibility.StripRichTextTags(text.Trim());
+                                if (string.IsNullOrEmpty(text)) continue;
+
+                                // Title is usually shorter and comes first
+                                if (childName.Contains("title") || childName.Contains("header") || childName.Contains("name"))
+                                {
+                                    title = text;
+                                }
+                                else if (childName.Contains("body") || childName.Contains("description") || childName.Contains("desc"))
+                                {
+                                    body = text;
+                                }
+                                else if (title == null && text.Length < 50)
+                                {
+                                    title = text;
+                                }
+                                else if (body == null)
+                                {
+                                    body = text;
+                                }
+                            }
+                        }
+
+                        if (!string.IsNullOrEmpty(title))
+                        {
+                            MonsterTrainAccessibility.LogInfo($"Found visible tooltip: {title} - {body}");
+                            if (!string.IsNullOrEmpty(body))
+                                return $"{title}. {body}";
+                            return title;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error finding visible tooltip: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Try to get destination info from a map arrow button
+        /// </summary>
+        private string GetMapArrowDestination(GameObject go)
+        {
+            try
+            {
+                // Determine if this is left or right button
+                bool isLeft = go.name.ToLower().Contains("left");
+                bool isRight = go.name.ToLower().Contains("right");
+                string direction = isLeft ? "Left" : (isRight ? "Right" : "");
+                int buttonIndex = isLeft ? 0 : (isRight ? 1 : -1);
+
+                // Look for BranchChoiceUI component on this object or parent
+                Component branchChoiceUI = null;
+                Transform current = go.transform;
+
+                while (current != null && branchChoiceUI == null)
+                {
+                    foreach (var comp in current.GetComponents<Component>())
+                    {
+                        if (comp != null && comp.GetType().Name == "BranchChoiceUI")
+                        {
+                            branchChoiceUI = comp;
+                            break;
+                        }
+                    }
+                    current = current.parent;
+                }
+
+                if (branchChoiceUI != null)
+                {
+                    var bcType = branchChoiceUI.GetType();
+                    var allFields = bcType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+
+                    // lastHighlightedBranch is an int index, we need to find MapSection for actual data
+                    int branchIndex = buttonIndex; // Default to our position-based index
+                    var highlightedField = allFields.FirstOrDefault(f => f.Name == "lastHighlightedBranch");
+                    if (highlightedField != null)
+                    {
+                        var highlightedValue = highlightedField.GetValue(branchChoiceUI);
+                        if (highlightedValue is int idx)
+                        {
+                            branchIndex = idx;
+                            MonsterTrainAccessibility.LogInfo($"lastHighlightedBranch index: {branchIndex}");
+                        }
+                    }
+
+                    // Find the MapSection component which has the actual branch node data
+                    Component mapSection = FindMapSectionComponent(branchChoiceUI.transform);
+                    if (mapSection != null)
+                    {
+                        string branchInfo = GetBranchInfoFromMapSection(mapSection, branchIndex);
+                        if (!string.IsNullOrEmpty(branchInfo))
+                        {
+                            return $"{direction} path: {branchInfo}";
+                        }
+                    }
+                }
+
+                // Fallback: look at direct components on the GO
+                var components = go.GetComponents<Component>();
+                foreach (var comp in components)
+                {
+                    if (comp == null) continue;
+                    var type = comp.GetType();
+
+                    var fields = type.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                    foreach (var field in fields)
+                    {
+                        string fieldName = field.Name.ToLower();
+                        if (fieldName.Contains("node") || fieldName.Contains("destination") || fieldName.Contains("target") || fieldName.Contains("branch"))
+                        {
+                            var value = field.GetValue(comp);
+                            if (value != null)
+                            {
+                                string info = ExtractMapNodeInfo(value);
+                                if (!string.IsNullOrEmpty(info))
+                                {
+                                    return $"{direction} path: {info}";
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting map arrow destination: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Extract info from a branch button item (from branchButtons list)
+        /// </summary>
+        private string ExtractBranchButtonInfo(object buttonItem)
+        {
+            if (buttonItem == null) return null;
+
+            try
+            {
+                var itemType = buttonItem.GetType();
+                var itemFields = itemType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+
+                MonsterTrainAccessibility.LogInfo($"Extracting from {itemType.Name}, fields: {string.Join(", ", itemFields.Select(f => f.Name))}");
+
+                // Look for node data, map node, or reward data fields
+                foreach (var field in itemFields)
+                {
+                    string fieldName = field.Name.ToLower();
+                    if (fieldName.Contains("node") || fieldName.Contains("data") || fieldName.Contains("reward") ||
+                        fieldName.Contains("branch") || fieldName.Contains("encounter"))
+                    {
+                        var value = field.GetValue(buttonItem);
+                        if (value != null && !value.GetType().IsPrimitive && value.GetType() != typeof(string))
+                        {
+                            MonsterTrainAccessibility.LogInfo($"Found potential node data in field: {field.Name} ({value.GetType().Name})");
+                            string info = ExtractMapNodeInfo(value);
+                            if (!string.IsNullOrEmpty(info))
+                            {
+                                return info;
+                            }
+                        }
+                    }
+                }
+
+                // Try methods on the button item itself
+                var methods = itemType.GetMethods(BindingFlags.Public | BindingFlags.Instance)
+                    .Where(m => m.GetParameters().Length == 0)
+                    .ToArray();
+
+                foreach (var method in methods)
+                {
+                    string methodName = method.Name;
+                    if (methodName.StartsWith("Get") &&
+                        (methodName.Contains("Node") || methodName.Contains("Name") || methodName.Contains("Description") ||
+                         methodName.Contains("Reward") || methodName.Contains("Encounter")))
+                    {
+                        try
+                        {
+                            var result = method.Invoke(buttonItem, null);
+                            if (result is string str && !string.IsNullOrEmpty(str))
+                            {
+                                MonsterTrainAccessibility.LogInfo($"Got string from {methodName}: {str}");
+                                return BattleAccessibility.StripRichTextTags(str);
+                            }
+                            else if (result != null && !result.GetType().IsPrimitive)
+                            {
+                                string info = ExtractMapNodeInfo(result);
+                                if (!string.IsNullOrEmpty(info))
+                                {
+                                    return info;
+                                }
+                            }
+                        }
+                        catch { }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error extracting branch button info: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Find the MapSection component in the hierarchy
+        /// </summary>
+        private Component FindMapSectionComponent(Transform startFrom)
+        {
+            if (startFrom == null) return null;
+
+            // Look up the hierarchy for MapSection
+            Transform current = startFrom;
+            while (current != null)
+            {
+                foreach (var comp in current.GetComponents<Component>())
+                {
+                    if (comp != null && comp.GetType().Name == "MapSection")
+                    {
+                        MonsterTrainAccessibility.LogInfo($"Found MapSection on {current.name}");
+                        return comp;
+                    }
+                }
+                current = current.parent;
+            }
+
+            // Also look down the hierarchy
+            foreach (var comp in startFrom.GetComponentsInChildren<Component>(true))
+            {
+                if (comp != null && comp.GetType().Name == "MapSection")
+                {
+                    MonsterTrainAccessibility.LogInfo($"Found MapSection in children: {comp.gameObject.name}");
+                    return comp;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Get branch info from a MapSection component
+        /// </summary>
+        private string GetBranchInfoFromMapSection(Component mapSection, int branchIndex)
+        {
+            if (mapSection == null) return null;
+
+            try
+            {
+                var sectionType = mapSection.GetType();
+                var allFields = sectionType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                var allMethods = sectionType.GetMethods(BindingFlags.Public | BindingFlags.Instance)
+                    .Where(m => m.GetParameters().Length == 0 && m.Name.StartsWith("Get"))
+                    .Select(m => m.Name)
+                    .Take(30)
+                    .ToArray();
+
+                MonsterTrainAccessibility.LogInfo($"MapSection fields: {string.Join(", ", allFields.Select(f => f.Name))}");
+                MonsterTrainAccessibility.LogInfo($"MapSection methods: {string.Join(", ", allMethods)}");
+
+                // Look for branch data fields - common patterns
+                string[] branchFieldNames = new[] {
+                    "branches", "branchNodes", "branchData", "nodes",
+                    "nextNodes", "choices", "rewards", "encounters",
+                    "mapNodes", "sectionNodes", "nodeData"
+                };
+
+                foreach (var fieldName in branchFieldNames)
+                {
+                    var field = allFields.FirstOrDefault(f =>
+                        f.Name.Equals(fieldName, StringComparison.OrdinalIgnoreCase) ||
+                        f.Name.ToLower().Contains(fieldName.ToLower()));
+
+                    if (field != null)
+                    {
+                        var value = field.GetValue(mapSection);
+                        MonsterTrainAccessibility.LogInfo($"Found field {field.Name}: {value?.GetType().Name ?? "null"}");
+
+                        if (value is System.Collections.IList list && list.Count > 0)
+                        {
+                            MonsterTrainAccessibility.LogInfo($"Field {field.Name} is list with {list.Count} items");
+
+                            // Get item at branchIndex or first/last based on index
+                            int index = branchIndex >= 0 && branchIndex < list.Count ? branchIndex : 0;
+                            var nodeData = list[index];
+
+                            if (nodeData != null)
+                            {
+                                string info = ExtractMapNodeInfo(nodeData);
+                                if (!string.IsNullOrEmpty(info))
+                                {
+                                    return info;
+                                }
+                            }
+                        }
+                        else if (value != null && !value.GetType().IsPrimitive && value.GetType() != typeof(string))
+                        {
+                            string info = ExtractMapNodeInfo(value);
+                            if (!string.IsNullOrEmpty(info))
+                            {
+                                return info;
+                            }
+                        }
+                    }
+                }
+
+                // Try methods that might return branch/node data
+                string[] nodeMethodNames = new[] {
+                    "GetBranches", "GetNodes", "GetNextNodes", "GetRewards",
+                    "GetMapNodes", "GetNodeData", "GetCurrentNode", "GetSectionData"
+                };
+
+                foreach (var methodName in nodeMethodNames)
+                {
+                    var method = sectionType.GetMethod(methodName, Type.EmptyTypes);
+                    if (method != null)
+                    {
+                        try
+                        {
+                            var result = method.Invoke(mapSection, null);
+                            MonsterTrainAccessibility.LogInfo($"{methodName} returned: {result?.GetType().Name ?? "null"}");
+
+                            if (result is System.Collections.IList list && list.Count > 0)
+                            {
+                                int index = branchIndex >= 0 && branchIndex < list.Count ? branchIndex : 0;
+                                var nodeData = list[index];
+                                if (nodeData != null)
+                                {
+                                    string info = ExtractMapNodeInfo(nodeData);
+                                    if (!string.IsNullOrEmpty(info))
+                                    {
+                                        return info;
+                                    }
+                                }
+                            }
+                            else if (result != null && !result.GetType().IsPrimitive && result.GetType() != typeof(string))
+                            {
+                                string info = ExtractMapNodeInfo(result);
+                                if (!string.IsNullOrEmpty(info))
+                                {
+                                    return info;
+                                }
+                            }
+                        }
+                        catch { }
+                    }
+                }
+
+                // Look for specific data types that might contain node info
+                foreach (var field in allFields)
+                {
+                    var value = field.GetValue(mapSection);
+                    if (value == null) continue;
+
+                    var valueType = value.GetType();
+                    string typeName = valueType.Name.ToLower();
+
+                    // Look for types that sound like they contain node/reward data
+                    if (typeName.Contains("node") || typeName.Contains("reward") ||
+                        typeName.Contains("encounter") || typeName.Contains("branch"))
+                    {
+                        MonsterTrainAccessibility.LogInfo($"Found potential data type: {field.Name} = {valueType.Name}");
+
+                        if (value is System.Collections.IList list && list.Count > 0)
+                        {
+                            int index = branchIndex >= 0 && branchIndex < list.Count ? branchIndex : 0;
+                            string info = ExtractMapNodeInfo(list[index]);
+                            if (!string.IsNullOrEmpty(info))
+                            {
+                                return info;
+                            }
+                        }
+                        else
+                        {
+                            string info = ExtractMapNodeInfo(value);
+                            if (!string.IsNullOrEmpty(info))
+                            {
+                                return info;
+                            }
+                        }
+                    }
+                }
+
+                // Look for branch node arrays/lists with left/right entries
+                string[] branchArrayNames = new[] { "branchNodeUIs", "branchNodes", "nodeUIs", "leftNode", "rightNode" };
+                foreach (var arrayName in branchArrayNames)
+                {
+                    var field = allFields.FirstOrDefault(f => f.Name.ToLower().Contains(arrayName.ToLower()));
+                    if (field != null)
+                    {
+                        var value = field.GetValue(mapSection);
+                        if (value is System.Collections.IList list && list.Count > branchIndex && branchIndex >= 0)
+                        {
+                            var nodeUI = list[branchIndex];
+                            string info = ExtractMapNodeUIInfo(nodeUI);
+                            if (!string.IsNullOrEmpty(info))
+                            {
+                                return info;
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting branch info from MapSection: {ex.Message}");
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Extract info from a MapBattleNodeUI or similar UI component
+        /// </summary>
+        private string ExtractMapNodeUIInfo(object nodeUI)
+        {
+            if (nodeUI == null) return null;
+
+            try
+            {
+                var uiType = nodeUI.GetType();
+                var uiMethods = uiType.GetMethods(BindingFlags.Public | BindingFlags.Instance);
+                var uiFields = uiType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+
+                // First priority: Try GetMapNodeDataName() method - this should give us the actual name
+                var getNameMethod = uiMethods.FirstOrDefault(m => m.Name == "GetMapNodeDataName" && m.GetParameters().Length == 0);
+                if (getNameMethod != null)
+                {
+                    try
+                    {
+                        var nodeName = getNameMethod.Invoke(nodeUI, null) as string;
+                        if (!string.IsNullOrEmpty(nodeName))
+                        {
+                            MonsterTrainAccessibility.LogInfo($"GetMapNodeDataName returned: {nodeName}");
+                            return BattleAccessibility.StripRichTextTags(nodeName);
+                        }
+                    }
+                    catch { }
+                }
+
+                // Second priority: Try GetData() method to get the actual node data
+                var getDataMethod = uiMethods.FirstOrDefault(m => m.Name == "GetData" && m.GetParameters().Length == 0);
+                if (getDataMethod != null)
+                {
+                    try
+                    {
+                        var data = getDataMethod.Invoke(nodeUI, null);
+                        if (data != null)
+                        {
+                            MonsterTrainAccessibility.LogInfo($"GetData returned: {data.GetType().Name}");
+                            string dataInfo = ExtractNodeDataInfo(data);
+                            if (!string.IsNullOrEmpty(dataInfo))
+                            {
+                                return dataInfo;
+                            }
+                        }
+                    }
+                    catch { }
+                }
+
+                // Third priority: Try "data" field
+                var dataField = uiFields.FirstOrDefault(f => f.Name == "data");
+                if (dataField != null)
+                {
+                    var data = dataField.GetValue(nodeUI);
+                    if (data != null)
+                    {
+                        MonsterTrainAccessibility.LogInfo($"data field contains: {data.GetType().Name}");
+                        string dataInfo = ExtractNodeDataInfo(data);
+                        if (!string.IsNullOrEmpty(dataInfo))
+                        {
+                            return dataInfo;
+                        }
+                    }
+                }
+
+                // Fourth priority: Try tooltipProvider component
+                var providerField = uiFields.FirstOrDefault(f => f.Name == "tooltipProvider");
+                if (providerField != null)
+                {
+                    var provider = providerField.GetValue(nodeUI);
+                    if (provider != null)
+                    {
+                        var providerInfo = ExtractTooltipProviderInfo(provider);
+                        if (!string.IsNullOrEmpty(providerInfo))
+                        {
+                            MonsterTrainAccessibility.LogInfo($"Got info from tooltipProvider: {providerInfo}");
+                            return providerInfo;
+                        }
+                    }
+                }
+
+                // Fifth priority: Check if boss and get basic info
+                bool isBoss = false;
+                var bossField = uiFields.FirstOrDefault(f => f.Name == "isBoss");
+                if (bossField != null)
+                {
+                    var bossValue = bossField.GetValue(nodeUI);
+                    if (bossValue is bool b)
+                        isBoss = b;
+                }
+
+                if (isBoss)
+                {
+                    return "Boss Battle";
+                }
+
+                // Last resort: tooltip title/content (localization keys)
+                string title = null;
+                var titleField = uiFields.FirstOrDefault(f => f.Name == "defaultTooltipTitle");
+                if (titleField != null)
+                {
+                    title = titleField.GetValue(nodeUI) as string;
+                    if (!string.IsNullOrEmpty(title))
+                    {
+                        // Try to localize
+                        string localized = LocalizeString(title);
+                        if (!string.IsNullOrEmpty(localized) && localized != title)
+                        {
+                            return BattleAccessibility.StripRichTextTags(localized);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error extracting map node UI info: {ex.Message}");
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Extract info from node data (the actual game data, not UI)
+        /// </summary>
+        private string ExtractNodeDataInfo(object data)
+        {
+            if (data == null) return null;
+
+            try
+            {
+                var dataType = data.GetType();
+                MonsterTrainAccessibility.LogInfo($"Extracting node data from: {dataType.Name}");
+
+                // Log available methods
+                var methods = dataType.GetMethods(BindingFlags.Public | BindingFlags.Instance)
+                    .Where(m => m.GetParameters().Length == 0 && m.Name.StartsWith("Get"))
+                    .Select(m => m.Name)
+                    .Take(20)
+                    .ToArray();
+                MonsterTrainAccessibility.LogInfo($"Data methods: {string.Join(", ", methods)}");
+
+                // Try GetName first
+                var getNameMethod = dataType.GetMethod("GetName", Type.EmptyTypes);
+                if (getNameMethod != null)
+                {
+                    var name = getNameMethod.Invoke(data, null) as string;
+                    if (!string.IsNullOrEmpty(name))
+                    {
+                        MonsterTrainAccessibility.LogInfo($"GetName returned: {name}");
+                        return BattleAccessibility.StripRichTextTags(name);
+                    }
+                }
+
+                // Try GetTooltipTitle
+                var getTitleMethod = dataType.GetMethod("GetTooltipTitle", Type.EmptyTypes);
+                if (getTitleMethod != null)
+                {
+                    var title = getTitleMethod.Invoke(data, null) as string;
+                    if (!string.IsNullOrEmpty(title))
+                    {
+                        MonsterTrainAccessibility.LogInfo($"GetTooltipTitle returned: {title}");
+                        return BattleAccessibility.StripRichTextTags(title);
+                    }
+                }
+
+                // Try GetDescription
+                var getDescMethod = dataType.GetMethod("GetDescription", Type.EmptyTypes);
+                if (getDescMethod != null)
+                {
+                    var desc = getDescMethod.Invoke(data, null) as string;
+                    if (!string.IsNullOrEmpty(desc))
+                    {
+                        MonsterTrainAccessibility.LogInfo($"GetDescription returned: {desc}");
+                        return BattleAccessibility.StripRichTextTags(desc);
+                    }
+                }
+
+                // Try to get reward info for reward nodes
+                var getRewardMethod = dataType.GetMethod("GetReward", Type.EmptyTypes) ??
+                                     dataType.GetMethod("GetRewardData", Type.EmptyTypes);
+                if (getRewardMethod != null)
+                {
+                    var reward = getRewardMethod.Invoke(data, null);
+                    if (reward != null)
+                    {
+                        string rewardInfo = ExtractRewardInfo(reward);
+                        if (!string.IsNullOrEmpty(rewardInfo))
+                        {
+                            return rewardInfo;
+                        }
+                    }
+                }
+
+                // Look at fields
+                var fields = dataType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                MonsterTrainAccessibility.LogInfo($"Data fields: {string.Join(", ", fields.Select(f => f.Name).Take(15))}");
+
+                // Try name field
+                var nameField = fields.FirstOrDefault(f => f.Name.ToLower() == "name" || f.Name.ToLower().Contains("nodename"));
+                if (nameField != null)
+                {
+                    var name = nameField.GetValue(data) as string;
+                    if (!string.IsNullOrEmpty(name))
+                    {
+                        return BattleAccessibility.StripRichTextTags(LocalizeString(name));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error extracting node data info: {ex.Message}");
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Localize a string using the game's localization system
+        /// </summary>
+        private string LocalizeString(string key)
+        {
+            if (string.IsNullOrEmpty(key))
+                return key;
+
+            try
+            {
+                // Find the Localize extension method
+                var assemblies = AppDomain.CurrentDomain.GetAssemblies();
+                foreach (var assembly in assemblies)
+                {
+                    try
+                    {
+                        var types = assembly.GetTypes();
+                        foreach (var type in types)
+                        {
+                            if (type.Name.Contains("LocalizationExtension") ||
+                                type.Name.Contains("StringExtension") ||
+                                type.Name == "LocalizationUtil")
+                            {
+                                var localizeMethod = type.GetMethod("Localize",
+                                    BindingFlags.Public | BindingFlags.Static,
+                                    null, new[] { typeof(string) }, null);
+
+                                if (localizeMethod != null)
+                                {
+                                    var result = localizeMethod.Invoke(null, new object[] { key }) as string;
+                                    if (!string.IsNullOrEmpty(result) && result != key)
+                                    {
+                                        MonsterTrainAccessibility.LogInfo($"Localized '{key}' to '{result}'");
+                                        return result;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    catch { }
+                }
+            }
+            catch { }
+
+            return key;
+        }
+
+        /// <summary>
+        /// Extract info from a tooltip provider component
+        /// </summary>
+        private string ExtractTooltipProviderInfo(object provider)
+        {
+            if (provider == null) return null;
+
+            try
+            {
+                var providerType = provider.GetType();
+
+                // Try GetTitle/GetDescription methods
+                var getTitleMethod = providerType.GetMethod("GetTitle", Type.EmptyTypes) ??
+                                    providerType.GetMethod("GetTooltipTitle", Type.EmptyTypes);
+                var getDescMethod = providerType.GetMethod("GetDescription", Type.EmptyTypes) ??
+                                   providerType.GetMethod("GetTooltipDescription", Type.EmptyTypes) ??
+                                   providerType.GetMethod("GetTooltipBody", Type.EmptyTypes);
+
+                string title = null;
+                string desc = null;
+
+                if (getTitleMethod != null)
+                {
+                    title = getTitleMethod.Invoke(provider, null) as string;
+                }
+                if (getDescMethod != null)
+                {
+                    desc = getDescMethod.Invoke(provider, null) as string;
+                }
+
+                // Also try fields
+                var providerFields = providerType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (string.IsNullOrEmpty(title))
+                {
+                    var titleField = providerFields.FirstOrDefault(f => f.Name.ToLower().Contains("title"));
+                    if (titleField != null)
+                        title = titleField.GetValue(provider) as string;
+                }
+                if (string.IsNullOrEmpty(desc))
+                {
+                    var descField = providerFields.FirstOrDefault(f =>
+                        f.Name.ToLower().Contains("desc") || f.Name.ToLower().Contains("content") || f.Name.ToLower().Contains("body"));
+                    if (descField != null)
+                        desc = descField.GetValue(provider) as string;
+                }
+
+                List<string> parts = new List<string>();
+                if (!string.IsNullOrEmpty(title))
+                    parts.Add(TryLocalize(title));
+                if (!string.IsNullOrEmpty(desc) && desc != title)
+                    parts.Add(TryLocalize(desc));
+
+                if (parts.Count > 0)
+                {
+                    return BattleAccessibility.StripRichTextTags(string.Join(". ", parts));
+                }
+            }
+            catch { }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Extract readable info from a map node data object
+        /// </summary>
+        private string ExtractMapNodeInfo(object nodeData)
+        {
+            try
+            {
+                var nodeType = nodeData.GetType();
+                MonsterTrainAccessibility.LogInfo($"Extracting info from node type: {nodeType.Name}");
+
+                // If this is a UI component (MapBattleNodeUI, etc.), use specialized extraction
+                if (nodeType.Name.Contains("NodeUI") || nodeType.Name.Contains("MapNode"))
+                {
+                    string uiInfo = ExtractMapNodeUIInfo(nodeData);
+                    if (!string.IsNullOrEmpty(uiInfo))
+                    {
+                        return uiInfo;
+                    }
+                }
+
+                // Log methods available
+                var methods = nodeType.GetMethods()
+                    .Where(m => m.GetParameters().Length == 0 && m.Name.StartsWith("Get"))
+                    .Select(m => m.Name)
+                    .Take(30)
+                    .ToArray();
+                MonsterTrainAccessibility.LogInfo($"Node methods: {string.Join(", ", methods)}");
+
+                // Also log fields
+                var fields = nodeType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+                    .Select(f => f.Name)
+                    .Take(20)
+                    .ToArray();
+                MonsterTrainAccessibility.LogInfo($"Node fields: {string.Join(", ", fields)}");
+
+                string name = null;
+                string description = null;
+                string nodeTypeStr = null;
+
+                // Try to get node type first (battle, event, shop, etc.)
+                var getTypeMethod = nodeType.GetMethod("GetNodeType", Type.EmptyTypes) ??
+                                   nodeType.GetMethod("GetMapNodeType", Type.EmptyTypes) ??
+                                   nodeType.GetMethod("GetRewardType", Type.EmptyTypes);
+                if (getTypeMethod != null)
+                {
+                    var nodeTypeValue = getTypeMethod.Invoke(nodeData, null);
+                    if (nodeTypeValue != null)
+                    {
+                        nodeTypeStr = nodeTypeValue.ToString();
+                        MonsterTrainAccessibility.LogInfo($"Node type: {nodeTypeStr}");
+                    }
+                }
+
+                // Try various methods to get name
+                string[] nameMethodNames = new[] {
+                    "GetName", "GetTitle", "GetDisplayName", "GetNodeName",
+                    "GetNameKey", "GetTitleKey", "GetTooltipTitle",
+                    "GetRewardName", "GetEncounterName"
+                };
+
+                foreach (var methodName in nameMethodNames)
+                {
+                    var getNameMethod = nodeType.GetMethod(methodName, Type.EmptyTypes);
+                    if (getNameMethod != null)
+                    {
+                        var result = getNameMethod.Invoke(nodeData, null);
+                        if (result is string str && !string.IsNullOrEmpty(str))
+                        {
+                            MonsterTrainAccessibility.LogInfo($"{methodName} returned: {str}");
+                            // Try to localize if it looks like a key
+                            name = TryLocalize(str);
+                            if (!string.IsNullOrEmpty(name))
+                                break;
+                        }
+                    }
+                }
+
+                // Try to get description
+                string[] descMethodNames = new[] {
+                    "GetDescription", "GetTooltipDescription", "GetDescriptionKey",
+                    "GetRewardDescription", "GetTooltipBody"
+                };
+
+                foreach (var methodName in descMethodNames)
+                {
+                    var getDescMethod = nodeType.GetMethod(methodName, Type.EmptyTypes);
+                    if (getDescMethod != null)
+                    {
+                        var result = getDescMethod.Invoke(nodeData, null);
+                        if (result is string str && !string.IsNullOrEmpty(str))
+                        {
+                            MonsterTrainAccessibility.LogInfo($"{methodName} returned: {str}");
+                            description = TryLocalize(str);
+                            if (!string.IsNullOrEmpty(description))
+                                break;
+                        }
+                    }
+                }
+
+                // Try to get reward data (for reward nodes)
+                var getRewardMethod = nodeType.GetMethod("GetRewardData", Type.EmptyTypes) ??
+                                     nodeType.GetMethod("GetReward", Type.EmptyTypes);
+                if (getRewardMethod != null)
+                {
+                    var reward = getRewardMethod.Invoke(nodeData, null);
+                    if (reward != null)
+                    {
+                        string rewardInfo = ExtractRewardInfo(reward);
+                        if (!string.IsNullOrEmpty(rewardInfo))
+                        {
+                            if (string.IsNullOrEmpty(name))
+                                name = rewardInfo;
+                            else
+                                description = rewardInfo;
+                        }
+                    }
+                }
+
+                // Build result
+                List<string> parts = new List<string>();
+
+                if (!string.IsNullOrEmpty(nodeTypeStr) && nodeTypeStr != name)
+                {
+                    // Convert enum-style type to readable name
+                    string readableType = FormatNodeType(nodeTypeStr);
+                    if (!string.IsNullOrEmpty(readableType))
+                        parts.Add(readableType);
+                }
+
+                if (!string.IsNullOrEmpty(name))
+                {
+                    parts.Add(BattleAccessibility.StripRichTextTags(name));
+                }
+
+                if (!string.IsNullOrEmpty(description) && description != name)
+                {
+                    parts.Add(BattleAccessibility.StripRichTextTags(description));
+                }
+
+                if (parts.Count > 0)
+                {
+                    return string.Join(". ", parts);
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error extracting map node info: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Try to localize a string (if it's a localization key)
+        /// </summary>
+        private string TryLocalize(string text)
+        {
+            if (string.IsNullOrEmpty(text))
+                return null;
+
+            try
+            {
+                // Check if it looks like a localization key (typically contains _ or is UPPERCASE)
+                if (text.Contains("_") || text == text.ToUpperInvariant())
+                {
+                    // Try calling the Localize extension method
+                    var localizeMethod = typeof(string).GetMethod("Localize", Type.EmptyTypes);
+                    if (localizeMethod == null)
+                    {
+                        // Try to find it as an extension method
+                        var extensionTypes = AppDomain.CurrentDomain.GetAssemblies()
+                            .SelectMany(a => {
+                                try { return a.GetTypes(); }
+                                catch { return new Type[0]; }
+                            })
+                            .Where(t => t.Name.Contains("Localization") || t.Name.Contains("StringExtension"))
+                            .Take(5);
+
+                        foreach (var extType in extensionTypes)
+                        {
+                            var extMethod = extType.GetMethod("Localize",
+                                BindingFlags.Public | BindingFlags.Static,
+                                null, new[] { typeof(string) }, null);
+                            if (extMethod != null)
+                            {
+                                var localized = extMethod.Invoke(null, new object[] { text }) as string;
+                                if (!string.IsNullOrEmpty(localized) && localized != text)
+                                {
+                                    MonsterTrainAccessibility.LogInfo($"Localized '{text}' to '{localized}'");
+                                    return localized;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            return text;
+        }
+
+        /// <summary>
+        /// Extract info from a reward data object
+        /// </summary>
+        private string ExtractRewardInfo(object reward)
+        {
+            if (reward == null) return null;
+
+            try
+            {
+                var rewardType = reward.GetType();
+
+                // Try to get name
+                var getNameMethod = rewardType.GetMethod("GetName", Type.EmptyTypes) ??
+                                   rewardType.GetMethod("GetDisplayName", Type.EmptyTypes);
+                if (getNameMethod != null)
+                {
+                    var name = getNameMethod.Invoke(reward, null) as string;
+                    if (!string.IsNullOrEmpty(name))
+                        return TryLocalize(name);
+                }
+
+                // Try to get description
+                var getDescMethod = rewardType.GetMethod("GetDescription", Type.EmptyTypes);
+                if (getDescMethod != null)
+                {
+                    var desc = getDescMethod.Invoke(reward, null) as string;
+                    if (!string.IsNullOrEmpty(desc))
+                        return TryLocalize(desc);
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        /// <summary>
+        /// Format a node type enum value to readable text
+        /// </summary>
+        private string FormatNodeType(string nodeType)
+        {
+            if (string.IsNullOrEmpty(nodeType))
+                return null;
+
+            // Common node type mappings
+            switch (nodeType.ToLower())
+            {
+                case "battle":
+                case "combat":
+                    return "Battle";
+                case "event":
+                case "randomchoice":
+                    return "Event";
+                case "shop":
+                case "merchant":
+                    return "Shop";
+                case "upgrade":
+                case "forge":
+                    return "Upgrade";
+                case "artifact":
+                case "relic":
+                    return "Artifact";
+                case "healing":
+                case "rest":
+                    return "Healing";
+                case "boss":
+                case "bossbattle":
+                    return "Boss";
+                case "unitreward":
+                case "unit":
+                    return "Unit Reward";
+                case "cardreward":
+                case "card":
+                    return "Card Reward";
+                default:
+                    // Add spaces before capitals and clean up
+                    return System.Text.RegularExpressions.Regex.Replace(nodeType, "([a-z])([A-Z])", "$1 $2");
+            }
+        }
+
+        /// <summary>
+        /// Determine the type of node in a branch (Battle, Event, Shop, etc.)
+        /// </summary>
+        private string GetBranchNodeType(GameObject go)
+        {
+            try
+            {
+                // Look for components or child objects that indicate node type
+                var allChildren = go.GetComponentsInChildren<Transform>(true);
+                foreach (var child in allChildren)
+                {
+                    string name = child.name.ToLower();
+
+                    // Check for type indicators in object names
+                    if (name.Contains("battle") || name.Contains("combat") || name.Contains("fight"))
+                        return "Battle";
+                    if (name.Contains("event") || name.Contains("cavern"))
+                        return "Event";
+                    if (name.Contains("shop") || name.Contains("merchant") || name.Contains("store"))
+                        return "Shop";
+                    if (name.Contains("upgrade") || name.Contains("forge"))
+                        return "Upgrade";
+                    if (name.Contains("heal") || name.Contains("restore") || name.Contains("rest"))
+                        return "Heal";
+                    if (name.Contains("artifact") || name.Contains("relic"))
+                        return "Artifact";
+                    if (name.Contains("boss"))
+                        return "Boss Battle";
+                }
+
+                // Check components for type info
+                foreach (var child in allChildren)
+                {
+                    var components = child.GetComponents<Component>();
+                    foreach (var comp in components)
+                    {
+                        if (comp == null) continue;
+                        string typeName = comp.GetType().Name.ToLower();
+
+                        if (typeName.Contains("battle"))
+                            return "Battle";
+                        if (typeName.Contains("event"))
+                            return "Event";
+                        if (typeName.Contains("shop"))
+                            return "Shop";
+                    }
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        /// <summary>
+        /// Get enemy info from a branch node (for battle nodes)
+        /// </summary>
+        private string GetBranchEnemyInfo(GameObject go)
+        {
+            try
+            {
+                // Look for tooltip data that might contain enemy names
+                string tooltip = GetTooltipTextWithBody(go);
+                if (!string.IsNullOrEmpty(tooltip) && !tooltip.Contains("Enemy_Tooltip"))
+                {
+                    return BattleAccessibility.StripRichTextTags(tooltip);
+                }
+
+                // Look for TMP text in children that might be enemy names
+                var allChildren = go.GetComponentsInChildren<Transform>(true);
+                foreach (var child in allChildren)
+                {
+                    string text = GetTMPTextDirect(child.gameObject);
+                    if (!string.IsNullOrEmpty(text) && text.Length > 1)
+                    {
+                        // Filter out single letters and generic labels
+                        text = text.Trim();
+                        if (text.Length > 2 && !text.Equals("A", StringComparison.OrdinalIgnoreCase) &&
+                            !text.Equals("B", StringComparison.OrdinalIgnoreCase))
+                        {
+                            return BattleAccessibility.StripRichTextTags(text);
+                        }
+                    }
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        /// <summary>
+        /// Get first meaningful text from child elements
+        /// </summary>
+        private string GetFirstMeaningfulChildText(GameObject go)
+        {
+            try
+            {
+                var allChildren = go.GetComponentsInChildren<Transform>(true);
+                foreach (var child in allChildren)
+                {
+                    if (child == go.transform) continue;
+
+                    string text = GetTMPTextDirect(child.gameObject);
+                    if (!string.IsNullOrEmpty(text))
+                    {
+                        text = text.Trim();
+                        // Skip single letters and very short text
+                        if (text.Length > 2)
+                        {
+                            return BattleAccessibility.StripRichTextTags(text);
+                        }
+                    }
+                }
+            }
+            catch { }
+            return null;
         }
 
         /// <summary>
@@ -540,28 +2337,32 @@ namespace MonsterTrainAccessibility.Screens
 
                 var sb = new StringBuilder();
 
+                // Check if this is the current player position
+                bool isCurrentPosition = IsCurrentMapPosition(minimapComponent);
+
                 // Determine path position from parent hierarchy
                 pathPosition = DeterminePathPosition(minimapComponent.transform);
 
-                // Get ring/section info
-                string ringInfo = GetRingInfo(minimapComponent.transform);
+                // Get ring/section info and section index for coordinates
+                string ringInfo = GetRingInfo(minimapComponent.transform, out int ringIndex);
 
                 // Get tooltip info (title and body)
                 string title = null;
                 string body = null;
                 GetTooltipTitleAndBody(go, out title, out body);
 
-                // Build the announcement
-                if (!string.IsNullOrEmpty(ringInfo))
+                // Build the announcement with coordinate first
+                string coordinate = BuildCoordinate(ringIndex, pathPosition);
+                if (!string.IsNullOrEmpty(coordinate))
                 {
-                    sb.Append(ringInfo);
-                    sb.Append(". ");
+                    sb.Append(coordinate);
+                    sb.Append(": ");
                 }
 
-                if (!string.IsNullOrEmpty(pathPosition))
+                // Mark current position
+                if (isCurrentPosition)
                 {
-                    sb.Append(pathPosition);
-                    sb.Append(": ");
+                    sb.Append("Current position. ");
                 }
 
                 if (componentType == "MinimapBattleNode")
@@ -587,6 +2388,13 @@ namespace MonsterTrainAccessibility.Screens
                     sb.Append($". {body}");
                 }
 
+                // Find available directions from sibling nodes
+                string availableDirections = GetAvailableDirections(minimapComponent.transform, pathPosition);
+                if (!string.IsNullOrEmpty(availableDirections))
+                {
+                    sb.Append($". {availableDirections}");
+                }
+
                 string result = sb.ToString();
                 MonsterTrainAccessibility.LogInfo($"Map node info: {result}");
                 return result;
@@ -597,6 +2405,238 @@ namespace MonsterTrainAccessibility.Screens
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Check if a map node represents the player's current position
+        /// </summary>
+        private bool IsCurrentMapPosition(Component minimapComponent)
+        {
+            try
+            {
+                var type = minimapComponent.GetType();
+
+                // Check for "isCurrent", "isCurrentNode", "current", "isActive" type fields
+                string[] currentFieldNames = { "isCurrent", "_isCurrent", "isCurrentNode", "_isCurrentNode",
+                                                 "current", "_current", "isActive", "_isActive",
+                                                 "isCompleted", "_isCompleted", "completed", "_completed" };
+
+                foreach (var fieldName in currentFieldNames)
+                {
+                    var field = type.GetField(fieldName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                    if (field != null && field.FieldType == typeof(bool))
+                    {
+                        bool value = (bool)field.GetValue(minimapComponent);
+                        // "isCurrent" means current position, "isCompleted" means past position
+                        if (fieldName.ToLower().Contains("current") && value)
+                            return true;
+                    }
+
+                    var prop = type.GetProperty(fieldName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                    if (prop != null && prop.PropertyType == typeof(bool) && prop.CanRead)
+                    {
+                        bool value = (bool)prop.GetValue(minimapComponent);
+                        if (fieldName.ToLower().Contains("current") && value)
+                            return true;
+                    }
+                }
+
+                // Check the GameObject name or children for "current" indicator
+                string goName = minimapComponent.gameObject.name.ToLower();
+                if (goName.Contains("current") || goName.Contains("active") || goName.Contains("player"))
+                    return true;
+
+                // Check for a child object that might indicate current position
+                var transform = minimapComponent.transform;
+                foreach (Transform child in transform)
+                {
+                    if (child == null || !child.gameObject.activeInHierarchy)
+                        continue;
+
+                    string childName = child.name.ToLower();
+                    if (childName.Contains("current") || childName.Contains("indicator") ||
+                        childName.Contains("player") || childName.Contains("marker"))
+                    {
+                        // Check if this indicator is actually visible/active
+                        if (child.gameObject.activeInHierarchy)
+                            return true;
+                    }
+                }
+
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error checking current map position: {ex.Message}");
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Build a coordinate string like "Ring 3, Left" for position identification
+        /// </summary>
+        private string BuildCoordinate(int ringIndex, string pathPosition)
+        {
+            var parts = new List<string>();
+
+            if (ringIndex >= 0)
+            {
+                parts.Add($"Ring {ringIndex + 1}");
+            }
+
+            if (!string.IsNullOrEmpty(pathPosition))
+            {
+                // Simplify "Left path" to "Left" for coordinate
+                string pos = pathPosition.Replace(" path", "");
+                parts.Add(pos);
+            }
+
+            return parts.Count > 0 ? string.Join(", ", parts) : null;
+        }
+
+        /// <summary>
+        /// Find available directions by scanning sibling nodes in the same ring/section
+        /// </summary>
+        private string GetAvailableDirections(Transform currentNodeTransform, string currentPosition)
+        {
+            try
+            {
+                // Find the parent section that contains map nodes
+                Transform sectionParent = FindMapSection(currentNodeTransform);
+                if (sectionParent == null)
+                    return null;
+
+                var availablePositions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                // Scan all descendants for other map nodes
+                ScanForMapNodes(sectionParent, currentNodeTransform, availablePositions);
+
+                // Remove current position
+                if (!string.IsNullOrEmpty(currentPosition))
+                {
+                    availablePositions.Remove(currentPosition);
+                    availablePositions.Remove(currentPosition.Replace(" path", ""));
+                }
+
+                if (availablePositions.Count == 0)
+                    return null;
+
+                // Build direction string
+                var directions = new List<string>();
+                if (availablePositions.Contains("Left") || availablePositions.Contains("Left path"))
+                    directions.Add("left");
+                if (availablePositions.Contains("Center"))
+                    directions.Add("center");
+                if (availablePositions.Contains("Right") || availablePositions.Contains("Right path"))
+                    directions.Add("right");
+
+                if (directions.Count == 0)
+                    return null;
+
+                return $"Can go {string.Join(", ", directions)}";
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting available directions: {ex.Message}");
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Find the parent section/container that holds map nodes for this ring
+        /// </summary>
+        private Transform FindMapSection(Transform nodeTransform)
+        {
+            Transform current = nodeTransform.parent;
+            while (current != null)
+            {
+                // Check if this is a section container
+                string name = current.name.ToLower();
+                if (name.Contains("section") || name.Contains("ring") || name.Contains("row"))
+                {
+                    return current;
+                }
+
+                // Check for MinimapSection component
+                foreach (var component in current.GetComponents<Component>())
+                {
+                    if (component != null && component.GetType().Name == "MinimapSection")
+                    {
+                        return current;
+                    }
+                }
+
+                current = current.parent;
+            }
+
+            // Fallback: use grandparent or parent
+            if (nodeTransform.parent != null)
+                return nodeTransform.parent.parent ?? nodeTransform.parent;
+
+            return null;
+        }
+
+        /// <summary>
+        /// Recursively scan for map nodes and collect their positions
+        /// </summary>
+        private void ScanForMapNodes(Transform parent, Transform excludeNode, HashSet<string> positions)
+        {
+            if (parent == null)
+                return;
+
+            foreach (Transform child in parent)
+            {
+                if (child == null || !child.gameObject.activeInHierarchy)
+                    continue;
+
+                // Skip the node we're currently on
+                if (child == excludeNode || IsDescendantOf(excludeNode, child))
+                    continue;
+
+                // Check if this is a map node
+                bool isMapNode = false;
+                foreach (var component in child.GetComponents<Component>())
+                {
+                    if (component == null) continue;
+                    string typeName = component.GetType().Name;
+                    if (typeName == "MinimapNodeMarker" || typeName == "MinimapBattleNode")
+                    {
+                        isMapNode = true;
+                        break;
+                    }
+                }
+
+                if (isMapNode)
+                {
+                    string pos = DeterminePathPosition(child);
+                    if (!string.IsNullOrEmpty(pos))
+                    {
+                        positions.Add(pos.Replace(" path", ""));
+                    }
+                }
+
+                // Recurse into children
+                ScanForMapNodes(child, excludeNode, positions);
+            }
+        }
+
+        /// <summary>
+        /// Check if excludeNode is a descendant of potentialAncestor
+        /// </summary>
+        private bool IsDescendantOf(Transform node, Transform potentialAncestor)
+        {
+            if (node == null || potentialAncestor == null)
+                return false;
+
+            Transform current = node;
+            while (current != null)
+            {
+                if (current == potentialAncestor)
+                    return true;
+                current = current.parent;
+            }
+            return false;
         }
 
         /// <summary>
@@ -660,8 +2700,10 @@ namespace MonsterTrainAccessibility.Screens
         /// <summary>
         /// Get the ring/section info for a map node
         /// </summary>
-        private string GetRingInfo(Transform nodeTransform)
+        private string GetRingInfo(Transform nodeTransform, out int ringIndex)
         {
+            ringIndex = -1;
+
             try
             {
                 // Look for MinimapSection in parents
@@ -686,8 +2728,8 @@ namespace MonsterTrainAccessibility.Screens
                                     var value = field.GetValue(component);
                                     if (value != null)
                                     {
-                                        int ringNum = Convert.ToInt32(value);
-                                        return $"Ring {ringNum + 1}";
+                                        ringIndex = Convert.ToInt32(value);
+                                        return $"Ring {ringIndex + 1}";
                                     }
                                 }
                             }
@@ -719,6 +2761,10 @@ namespace MonsterTrainAccessibility.Screens
                         var match = System.Text.RegularExpressions.Regex.Match(current.name, @"(\d+)");
                         if (match.Success)
                         {
+                            if (int.TryParse(match.Groups[1].Value, out int parsed))
+                            {
+                                ringIndex = parsed - 1; // Adjust to 0-based
+                            }
                             return $"Ring {match.Groups[1].Value}";
                         }
                     }
@@ -957,6 +3003,52 @@ namespace MonsterTrainAccessibility.Screens
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Get all text strings from child text components of a GameObject
+        /// </summary>
+        private List<string> GetAllTextFromChildren(GameObject go)
+        {
+            var texts = new List<string>();
+
+            if (go == null) return texts;
+
+            try
+            {
+                // Get all components in children
+                var components = go.GetComponentsInChildren<Component>(false);
+
+                foreach (var comp in components)
+                {
+                    if (comp == null || !comp.gameObject.activeInHierarchy) continue;
+
+                    string typeName = comp.GetType().Name;
+
+                    // Look for text components (TMP_Text, Text, TextMeshProUGUI, etc.)
+                    if (typeName.Contains("Text"))
+                    {
+                        string text = GetTextFromComponent(comp);
+                        if (!string.IsNullOrEmpty(text) && text.Length > 1)
+                        {
+                            // Filter out common UI noise
+                            string lowerText = text.ToLower();
+                            if (!lowerText.Contains("view") &&
+                                !lowerText.StartsWith("$") &&
+                                !text.All(c => char.IsDigit(c) || c == ' '))
+                            {
+                                texts.Add(BattleAccessibility.StripRichTextTags(text));
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting text from children: {ex.Message}");
+            }
+
+            return texts;
         }
 
         /// <summary>
@@ -2519,6 +4611,28 @@ namespace MonsterTrainAccessibility.Screens
         }
 
         /// <summary>
+        /// Get a type by name from all loaded assemblies
+        /// </summary>
+        private Type GetTypeFromAssemblies(string typeName)
+        {
+            try
+            {
+                // Try direct Type.GetType first
+                var type = Type.GetType(typeName + ", Assembly-CSharp");
+                if (type != null) return type;
+
+                // Search all assemblies
+                foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    type = assembly.GetType(typeName);
+                    if (type != null) return type;
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        /// <summary>
         /// Clean up asset names to be more readable
         /// </summary>
         private string CleanAssetName(string name)
@@ -2678,6 +4792,2646 @@ namespace MonsterTrainAccessibility.Screens
             }
             catch { }
             return null;
+        }
+
+        /// <summary>
+        /// Get text for shop items (cards, relics, services/upgrades)
+        /// </summary>
+        private string GetShopItemText(GameObject go)
+        {
+            try
+            {
+                // Look for MerchantGoodDetailsUI (cards/relics for sale)
+                Component goodDetailsUI = FindComponentInHierarchy(go, "MerchantGoodDetailsUI");
+                if (goodDetailsUI != null)
+                {
+                    string goodText = ExtractMerchantGoodInfo(goodDetailsUI);
+                    if (!string.IsNullOrEmpty(goodText))
+                    {
+                        return goodText;
+                    }
+                }
+
+                // Look for MerchantServiceUI (services/upgrades)
+                Component serviceUI = FindComponentInHierarchy(go, "MerchantServiceUI");
+                if (serviceUI != null)
+                {
+                    string serviceText = ExtractMerchantServiceInfo(serviceUI);
+                    if (!string.IsNullOrEmpty(serviceText))
+                    {
+                        return serviceText;
+                    }
+                }
+
+                // Look for BuyButton component to get price
+                Component buyButton = FindComponentInHierarchy(go, "BuyButton");
+                if (buyButton != null)
+                {
+                    // Try to find the associated good or service
+                    var buyType = buyButton.GetType();
+                    var buyFields = buyType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+
+                    MonsterTrainAccessibility.LogInfo($"BuyButton fields: {string.Join(", ", buyFields.Select(f => f.Name))}");
+
+                    // Look for good/service reference
+                    foreach (var field in buyFields)
+                    {
+                        var value = field.GetValue(buyButton);
+                        if (value == null) continue;
+
+                        string typeName = value.GetType().Name;
+                        if (typeName.Contains("Good") || typeName.Contains("Service") ||
+                            typeName.Contains("Card") || typeName.Contains("Relic"))
+                        {
+                            MonsterTrainAccessibility.LogInfo($"Found {field.Name}: {typeName}");
+                            string info = ExtractShopItemInfo(value);
+                            if (!string.IsNullOrEmpty(info))
+                            {
+                                return info;
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting shop item text: {ex.Message}");
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Find a component by type name in the hierarchy (up and down)
+        /// </summary>
+        private Component FindComponentInHierarchy(GameObject go, string typeName)
+        {
+            // Check this object and children
+            foreach (var comp in go.GetComponentsInChildren<Component>(true))
+            {
+                if (comp != null && comp.GetType().Name == typeName)
+                    return comp;
+            }
+
+            // Check parents
+            Transform current = go.transform.parent;
+            while (current != null)
+            {
+                foreach (var comp in current.GetComponents<Component>())
+                {
+                    if (comp != null && comp.GetType().Name == typeName)
+                        return comp;
+                }
+                current = current.parent;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Extract info from MerchantGoodDetailsUI (card/relic for sale)
+        /// </summary>
+        private string ExtractMerchantGoodInfo(Component goodUI)
+        {
+            try
+            {
+                var uiType = goodUI.GetType();
+                var fields = uiType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+
+                MonsterTrainAccessibility.LogInfo($"MerchantGoodDetailsUI fields: {string.Join(", ", fields.Select(f => f.Name).Take(15))}");
+
+                // Look for rewardUI field - this contains the actual reward data
+                var rewardUIField = fields.FirstOrDefault(f => f.Name == "rewardUI");
+                if (rewardUIField != null)
+                {
+                    var rewardUI = rewardUIField.GetValue(goodUI);
+                    if (rewardUI != null)
+                    {
+                        MonsterTrainAccessibility.LogInfo($"Found rewardUI: {rewardUI.GetType().Name}");
+                        string rewardInfo = ExtractRewardUIInfo(rewardUI);
+                        if (!string.IsNullOrEmpty(rewardInfo))
+                        {
+                            // Try to get price from parent BuyButton
+                            string price = GetPriceFromBuyButton(goodUI.gameObject);
+                            if (!string.IsNullOrEmpty(price))
+                            {
+                                return $"{rewardInfo}. {price}";
+                            }
+                            return rewardInfo;
+                        }
+                    }
+                }
+
+                // Fallback: look for card data directly
+                foreach (var field in fields)
+                {
+                    string fieldName = field.Name.ToLower();
+                    if (fieldName.Contains("card") || fieldName.Contains("good") || fieldName.Contains("data"))
+                    {
+                        var value = field.GetValue(goodUI);
+                        if (value != null)
+                        {
+                            string cardInfo = ExtractCardInfo(value);
+                            if (!string.IsNullOrEmpty(cardInfo))
+                            {
+                                string price = GetPriceFromBuyButton(goodUI.gameObject);
+                                if (!string.IsNullOrEmpty(price))
+                                {
+                                    return $"{cardInfo}. {price}";
+                                }
+                                return cardInfo;
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error extracting merchant good info: {ex.Message}");
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Extract info from a RewardUI component
+        /// </summary>
+        private string ExtractRewardUIInfo(object rewardUI)
+        {
+            if (rewardUI == null) return null;
+
+            try
+            {
+                var uiType = rewardUI.GetType();
+                var fields = uiType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                var methods = uiType.GetMethods(BindingFlags.Public | BindingFlags.Instance);
+
+                MonsterTrainAccessibility.LogInfo($"RewardUI type: {uiType.Name}");
+
+                // Priority 1: Check rewardData backing field first - this has the actual data
+                var rewardDataField = fields.FirstOrDefault(f =>
+                    f.Name == "<rewardData>k__BackingField" || f.Name == "rewardData");
+                if (rewardDataField != null)
+                {
+                    var rewardData = rewardDataField.GetValue(rewardUI);
+                    if (rewardData != null)
+                    {
+                        MonsterTrainAccessibility.LogInfo($"Found rewardData: {rewardData.GetType().Name}");
+                        string info = ExtractRewardDataInfo(rewardData);
+                        if (!string.IsNullOrEmpty(info))
+                            return info;
+                    }
+                }
+
+                // Priority 2: Try GetRewardData method
+                var getDataMethod = methods.FirstOrDefault(m =>
+                    (m.Name == "GetRewardData" || m.Name == "GetData" || m.Name == "GetReward") &&
+                    m.GetParameters().Length == 0);
+                if (getDataMethod != null)
+                {
+                    var data = getDataMethod.Invoke(rewardUI, null);
+                    if (data != null)
+                    {
+                        MonsterTrainAccessibility.LogInfo($"GetRewardData returned: {data.GetType().Name}");
+                        string info = ExtractRewardDataInfo(data);
+                        if (!string.IsNullOrEmpty(info))
+                            return info;
+                    }
+                }
+
+                // Priority 3: Check cardUI field for card rewards
+                var cardUIField = fields.FirstOrDefault(f => f.Name == "cardUI");
+                if (cardUIField != null)
+                {
+                    var cardUI = cardUIField.GetValue(rewardUI);
+                    if (cardUI != null)
+                    {
+                        MonsterTrainAccessibility.LogInfo($"Found cardUI: {cardUI.GetType().Name}");
+                        string cardInfo = ExtractCardUIInfo(cardUI);
+                        if (!string.IsNullOrEmpty(cardInfo))
+                            return cardInfo;
+                    }
+                }
+
+                // Priority 4: Check relicUI field
+                var relicUIField = fields.FirstOrDefault(f => f.Name == "relicUI");
+                if (relicUIField != null)
+                {
+                    var relicUI = relicUIField.GetValue(rewardUI);
+                    if (relicUI != null)
+                    {
+                        MonsterTrainAccessibility.LogInfo($"Found relicUI: {relicUI.GetType().Name}");
+                        string relicInfo = ExtractRelicUIInfo(relicUI);
+                        if (!string.IsNullOrEmpty(relicInfo))
+                            return relicInfo;
+                    }
+                }
+
+                // Priority 5: Check genericRewardUI field
+                var genericField = fields.FirstOrDefault(f => f.Name == "genericRewardUI");
+                if (genericField != null)
+                {
+                    var genericUI = genericField.GetValue(rewardUI);
+                    if (genericUI != null)
+                    {
+                        MonsterTrainAccessibility.LogInfo($"Found genericRewardUI: {genericUI.GetType().Name}");
+                        string genericInfo = ExtractGenericRewardUIInfo(genericUI);
+                        if (!string.IsNullOrEmpty(genericInfo))
+                            return genericInfo;
+                    }
+                }
+
+                // Fallback: If rewardUI is a Component, check its GameObject for text
+                if (rewardUI is Component comp)
+                {
+                    string textInfo = GetFirstMeaningfulChildText(comp.gameObject);
+                    if (!string.IsNullOrEmpty(textInfo))
+                        return textInfo;
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error extracting reward UI info: {ex.Message}");
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Extract info from a CardUI component
+        /// </summary>
+        private string ExtractCardUIInfo(object cardUI)
+        {
+            if (cardUI == null) return null;
+
+            try
+            {
+                var uiType = cardUI.GetType();
+                var fields = uiType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+
+                // Look for cardState field
+                var cardStateField = fields.FirstOrDefault(f =>
+                    f.Name.ToLower().Contains("cardstate") || f.Name.ToLower().Contains("card"));
+                if (cardStateField != null)
+                {
+                    var cardState = cardStateField.GetValue(cardUI);
+                    if (cardState != null)
+                    {
+                        return ExtractCardInfo(cardState);
+                    }
+                }
+
+                // Try GetCardState method
+                var getCardMethod = uiType.GetMethod("GetCardState", Type.EmptyTypes);
+                if (getCardMethod != null)
+                {
+                    var cardState = getCardMethod.Invoke(cardUI, null);
+                    if (cardState != null)
+                    {
+                        return ExtractCardInfo(cardState);
+                    }
+                }
+            }
+            catch { }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Extract info from a RelicUI component
+        /// </summary>
+        private string ExtractRelicUIInfo(object relicUI)
+        {
+            if (relicUI == null) return null;
+
+            try
+            {
+                var uiType = relicUI.GetType();
+                var fields = uiType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+
+                // Look for relicData field
+                foreach (var field in fields)
+                {
+                    if (field.Name.ToLower().Contains("data") || field.Name.ToLower().Contains("relic"))
+                    {
+                        var data = field.GetValue(relicUI);
+                        if (data != null)
+                        {
+                            string info = ExtractRewardDataInfo(data);
+                            if (!string.IsNullOrEmpty(info))
+                                return info;
+                        }
+                    }
+                }
+
+                // Try GetRelicData method
+                var getDataMethod = uiType.GetMethod("GetRelicData", Type.EmptyTypes) ??
+                                   uiType.GetMethod("GetData", Type.EmptyTypes);
+                if (getDataMethod != null)
+                {
+                    var data = getDataMethod.Invoke(relicUI, null);
+                    if (data != null)
+                    {
+                        return ExtractRewardDataInfo(data);
+                    }
+                }
+            }
+            catch { }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Extract info from a generic reward UI (RewardIconUI)
+        /// </summary>
+        private string ExtractGenericRewardUIInfo(object genericUI)
+        {
+            if (genericUI == null) return null;
+
+            try
+            {
+                var uiType = genericUI.GetType();
+                var fields = uiType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+
+                // Look for data field
+                foreach (var field in fields)
+                {
+                    if (field.Name.ToLower().Contains("data") || field.Name.ToLower().Contains("reward"))
+                    {
+                        var data = field.GetValue(genericUI);
+                        if (data != null && !data.GetType().Name.Contains("Transform"))
+                        {
+                            string info = ExtractRewardDataInfo(data);
+                            if (!string.IsNullOrEmpty(info))
+                                return info;
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Extract info from reward data (CardData, RelicData, etc.)
+        /// </summary>
+        private string ExtractRewardDataInfo(object data)
+        {
+            if (data == null) return null;
+
+            try
+            {
+                var dataType = data.GetType();
+                string typeName = dataType.Name;
+
+                MonsterTrainAccessibility.LogInfo($"Extracting reward data from: {typeName}");
+
+                // Special handling for EnhancerRewardData (upgrade stones like Surgestone)
+                if (typeName == "EnhancerRewardData")
+                {
+                    string enhancerInfo = ExtractEnhancerInfo(data);
+                    if (!string.IsNullOrEmpty(enhancerInfo))
+                        return enhancerInfo;
+                }
+
+                // Try GetName method
+                var getNameMethod = dataType.GetMethod("GetName", Type.EmptyTypes);
+                if (getNameMethod != null)
+                {
+                    var name = getNameMethod.Invoke(data, null) as string;
+                    if (!string.IsNullOrEmpty(name))
+                    {
+                        MonsterTrainAccessibility.LogInfo($"GetName returned: {name}");
+
+                        // Try to get description too
+                        string desc = null;
+                        var getDescMethod = dataType.GetMethod("GetDescription", Type.EmptyTypes);
+                        if (getDescMethod != null)
+                        {
+                            desc = getDescMethod.Invoke(data, null) as string;
+                        }
+
+                        // Try to get cost for cards
+                        int cost = -1;
+                        var getCostMethod = dataType.GetMethod("GetCost", Type.EmptyTypes);
+                        if (getCostMethod != null)
+                        {
+                            var costResult = getCostMethod.Invoke(data, null);
+                            if (costResult is int c)
+                                cost = c;
+                        }
+
+                        List<string> parts = new List<string>();
+                        parts.Add(BattleAccessibility.StripRichTextTags(name));
+
+                        if (cost >= 0)
+                            parts.Add($"{cost} ember");
+
+                        if (!string.IsNullOrEmpty(desc))
+                            parts.Add(BattleAccessibility.StripRichTextTags(desc));
+
+                        return string.Join(". ", parts);
+                    }
+                }
+
+                // For CardState, get CardData first
+                if (typeName == "CardState")
+                {
+                    return ExtractCardInfo(data);
+                }
+
+                // Try fields
+                var fields = dataType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                var nameField = fields.FirstOrDefault(f => f.Name.ToLower().Contains("name"));
+                if (nameField != null)
+                {
+                    var name = nameField.GetValue(data) as string;
+                    if (!string.IsNullOrEmpty(name))
+                        return BattleAccessibility.StripRichTextTags(name);
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error extracting reward data: {ex.Message}");
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Extract info from EnhancerRewardData (upgrade stones like Surgestone, Emberstone, etc.)
+        /// </summary>
+        private string ExtractEnhancerInfo(object enhancerRewardData)
+        {
+            if (enhancerRewardData == null) return null;
+
+            try
+            {
+                var rewardType = enhancerRewardData.GetType();
+                var fields = rewardType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+
+                // Look for the enhancerData field (the actual EnhancerData object)
+                object enhancerData = null;
+                var enhancerDataField = fields.FirstOrDefault(f =>
+                    f.Name.ToLower().Contains("enhancerdata") ||
+                    f.Name == "enhancer" ||
+                    f.Name == "_enhancerData");
+
+                if (enhancerDataField != null)
+                {
+                    enhancerData = enhancerDataField.GetValue(enhancerRewardData);
+                }
+
+                // Try GetEnhancerData method
+                if (enhancerData == null)
+                {
+                    var getEnhancerMethod = rewardType.GetMethod("GetEnhancerData", Type.EmptyTypes)
+                                         ?? rewardType.GetMethod("GetEnhancer", Type.EmptyTypes);
+                    if (getEnhancerMethod != null)
+                    {
+                        enhancerData = getEnhancerMethod.Invoke(enhancerRewardData, null);
+                    }
+                }
+
+                // Check backing field
+                if (enhancerData == null)
+                {
+                    var backingField = fields.FirstOrDefault(f => f.Name == "<enhancerData>k__BackingField");
+                    if (backingField != null)
+                    {
+                        enhancerData = backingField.GetValue(enhancerRewardData);
+                    }
+                }
+
+                if (enhancerData != null)
+                {
+                    MonsterTrainAccessibility.LogInfo($"Found EnhancerData: {enhancerData.GetType().Name}");
+                    return ExtractEnhancerDataInfo(enhancerData);
+                }
+
+                // If no enhancerData found, log available fields for debugging
+                MonsterTrainAccessibility.LogInfo($"EnhancerRewardData fields: {string.Join(", ", fields.Select(f => f.Name).Take(15))}");
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error extracting enhancer info: {ex.Message}");
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Extract info from EnhancerData (the actual upgrade stone data)
+        /// </summary>
+        private string ExtractEnhancerDataInfo(object enhancerData)
+        {
+            if (enhancerData == null) return null;
+
+            try
+            {
+                var dataType = enhancerData.GetType();
+                var fields = dataType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                var methods = dataType.GetMethods(BindingFlags.Public | BindingFlags.Instance);
+
+                string name = null;
+                string description = null;
+
+                // Try GetName method
+                var getNameMethod = methods.FirstOrDefault(m => m.Name == "GetName" && m.GetParameters().Length == 0);
+                if (getNameMethod != null)
+                {
+                    name = getNameMethod.Invoke(enhancerData, null) as string;
+                }
+
+                // Try GetDescription method
+                var getDescMethod = methods.FirstOrDefault(m => m.Name == "GetDescription" && m.GetParameters().Length == 0);
+                if (getDescMethod != null)
+                {
+                    description = getDescMethod.Invoke(enhancerData, null) as string;
+                }
+
+                // Try GetID and localize
+                if (string.IsNullOrEmpty(name))
+                {
+                    var getIdMethod = methods.FirstOrDefault(m => m.Name == "GetID" && m.GetParameters().Length == 0);
+                    if (getIdMethod != null)
+                    {
+                        string id = getIdMethod.Invoke(enhancerData, null) as string;
+                        if (!string.IsNullOrEmpty(id))
+                        {
+                            // Try standard localization keys
+                            name = LocalizeKey($"{id}_EnhancerData_NameKey")
+                                ?? LocalizeKey($"EnhancerData_{id}_Name");
+                            if (string.IsNullOrEmpty(description))
+                            {
+                                description = LocalizeKey($"{id}_EnhancerData_DescriptionKey")
+                                           ?? LocalizeKey($"EnhancerData_{id}_Description");
+                            }
+                        }
+                    }
+                }
+
+                // Try to get upgrade info from the CardUpgradeData
+                if (string.IsNullOrEmpty(description))
+                {
+                    // EnhancerData stores upgrade in effects[0].GetParamCardUpgradeData()
+                    var getEffectsMethod = methods.FirstOrDefault(m => m.Name == "GetEffects" && m.GetParameters().Length == 0);
+                    if (getEffectsMethod != null)
+                    {
+                        var effects = getEffectsMethod.Invoke(enhancerData, null) as System.Collections.IList;
+                        if (effects != null && effects.Count > 0)
+                        {
+                            var effect = effects[0];
+                            var effectType = effect.GetType();
+                            var getUpgradeMethod = effectType.GetMethod("GetParamCardUpgradeData", Type.EmptyTypes);
+                            if (getUpgradeMethod != null)
+                            {
+                                var upgradeData = getUpgradeMethod.Invoke(effect, null);
+                                if (upgradeData != null)
+                                {
+                                    description = ExtractCardUpgradeDescription(upgradeData);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Build result
+                if (!string.IsNullOrEmpty(name))
+                {
+                    var parts = new List<string>();
+                    parts.Add(BattleAccessibility.StripRichTextTags(name));
+                    parts.Add("Upgrade");
+
+                    if (!string.IsNullOrEmpty(description))
+                    {
+                        parts.Add(BattleAccessibility.StripRichTextTags(description));
+                    }
+
+                    // Add helper instruction
+                    parts.Add("After selecting a card, press Enter to apply the upgrade");
+
+                    MonsterTrainAccessibility.LogInfo($"Enhancer result: {string.Join(". ", parts)}");
+                    return string.Join(". ", parts);
+                }
+
+                // Fallback: try name field
+                var nameField = fields.FirstOrDefault(f => f.Name == "name");
+                if (nameField != null)
+                {
+                    name = nameField.GetValue(enhancerData) as string;
+                    if (!string.IsNullOrEmpty(name))
+                    {
+                        return BattleAccessibility.StripRichTextTags(name) + " (Upgrade)";
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error extracting enhancer data: {ex.Message}");
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Extract description from CardUpgradeData
+        /// </summary>
+        private string ExtractCardUpgradeDescription(object upgradeData)
+        {
+            if (upgradeData == null) return null;
+
+            try
+            {
+                var dataType = upgradeData.GetType();
+                var parts = new List<string>();
+
+                // Get upgrade title/name
+                var getTitleMethod = dataType.GetMethod("GetUpgradeTitleForCardText", Type.EmptyTypes)
+                                  ?? dataType.GetMethod("GetUpgradeTitle", Type.EmptyTypes)
+                                  ?? dataType.GetMethod("GetName", Type.EmptyTypes);
+                if (getTitleMethod != null)
+                {
+                    var title = getTitleMethod.Invoke(upgradeData, null) as string;
+                    if (!string.IsNullOrEmpty(title))
+                    {
+                        parts.Add(BattleAccessibility.StripRichTextTags(title));
+                    }
+                }
+
+                // Get upgrade description
+                var getDescMethod = dataType.GetMethod("GetUpgradeDescription", Type.EmptyTypes)
+                                 ?? dataType.GetMethod("GetDescription", Type.EmptyTypes);
+                if (getDescMethod != null)
+                {
+                    var desc = getDescMethod.Invoke(upgradeData, null) as string;
+                    if (!string.IsNullOrEmpty(desc))
+                    {
+                        parts.Add(BattleAccessibility.StripRichTextTags(desc));
+                    }
+                }
+
+                // If no description, try to extract stat bonuses
+                if (parts.Count <= 1)
+                {
+                    var bonuses = ExtractUpgradeBonuses(upgradeData);
+                    if (!string.IsNullOrEmpty(bonuses))
+                    {
+                        parts.Add(bonuses);
+                    }
+                }
+
+                if (parts.Count > 0)
+                {
+                    return string.Join(". ", parts);
+                }
+            }
+            catch { }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Extract stat bonuses from CardUpgradeData
+        /// </summary>
+        private string ExtractUpgradeBonuses(object upgradeData)
+        {
+            if (upgradeData == null) return null;
+
+            try
+            {
+                var dataType = upgradeData.GetType();
+                var bonuses = new List<string>();
+
+                // Check common bonus methods/fields
+                var getBonusDamageMethod = dataType.GetMethod("GetBonusDamage", Type.EmptyTypes);
+                if (getBonusDamageMethod != null)
+                {
+                    var damage = getBonusDamageMethod.Invoke(upgradeData, null);
+                    if (damage is int d && d != 0)
+                    {
+                        bonuses.Add($"{(d > 0 ? "+" : "")}{d} Magic Power");
+                    }
+                }
+
+                var getBonusHPMethod = dataType.GetMethod("GetBonusHP", Type.EmptyTypes);
+                if (getBonusHPMethod != null)
+                {
+                    var hp = getBonusHPMethod.Invoke(upgradeData, null);
+                    if (hp is int h && h != 0)
+                    {
+                        bonuses.Add($"{(h > 0 ? "+" : "")}{h} Health");
+                    }
+                }
+
+                var getCostReductionMethod = dataType.GetMethod("GetCostReduction", Type.EmptyTypes);
+                if (getCostReductionMethod != null)
+                {
+                    var reduction = getCostReductionMethod.Invoke(upgradeData, null);
+                    if (reduction is int r && r != 0)
+                    {
+                        bonuses.Add($"-{r} Ember cost");
+                    }
+                }
+
+                // Check for added traits
+                var getTraitsMethod = dataType.GetMethod("GetTraitDataUpgradeList", Type.EmptyTypes)
+                                   ?? dataType.GetMethod("GetTraitDataUpgrades", Type.EmptyTypes);
+                if (getTraitsMethod != null)
+                {
+                    var traits = getTraitsMethod.Invoke(upgradeData, null) as System.Collections.IList;
+                    if (traits != null && traits.Count > 0)
+                    {
+                        foreach (var trait in traits)
+                        {
+                            var traitType = trait.GetType();
+                            var getTraitNameMethod = traitType.GetMethod("GetName", Type.EmptyTypes)
+                                                  ?? traitType.GetMethod("GetTraitStateName", Type.EmptyTypes);
+                            if (getTraitNameMethod != null)
+                            {
+                                var traitName = getTraitNameMethod.Invoke(trait, null) as string;
+                                if (!string.IsNullOrEmpty(traitName))
+                                {
+                                    // Format trait name
+                                    traitName = traitName.Replace("CardTraitState", "").Replace("State", "");
+                                    bonuses.Add($"Gain {traitName}");
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (bonuses.Count > 0)
+                {
+                    return string.Join(" and ", bonuses);
+                }
+            }
+            catch { }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Get price from the BuyButton component
+        /// </summary>
+        private string GetPriceFromBuyButton(GameObject go)
+        {
+            try
+            {
+                // Find BuyButton in hierarchy
+                Component buyButton = FindComponentInHierarchy(go, "BuyButton");
+                if (buyButton != null)
+                {
+                    var btnType = buyButton.GetType();
+                    var fields = btnType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+
+                    // Look for cost field
+                    var costField = fields.FirstOrDefault(f => f.Name == "cost");
+                    if (costField != null)
+                    {
+                        var costValue = costField.GetValue(buyButton);
+                        if (costValue is int cost && cost > 0)
+                        {
+                            return $"{cost} gold";
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Extract info from MerchantServiceUI (upgrade/service)
+        /// </summary>
+        private string ExtractMerchantServiceInfo(Component serviceUI)
+        {
+            try
+            {
+                var uiType = serviceUI.GetType();
+                var fields = uiType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                var methods = uiType.GetMethods(BindingFlags.Public | BindingFlags.Instance);
+
+                // Log the GameObject hierarchy - the name often contains the service type
+                var go = serviceUI.gameObject;
+                string hierarchyPath = go.name;
+                var parent = go.transform.parent;
+                while (parent != null)
+                {
+                    hierarchyPath = parent.name + "/" + hierarchyPath;
+                    parent = parent.parent;
+                    if (hierarchyPath.Length > 200) break; // Safety limit
+                }
+                MonsterTrainAccessibility.LogInfo($"MerchantServiceUI hierarchy: {hierarchyPath}");
+                MonsterTrainAccessibility.LogInfo($"MerchantServiceUI fields: {string.Join(", ", fields.Select(f => f.Name).Take(20))}");
+
+                // Log all components on this GameObject
+                var components = go.GetComponents<Component>();
+                MonsterTrainAccessibility.LogInfo($"Components on GO: {string.Join(", ", components.Select(c => c?.GetType().Name ?? "null"))}");
+
+                string serviceName = null;
+                string serviceDesc = null;
+
+                // Priority 0: Check if GameObject name contains service type
+                string goName = go.name.ToLower();
+                if (goName.Contains("reroll"))
+                {
+                    serviceName = "Reroll";
+                }
+                else if (goName.Contains("purge") || goName.Contains("remove"))
+                {
+                    serviceName = "Purge Card";
+                }
+                else if (goName.Contains("duplicate") || goName.Contains("copy"))
+                {
+                    serviceName = "Duplicate Card";
+                }
+                else if (goName.Contains("upgrade") || goName.Contains("enhance"))
+                {
+                    serviceName = "Upgrade Card";
+                }
+                else if (goName.Contains("heal") || goName.Contains("repair"))
+                {
+                    serviceName = "Heal";
+                }
+                else if (goName.Contains("unleash"))
+                {
+                    serviceName = "Unleash";
+                }
+
+                if (!string.IsNullOrEmpty(serviceName))
+                {
+                    MonsterTrainAccessibility.LogInfo($"Got service name from GO name: {serviceName}");
+                }
+
+                // Priority 1: Extract service index from GO name and get data from MerchantScreen
+                if (string.IsNullOrEmpty(serviceName))
+                {
+                    // Parse service sign index from name like "Service sign 1", "Service sign 2"
+                    int serviceIndex = -1;
+                    var match = System.Text.RegularExpressions.Regex.Match(go.name, @"Service sign (\d+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                    if (match.Success)
+                    {
+                        serviceIndex = int.Parse(match.Groups[1].Value) - 1; // Convert to 0-based
+                        MonsterTrainAccessibility.LogInfo($"Service sign index: {serviceIndex}");
+                    }
+
+                    // Find MerchantScreen or MerchantScreenContent parent and get services list
+                    var parentTransform = go.transform.parent;
+                    while (parentTransform != null && string.IsNullOrEmpty(serviceName))
+                    {
+                        var parentGO = parentTransform.gameObject;
+                        var parentComponents = parentGO.GetComponents<Component>();
+
+                        foreach (var comp in parentComponents)
+                        {
+                            if (comp == null) continue;
+                            var compType = comp.GetType();
+                            var compName = compType.Name;
+
+                            // Look for MerchantScreen or MerchantScreenContent
+                            if (compName == "MerchantScreen" || compName == "MerchantScreenContent")
+                            {
+                                MonsterTrainAccessibility.LogInfo($"Found parent component: {compType.Name}");
+
+                                // Look for services list/array field
+                                var compFields = compType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                                MonsterTrainAccessibility.LogInfo($"{compName} fields: {string.Join(", ", compFields.Select(f => f.Name).Take(20))}");
+
+                                // First check sourceMerchantData which should contain the actual service definitions
+                                var merchantDataField = compFields.FirstOrDefault(f => f.Name == "sourceMerchantData");
+                                if (merchantDataField != null)
+                                {
+                                    var merchantData = merchantDataField.GetValue(comp);
+                                    if (merchantData != null)
+                                    {
+                                        var mdType = merchantData.GetType();
+                                        MonsterTrainAccessibility.LogInfo($"sourceMerchantData type: {mdType.Name}");
+
+                                        // Log all fields on merchant data
+                                        var mdFields = mdType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                                        MonsterTrainAccessibility.LogInfo($"MerchantData fields: {string.Join(", ", mdFields.Select(f => f.Name).Take(20))}");
+
+                                        // Look for services list in merchant data
+                                        foreach (var mdField in mdFields)
+                                        {
+                                            string mdFieldName = mdField.Name.ToLower();
+                                            if (mdFieldName.Contains("service"))
+                                            {
+                                                var servicesValue = mdField.GetValue(merchantData);
+                                                if (servicesValue != null)
+                                                {
+                                                    MonsterTrainAccessibility.LogInfo($"Found {mdField.Name}: {servicesValue.GetType().Name}");
+
+                                                    if (servicesValue is System.Collections.IList servicesList && serviceIndex >= 0 && serviceIndex < servicesList.Count)
+                                                    {
+                                                        var svcData = servicesList[serviceIndex];
+                                                        if (svcData != null)
+                                                        {
+                                                            var svcType = svcData.GetType();
+                                                            MonsterTrainAccessibility.LogInfo($"Service[{serviceIndex}] type: {svcType.Name}");
+
+                                                            // Log service data fields
+                                                            var svcFields = svcType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                                                            MonsterTrainAccessibility.LogInfo($"Service fields: {string.Join(", ", svcFields.Select(f => f.Name).Take(15))}");
+
+                                                            var getNameMethod = svcType.GetMethod("GetName", Type.EmptyTypes);
+                                                            if (getNameMethod != null)
+                                                            {
+                                                                serviceName = getNameMethod.Invoke(svcData, null) as string;
+                                                                MonsterTrainAccessibility.LogInfo($"Service name from GetName(): {serviceName}");
+                                                            }
+
+                                                            // Try GetDescription
+                                                            var getDescMethod = svcType.GetMethod("GetDescription", Type.EmptyTypes) ??
+                                                                               svcType.GetMethod("GetTooltipDescription", Type.EmptyTypes);
+                                                            if (getDescMethod != null)
+                                                            {
+                                                                serviceDesc = getDescMethod.Invoke(svcData, null) as string;
+                                                            }
+
+                                                            if (!string.IsNullOrEmpty(serviceName)) break;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (!string.IsNullOrEmpty(serviceName)) break;
+
+                                foreach (var field in compFields)
+                                {
+                                    string fieldName = field.Name.ToLower();
+                                    var value = field.GetValue(comp);
+                                    if (value == null) continue;
+
+                                    // Look for services list
+                                    if (fieldName.Contains("service"))
+                                    {
+                                        MonsterTrainAccessibility.LogInfo($"Found field {field.Name}: {value.GetType().Name}");
+
+                                        // If it's a list/array, try to get item by index
+                                        if (value is System.Collections.IList list && serviceIndex >= 0 && serviceIndex < list.Count)
+                                        {
+                                            var serviceData = list[serviceIndex];
+                                            if (serviceData != null)
+                                            {
+                                                var dataType = serviceData.GetType();
+                                                MonsterTrainAccessibility.LogInfo($"Service data type: {dataType.Name}");
+
+                                                var getNameMethod = dataType.GetMethod("GetName", Type.EmptyTypes);
+                                                if (getNameMethod != null)
+                                                {
+                                                    serviceName = getNameMethod.Invoke(serviceData, null) as string;
+                                                    MonsterTrainAccessibility.LogInfo($"Service name from list[{serviceIndex}]: {serviceName}");
+                                                }
+
+                                                var getDescMethod = dataType.GetMethod("GetDescription", Type.EmptyTypes) ??
+                                                                   dataType.GetMethod("GetTooltipDescription", Type.EmptyTypes);
+                                                if (getDescMethod != null)
+                                                {
+                                                    serviceDesc = getDescMethod.Invoke(serviceData, null) as string;
+                                                }
+
+                                                if (!string.IsNullOrEmpty(serviceName)) break;
+                                            }
+                                        }
+
+                                        // If it's a single service data, try GetName
+                                        var valueType = value.GetType();
+                                        var nameMethod = valueType.GetMethod("GetName", Type.EmptyTypes);
+                                        if (nameMethod != null)
+                                        {
+                                            serviceName = nameMethod.Invoke(value, null) as string;
+                                            if (!string.IsNullOrEmpty(serviceName))
+                                            {
+                                                MonsterTrainAccessibility.LogInfo($"Service name from {field.Name}: {serviceName}");
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (!string.IsNullOrEmpty(serviceName)) break;
+                            }
+                        }
+
+                        parentTransform = parentTransform.parent;
+                    }
+                }
+
+                // Priority 2: Look for service data via properties on MerchantServiceUI
+                if (string.IsNullOrEmpty(serviceName))
+                {
+                    // Check all properties on MerchantServiceUI
+                    var props = uiType.GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                    MonsterTrainAccessibility.LogInfo($"MerchantServiceUI properties: {string.Join(", ", props.Select(p => p.Name).Take(15))}");
+
+                    // Check GoodState property specifically - this likely contains the service data
+                    var goodStateProp = props.FirstOrDefault(p => p.Name == "GoodState");
+                    if (goodStateProp != null)
+                    {
+                        try
+                        {
+                            var goodState = goodStateProp.GetValue(serviceUI);
+                            if (goodState != null)
+                            {
+                                var gsType = goodState.GetType();
+                                MonsterTrainAccessibility.LogInfo($"GoodState type: {gsType.Name}");
+
+                                // Log GoodState fields
+                                var gsFields = gsType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                                MonsterTrainAccessibility.LogInfo($"GoodState fields: {string.Join(", ", gsFields.Select(f => f.Name).Take(15))}");
+
+                                // Log GoodState properties
+                                var gsProps = gsType.GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                                MonsterTrainAccessibility.LogInfo($"GoodState properties: {string.Join(", ", gsProps.Select(p => p.Name).Take(15))}");
+
+                                // Check RewardData property - this should have the actual service info
+                                var rewardDataProp = gsProps.FirstOrDefault(p => p.Name == "RewardData");
+                                if (rewardDataProp != null)
+                                {
+                                    try
+                                    {
+                                        var rewardData = rewardDataProp.GetValue(goodState);
+                                        if (rewardData != null)
+                                        {
+                                            var rdType = rewardData.GetType();
+                                            MonsterTrainAccessibility.LogInfo($"RewardData type: {rdType.Name}");
+
+                                            // Map RewardData type name to friendly service name and description
+                                            (serviceName, serviceDesc) = rdType.Name switch
+                                            {
+                                                "PurgeRewardData" => ("Purge Card", "Remove a card from your deck"),
+                                                "RerollMerchantRewardData" => ("Re-roll", "Randomize and refresh the offered goods"),
+                                                "DuplicateRewardData" => ("Duplicate Card", "Create a copy of a card in your deck"),
+                                                "HealRewardData" => ("Heal", "Restore health to your Pyre"),
+                                                "TrainRepairRewardData" => ("Train Repair", "Repair your train"),
+                                                "UnleashRewardData" => ("Unleash", "Choose a Branded unit and unleash its power"),
+                                                "UpgradeRewardData" => ("Upgrade", "Upgrade a card"),
+                                                "EnhancerRewardData" => ("Upgrade Stone", null),
+                                                _ => (null, null)
+                                            };
+
+                                            if (!string.IsNullOrEmpty(serviceName))
+                                            {
+                                                MonsterTrainAccessibility.LogInfo($"Service name from type mapping: {serviceName}");
+                                            }
+
+                                            // If mapping didn't work, try GetName method
+                                            if (string.IsNullOrEmpty(serviceName))
+                                            {
+                                                var getNameMethod = rdType.GetMethod("GetName", Type.EmptyTypes);
+                                                if (getNameMethod != null)
+                                                {
+                                                    serviceName = getNameMethod.Invoke(rewardData, null) as string;
+                                                    MonsterTrainAccessibility.LogInfo($"Service name from RewardData.GetName(): {serviceName}");
+                                                }
+                                            }
+
+                                            // Only try to get description from game if we don't have one from mapping
+                                            if (string.IsNullOrEmpty(serviceDesc))
+                                            {
+                                                // Try various methods for getting the description
+                                                var rdMethods = rdType.GetMethods(BindingFlags.Public | BindingFlags.Instance);
+                                                var descMethodNames = new[] { "GetDescription", "GetTooltipDescription", "GetRewardDescription", "GetLocalizedDescription" };
+
+                                                foreach (var methodName in descMethodNames)
+                                                {
+                                                    var descMethod = rdMethods.FirstOrDefault(m => m.Name == methodName && m.GetParameters().Length == 0);
+                                                    if (descMethod != null)
+                                                    {
+                                                        try
+                                                        {
+                                                            var desc = descMethod.Invoke(rewardData, null) as string;
+                                                            if (!string.IsNullOrEmpty(desc) && !desc.Contains("__") && !desc.Contains("-v2"))
+                                                            {
+                                                                serviceDesc = desc;
+                                                                MonsterTrainAccessibility.LogInfo($"Got description from {methodName}: {serviceDesc}");
+                                                                break;
+                                                            }
+                                                        }
+                                                        catch { }
+                                                    }
+                                                }
+                                            }
+
+                                            // Don't use description if it looks like a raw localization key
+                                            if (!string.IsNullOrEmpty(serviceDesc) && (serviceDesc.Contains("__") || serviceDesc.Contains("-v2") || serviceDesc.StartsWith("$")))
+                                            {
+                                                serviceDesc = null;
+                                            }
+                                        }
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        MonsterTrainAccessibility.LogError($"Error reading RewardData: {ex.Message}");
+                                    }
+                                }
+
+                                // Try GetName method on GoodState itself
+                                if (string.IsNullOrEmpty(serviceName))
+                                {
+                                    var getNameMethod = gsType.GetMethod("GetName", Type.EmptyTypes);
+                                    if (getNameMethod != null)
+                                    {
+                                        serviceName = getNameMethod.Invoke(goodState, null) as string;
+                                        MonsterTrainAccessibility.LogInfo($"Service name from GoodState.GetName(): {serviceName}");
+                                    }
+                                }
+
+                                // Try GetDescription method
+                                if (string.IsNullOrEmpty(serviceDesc))
+                                {
+                                    var getDescMethod = gsType.GetMethod("GetDescription", Type.EmptyTypes) ??
+                                                       gsType.GetMethod("GetTooltipDescription", Type.EmptyTypes);
+                                    if (getDescMethod != null)
+                                    {
+                                        serviceDesc = getDescMethod.Invoke(goodState, null) as string;
+                                        MonsterTrainAccessibility.LogInfo($"Service desc from GoodState: {serviceDesc}");
+                                    }
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            MonsterTrainAccessibility.LogError($"Error reading GoodState: {ex.Message}");
+                        }
+                    }
+
+                    foreach (var prop in props)
+                    {
+                        string propName = prop.Name.ToLower();
+                        if (propName.Contains("service") || propName.Contains("data"))
+                        {
+                            try
+                            {
+                                var value = prop.GetValue(serviceUI);
+                                if (value != null)
+                                {
+                                    MonsterTrainAccessibility.LogInfo($"Property {prop.Name}: {value.GetType().Name}");
+
+                                    var valueType = value.GetType();
+                                    var getNameMethod = valueType.GetMethod("GetName", Type.EmptyTypes);
+                                    if (getNameMethod != null)
+                                    {
+                                        serviceName = getNameMethod.Invoke(value, null) as string;
+                                        MonsterTrainAccessibility.LogInfo($"Service name from property: {serviceName}");
+                                    }
+                                }
+                            }
+                            catch { }
+                        }
+                    }
+
+                    // Check all methods for GetServiceData or similar
+                    var allMethods = uiType.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                    var getDataMethods = allMethods.Where(m =>
+                        (m.Name.Contains("Service") || m.Name.Contains("Data")) &&
+                        m.GetParameters().Length == 0 &&
+                        m.ReturnType != typeof(void)).Take(5);
+
+                    foreach (var method in getDataMethods)
+                    {
+                        MonsterTrainAccessibility.LogInfo($"Found method: {method.Name} returns {method.ReturnType.Name}");
+                        try
+                        {
+                            var result = method.Invoke(serviceUI, null);
+                            if (result != null)
+                            {
+                                MonsterTrainAccessibility.LogInfo($"Method {method.Name} returned: {result.GetType().Name}");
+
+                                var resultType = result.GetType();
+                                var getNameMethod = resultType.GetMethod("GetName", Type.EmptyTypes);
+                                if (getNameMethod != null)
+                                {
+                                    serviceName = getNameMethod.Invoke(result, null) as string;
+                                    MonsterTrainAccessibility.LogInfo($"Service name from method result: {serviceName}");
+                                    if (!string.IsNullOrEmpty(serviceName)) break;
+                                }
+                            }
+                        }
+                        catch { }
+                    }
+                }
+
+                // Priority 2: Search all fields for data objects
+                if (string.IsNullOrEmpty(serviceName))
+                {
+                    foreach (var field in fields)
+                    {
+                        string fieldName = field.Name.ToLower();
+                        var value = field.GetValue(serviceUI);
+                        if (value == null) continue;
+
+                        // Check for service/data objects
+                        if (fieldName.Contains("service") || fieldName.Contains("data"))
+                        {
+                            MonsterTrainAccessibility.LogInfo($"Checking field {field.Name}: {value.GetType().Name}");
+
+                            // Try to get name/description from data object
+                            var dataType = value.GetType();
+
+                            var getNameMethod = dataType.GetMethod("GetName", Type.EmptyTypes);
+                            if (getNameMethod != null)
+                            {
+                                serviceName = getNameMethod.Invoke(value, null) as string;
+                                MonsterTrainAccessibility.LogInfo($"Service name from {field.Name}: {serviceName}");
+                            }
+
+                            var getDescMethod = dataType.GetMethod("GetDescription", Type.EmptyTypes) ??
+                                               dataType.GetMethod("GetTooltipDescription", Type.EmptyTypes);
+                            if (getDescMethod != null)
+                            {
+                                serviceDesc = getDescMethod.Invoke(value, null) as string;
+                            }
+
+                            if (!string.IsNullOrEmpty(serviceName))
+                                break;
+                        }
+                    }
+                }
+
+                // Priority 3: Try methods on the UI component itself
+                if (string.IsNullOrEmpty(serviceName))
+                {
+                    var getNameMethod = methods.FirstOrDefault(m =>
+                        m.Name == "GetServiceName" || m.Name == "GetName");
+                    if (getNameMethod != null && getNameMethod.GetParameters().Length == 0)
+                    {
+                        serviceName = getNameMethod.Invoke(serviceUI, null) as string;
+                        MonsterTrainAccessibility.LogInfo($"Service name from method: {serviceName}");
+                    }
+                }
+
+                // Priority 4: Search child transforms directly for text
+                if (string.IsNullOrEmpty(serviceName))
+                {
+                    var serviceGO = serviceUI.gameObject;
+
+                    // Log all immediate children
+                    var childNames = new List<string>();
+                    for (int i = 0; i < serviceGO.transform.childCount; i++)
+                    {
+                        var child = serviceGO.transform.GetChild(i);
+                        childNames.Add(child.name);
+
+                        // Try to get text from each immediate child
+                        string childText = GetTMPTextDirect(child.gameObject);
+                        if (!string.IsNullOrEmpty(childText))
+                        {
+                            MonsterTrainAccessibility.LogInfo($"Found text in child '{child.name}': {childText}");
+                        }
+
+                        // Also check grandchildren
+                        for (int j = 0; j < child.childCount; j++)
+                        {
+                            var grandchild = child.GetChild(j);
+                            string gcText = GetTMPTextDirect(grandchild.gameObject);
+                            if (!string.IsNullOrEmpty(gcText))
+                            {
+                                MonsterTrainAccessibility.LogInfo($"Found text in grandchild '{child.name}/{grandchild.name}': {gcText}");
+                            }
+                        }
+                    }
+                    MonsterTrainAccessibility.LogInfo($"MerchantServiceUI children: {string.Join(", ", childNames)}");
+
+                    // Look for specific named children that might contain the title
+                    var titleChildNames = new[] { "Title", "TitleLabel", "Name", "ServiceName", "TitleText", "Label", "Text" };
+                    foreach (var childName in titleChildNames)
+                    {
+                        var titleChild = serviceGO.transform.Find(childName);
+                        if (titleChild != null)
+                        {
+                            serviceName = GetTMPTextDirect(titleChild.gameObject);
+                            if (!string.IsNullOrEmpty(serviceName))
+                            {
+                                MonsterTrainAccessibility.LogInfo($"Got service name from child '{childName}': {serviceName}");
+                                break;
+                            }
+                        }
+                    }
+
+                    // If still not found, get all text from children
+                    if (string.IsNullOrEmpty(serviceName))
+                    {
+                        var childTexts = GetAllTextFromChildren(serviceGO);
+                        MonsterTrainAccessibility.LogInfo($"Child texts found: {string.Join(", ", childTexts.Take(5))}");
+
+                        if (childTexts.Count > 0)
+                        {
+                            serviceName = childTexts[0];
+                            MonsterTrainAccessibility.LogInfo($"Got service name from children: {serviceName}");
+
+                            if (childTexts.Count > 1)
+                            {
+                                serviceDesc = childTexts[1];
+                            }
+                        }
+                    }
+                }
+
+                // Priority 5: Try titleLabel and descriptionLabel fields as last resort
+                if (string.IsNullOrEmpty(serviceName))
+                {
+                    var titleLabelField = fields.FirstOrDefault(f => f.Name == "titleLabel");
+                    var descLabelField = fields.FirstOrDefault(f => f.Name == "descriptionLabel");
+
+                    if (titleLabelField != null)
+                    {
+                        var titleLabel = titleLabelField.GetValue(serviceUI);
+                        if (titleLabel != null)
+                        {
+                            serviceName = GetTextFromComponent(titleLabel);
+                            MonsterTrainAccessibility.LogInfo($"Got title from titleLabel field: {serviceName}");
+                        }
+                    }
+
+                    if (descLabelField != null)
+                    {
+                        var descLabel = descLabelField.GetValue(serviceUI);
+                        if (descLabel != null)
+                        {
+                            serviceDesc = GetTextFromComponent(descLabel);
+                        }
+                    }
+                }
+
+                // Priority 6: Check for text/label fields (as strings)
+                if (string.IsNullOrEmpty(serviceName))
+                {
+                    foreach (var field in fields)
+                    {
+                        string fieldName = field.Name.ToLower();
+                        var value = field.GetValue(serviceUI);
+
+                        if (value is string str && !string.IsNullOrEmpty(str))
+                        {
+                            if (fieldName.Contains("name") || fieldName.Contains("title"))
+                            {
+                                serviceName = str;
+                                MonsterTrainAccessibility.LogInfo($"Got service name from string field {field.Name}: {serviceName}");
+                            }
+                            else if (fieldName.Contains("desc"))
+                            {
+                                serviceDesc = str;
+                            }
+                        }
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(serviceName))
+                {
+                    serviceName = BattleAccessibility.StripRichTextTags(serviceName);
+                    string price = GetShopItemPrice(serviceUI);
+
+                    List<string> parts = new List<string> { serviceName };
+
+                    if (!string.IsNullOrEmpty(serviceDesc) && serviceDesc != serviceName)
+                    {
+                        parts.Add(BattleAccessibility.StripRichTextTags(serviceDesc));
+                    }
+
+                    if (!string.IsNullOrEmpty(price))
+                    {
+                        parts.Add(price);
+                    }
+
+                    return string.Join(". ", parts);
+                }
+
+                MonsterTrainAccessibility.LogWarning("Could not extract service name from MerchantServiceUI");
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error extracting merchant service info: {ex.Message}");
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Get price from a shop item component
+        /// </summary>
+        private string GetShopItemPrice(Component shopItem)
+        {
+            try
+            {
+                var itemType = shopItem.GetType();
+                var fields = itemType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+
+                foreach (var field in fields)
+                {
+                    string fieldName = field.Name.ToLower();
+                    if (fieldName.Contains("price") || fieldName.Contains("cost") || fieldName.Contains("gold"))
+                    {
+                        var value = field.GetValue(shopItem);
+                        if (value is int intPrice && intPrice > 0)
+                        {
+                            return $"{intPrice} gold";
+                        }
+                    }
+                }
+
+                // Try methods
+                var methods = itemType.GetMethods(BindingFlags.Public | BindingFlags.Instance);
+                var getPriceMethod = methods.FirstOrDefault(m =>
+                    (m.Name == "GetPrice" || m.Name == "GetCost" || m.Name == "GetGoldCost") &&
+                    m.GetParameters().Length == 0);
+
+                if (getPriceMethod != null)
+                {
+                    var result = getPriceMethod.Invoke(shopItem, null);
+                    if (result is int price && price > 0)
+                    {
+                        return $"{price} gold";
+                    }
+                }
+            }
+            catch { }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Extract card info from CardState or CardData
+        /// </summary>
+        private string ExtractCardInfo(object cardObj)
+        {
+            if (cardObj == null) return null;
+
+            try
+            {
+                var cardType = cardObj.GetType();
+
+                // If this is CardState, get CardData first
+                object cardData = cardObj;
+                if (cardType.Name == "CardState")
+                {
+                    var getDataMethod = cardType.GetMethod("GetCardDataRead", Type.EmptyTypes);
+                    if (getDataMethod != null)
+                    {
+                        cardData = getDataMethod.Invoke(cardObj, null);
+                        if (cardData == null) return null;
+                    }
+                }
+
+                var dataType = cardData.GetType();
+                string name = null;
+                string description = null;
+                int cost = -1;
+
+                // Get name
+                var getNameMethod = dataType.GetMethod("GetName", Type.EmptyTypes);
+                if (getNameMethod != null)
+                {
+                    name = getNameMethod.Invoke(cardData, null) as string;
+                }
+
+                // Get description
+                var getDescMethod = dataType.GetMethod("GetDescription", Type.EmptyTypes);
+                if (getDescMethod != null)
+                {
+                    description = getDescMethod.Invoke(cardData, null) as string;
+                }
+
+                // Get cost
+                var getCostMethod = dataType.GetMethod("GetCost", Type.EmptyTypes);
+                if (getCostMethod != null)
+                {
+                    var costResult = getCostMethod.Invoke(cardData, null);
+                    if (costResult is int c)
+                        cost = c;
+                }
+
+                if (!string.IsNullOrEmpty(name))
+                {
+                    List<string> parts = new List<string>();
+                    parts.Add(BattleAccessibility.StripRichTextTags(name));
+
+                    if (cost >= 0)
+                    {
+                        parts.Add($"{cost} ember");
+                    }
+
+                    if (!string.IsNullOrEmpty(description))
+                    {
+                        parts.Add(BattleAccessibility.StripRichTextTags(description));
+                    }
+
+                    // Add keyword definitions
+                    string keywords = GetCardKeywordTooltips(cardObj, cardData, description);
+                    if (!string.IsNullOrEmpty(keywords))
+                    {
+                        parts.Add($"Keywords: {keywords}");
+                    }
+
+                    return string.Join(". ", parts);
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error extracting card info: {ex.Message}");
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Extract info from a generic shop item
+        /// </summary>
+        private string ExtractShopItemInfo(object item)
+        {
+            if (item == null) return null;
+
+            try
+            {
+                var itemType = item.GetType();
+
+                // Try GetName
+                var getNameMethod = itemType.GetMethod("GetName", Type.EmptyTypes);
+                if (getNameMethod != null)
+                {
+                    var name = getNameMethod.Invoke(item, null) as string;
+                    if (!string.IsNullOrEmpty(name))
+                    {
+                        return BattleAccessibility.StripRichTextTags(name);
+                    }
+                }
+
+                // Try to find card data inside
+                var fields = itemType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                foreach (var field in fields)
+                {
+                    string fieldName = field.Name.ToLower();
+                    if (fieldName.Contains("card") || fieldName.Contains("data"))
+                    {
+                        var value = field.GetValue(item);
+                        if (value != null)
+                        {
+                            string info = ExtractCardInfo(value);
+                            if (!string.IsNullOrEmpty(info))
+                                return info;
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Get full card details when arrowing over a card in the hand (CardUI component)
+        /// </summary>
+        private string GetCardUIText(GameObject go)
+        {
+            try
+            {
+                // Find CardUI component on this object or in hierarchy
+                Component cardUIComponent = null;
+
+                // Check this object and its children first
+                foreach (var component in go.GetComponentsInChildren<Component>())
+                {
+                    if (component == null) continue;
+                    if (component.GetType().Name == "CardUI")
+                    {
+                        cardUIComponent = component;
+                        break;
+                    }
+                }
+
+                // If not found, check parents
+                if (cardUIComponent == null)
+                {
+                    Transform current = go.transform;
+                    while (current != null && cardUIComponent == null)
+                    {
+                        foreach (var component in current.GetComponents<Component>())
+                        {
+                            if (component == null) continue;
+                            if (component.GetType().Name == "CardUI")
+                            {
+                                cardUIComponent = component;
+                                break;
+                            }
+                        }
+                        current = current.parent;
+                    }
+                }
+
+                if (cardUIComponent == null)
+                    return null;
+
+                // Get CardState from CardUI
+                var cardUIType = cardUIComponent.GetType();
+                object cardState = null;
+
+                // Try common field/property names for the card state reference
+                var cardStateField = cardUIType.GetField("cardState", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (cardStateField != null)
+                {
+                    cardState = cardStateField.GetValue(cardUIComponent);
+                }
+
+                // Try _cardState
+                if (cardState == null)
+                {
+                    cardStateField = cardUIType.GetField("_cardState", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                    if (cardStateField != null)
+                    {
+                        cardState = cardStateField.GetValue(cardUIComponent);
+                    }
+                }
+
+                // Try CardState property
+                if (cardState == null)
+                {
+                    var cardStateProp = cardUIType.GetProperty("CardState", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                    if (cardStateProp != null)
+                    {
+                        cardState = cardStateProp.GetValue(cardUIComponent);
+                    }
+                }
+
+                // Try GetCard or GetCardState method
+                if (cardState == null)
+                {
+                    var getCardMethod = cardUIType.GetMethod("GetCard", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                    if (getCardMethod != null && getCardMethod.GetParameters().Length == 0)
+                    {
+                        cardState = getCardMethod.Invoke(cardUIComponent, null);
+                    }
+                }
+
+                if (cardState == null)
+                {
+                    var getCardStateMethod = cardUIType.GetMethod("GetCardState", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                    if (getCardStateMethod != null && getCardStateMethod.GetParameters().Length == 0)
+                    {
+                        cardState = getCardStateMethod.Invoke(cardUIComponent, null);
+                    }
+                }
+
+                if (cardState == null)
+                {
+                    MonsterTrainAccessibility.LogInfo("CardUI found but couldn't get CardState");
+                    return null;
+                }
+
+                // Format the card details
+                return FormatCardDetails(cardState);
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting card UI text: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Format card details into a readable string (name, type, clan, cost, description)
+        /// </summary>
+        private string FormatCardDetails(object cardState)
+        {
+            try
+            {
+                var sb = new StringBuilder();
+                var type = cardState.GetType();
+
+                MonsterTrainAccessibility.LogInfo($"FormatCardDetails called for type: {type.Name}");
+
+                // Get card name
+                string name = "Unknown Card";
+                var getTitleMethod = type.GetMethod("GetTitle", Type.EmptyTypes);
+                if (getTitleMethod != null)
+                {
+                    name = getTitleMethod.Invoke(cardState, null) as string ?? "Unknown Card";
+                    MonsterTrainAccessibility.LogInfo($"Card name: {name}");
+                }
+
+                // Get card type
+                string cardType = null;
+                var getCardTypeMethod = type.GetMethod("GetCardType");
+                if (getCardTypeMethod != null)
+                {
+                    var cardTypeObj = getCardTypeMethod.Invoke(cardState, null);
+                    if (cardTypeObj != null)
+                    {
+                        cardType = cardTypeObj.ToString();
+                        if (cardType == "Monster") cardType = "Unit";
+                    }
+                }
+
+                // Get ember cost
+                int cost = 0;
+                var getCostMethod = type.GetMethod("GetCostWithoutAnyModifications", Type.EmptyTypes)
+                                  ?? type.GetMethod("GetCost", Type.EmptyTypes);
+                if (getCostMethod != null)
+                {
+                    var costResult = getCostMethod.Invoke(cardState, null);
+                    if (costResult is int c) cost = c;
+                }
+
+                // Get CardData to access linked class (clan) and better descriptions
+                object cardData = null;
+                string clanName = null;
+                string description = null;
+
+                var getCardDataMethod = type.GetMethod("GetCardDataRead", Type.EmptyTypes)
+                                     ?? type.GetMethod("GetCardData", Type.EmptyTypes);
+                MonsterTrainAccessibility.LogInfo($"GetCardData method: {(getCardDataMethod != null ? getCardDataMethod.Name : "NOT FOUND")}");
+
+                // Log all methods that might be related to card data
+                var cardDataMethods = type.GetMethods()
+                    .Where(m => m.Name.Contains("CardData") || m.Name.Contains("Data"))
+                    .Select(m => $"{m.Name}({string.Join(", ", m.GetParameters().Select(p => p.ParameterType.Name))})")
+                    .Distinct()
+                    .ToArray();
+                MonsterTrainAccessibility.LogInfo($"CardState data methods: {string.Join(", ", cardDataMethods)}");
+
+                if (getCardDataMethod != null)
+                {
+                    cardData = getCardDataMethod.Invoke(cardState, null);
+                    MonsterTrainAccessibility.LogInfo($"CardData result: {(cardData != null ? cardData.GetType().Name : "null")}");
+                }
+
+                if (cardData != null)
+                {
+                    var cardDataType = cardData.GetType();
+
+                    // Get linked class (clan) from CardData
+                    var linkedClassField = cardDataType.GetField("linkedClass", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                    if (linkedClassField != null)
+                    {
+                        var linkedClass = linkedClassField.GetValue(cardData);
+                        if (linkedClass != null)
+                        {
+                            var classType = linkedClass.GetType();
+                            // Try GetTitle() for localized name
+                            var getClassTitleMethod = classType.GetMethod("GetTitle", Type.EmptyTypes);
+                            if (getClassTitleMethod != null)
+                            {
+                                clanName = getClassTitleMethod.Invoke(linkedClass, null) as string;
+                            }
+                            // Fallback to GetName()
+                            if (string.IsNullOrEmpty(clanName))
+                            {
+                                var getClassNameMethod = classType.GetMethod("GetName", Type.EmptyTypes);
+                                if (getClassNameMethod != null)
+                                {
+                                    clanName = getClassNameMethod.Invoke(linkedClass, null) as string;
+                                }
+                            }
+                        }
+                    }
+
+                    // Try GetDescription from CardData for effect text
+                    var getDescMethod = cardDataType.GetMethod("GetDescription", Type.EmptyTypes);
+                    if (getDescMethod != null)
+                    {
+                        description = getDescMethod.Invoke(cardData, null) as string;
+                    }
+
+                    // If no parameterless GetDescription, try with RelicManager parameter
+                    if (string.IsNullOrEmpty(description))
+                    {
+                        var allDescMethods = cardDataType.GetMethods().Where(m => m.Name.Contains("Description")).ToArray();
+                        foreach (var descMethod in allDescMethods)
+                        {
+                            var ps = descMethod.GetParameters();
+                            // Log available description methods for debugging
+                            MonsterTrainAccessibility.LogInfo($"CardData has description method: {descMethod.Name}({string.Join(", ", ps.Select(p => p.ParameterType.Name))})");
+                        }
+                    }
+                }
+
+                // Try GetCardText on CardState - this is the main method for card effect text
+                if (string.IsNullOrEmpty(description))
+                {
+                    // Log all GetCardText methods for debugging
+                    var cardTextMethods = type.GetMethods().Where(m => m.Name == "GetCardText").ToArray();
+                    MonsterTrainAccessibility.LogInfo($"Found {cardTextMethods.Length} GetCardText methods");
+                    foreach (var method in cardTextMethods)
+                    {
+                        var ps = method.GetParameters();
+                        MonsterTrainAccessibility.LogInfo($"  GetCardText({string.Join(", ", ps.Select(p => $"{p.ParameterType.Name} {p.Name}"))})");
+                    }
+
+                    // Try GetCardText with no parameters first
+                    var getCardTextMethod = type.GetMethod("GetCardText", Type.EmptyTypes);
+                    if (getCardTextMethod != null)
+                    {
+                        description = getCardTextMethod.Invoke(cardState, null) as string;
+                        MonsterTrainAccessibility.LogInfo($"GetCardText() returned: '{description}'");
+                    }
+
+                    // If no parameterless version, try with parameters
+                    if (string.IsNullOrEmpty(description))
+                    {
+                        foreach (var method in cardTextMethods)
+                        {
+                            var ps = method.GetParameters();
+                            try
+                            {
+                                var args = new object[ps.Length];
+                                for (int i = 0; i < ps.Length; i++)
+                                {
+                                    if (ps[i].ParameterType == typeof(bool))
+                                        args[i] = true;
+                                    else if (ps[i].ParameterType.IsValueType)
+                                        args[i] = Activator.CreateInstance(ps[i].ParameterType);
+                                    else
+                                        args[i] = null;
+                                }
+                                description = method.Invoke(cardState, args) as string;
+                                MonsterTrainAccessibility.LogInfo($"GetCardText with {ps.Length} params returned: '{description}'");
+                                if (!string.IsNullOrEmpty(description)) break;
+                            }
+                            catch (Exception ex)
+                            {
+                                MonsterTrainAccessibility.LogInfo($"GetCardText failed: {ex.Message}");
+                            }
+                        }
+                    }
+                }
+
+                // Fallback: try GetAssetDescription
+                if (string.IsNullOrEmpty(description))
+                {
+                    var getAssetDescMethod = type.GetMethod("GetAssetDescription", Type.EmptyTypes);
+                    if (getAssetDescMethod != null)
+                    {
+                        description = getAssetDescMethod.Invoke(cardState, null) as string;
+                    }
+                }
+
+                // Log if we still have no description
+                if (string.IsNullOrEmpty(description))
+                {
+                    var cardTextMethods = type.GetMethods().Where(m => m.Name == "GetCardText").ToArray();
+                    MonsterTrainAccessibility.LogInfo($"GetCardText methods: {string.Join(", ", cardTextMethods.Select(m => $"{m.Name}({string.Join(", ", m.GetParameters().Select(p => p.ParameterType.Name))})"))}");
+                }
+
+                // Build announcement: Name (Type), Clan, Cost. Effect.
+                sb.Append(name);
+                if (!string.IsNullOrEmpty(cardType))
+                {
+                    sb.Append($" ({cardType})");
+                }
+                if (!string.IsNullOrEmpty(clanName))
+                {
+                    sb.Append($", {clanName}");
+                }
+                sb.Append($", {cost} ember");
+
+                if (!string.IsNullOrEmpty(description))
+                {
+                    // Strip rich text tags for screen reader output
+                    description = BattleAccessibility.StripRichTextTags(description);
+                    sb.Append($". {description}");
+                }
+
+                // For unit cards, try to get attack and health stats
+                if (cardType == "Unit" || cardType == "Monster")
+                {
+                    MonsterTrainAccessibility.LogInfo($"Unit card detected, looking for stats. cardData is {(cardData != null ? "not null" : "NULL")}");
+                    int attack = -1;
+                    int health = -1;
+
+                    // Try to get stats from CardState
+                    var getAttackMethod = type.GetMethod("GetAttackDamage", Type.EmptyTypes);
+                    MonsterTrainAccessibility.LogInfo($"GetAttackDamage on CardState: {(getAttackMethod != null ? "found" : "not found")}");
+                    if (getAttackMethod != null)
+                    {
+                        var attackResult = getAttackMethod.Invoke(cardState, null);
+                        if (attackResult is int a) attack = a;
+                        MonsterTrainAccessibility.LogInfo($"Attack from CardState: {attack}");
+                    }
+
+                    var getHPMethod = type.GetMethod("GetHP", Type.EmptyTypes)
+                                   ?? type.GetMethod("GetHealth", Type.EmptyTypes)
+                                   ?? type.GetMethod("GetMaxHP", Type.EmptyTypes);
+                    MonsterTrainAccessibility.LogInfo($"GetHP/Health on CardState: {(getHPMethod != null ? getHPMethod.Name : "not found")}");
+                    if (getHPMethod != null)
+                    {
+                        var hpResult = getHPMethod.Invoke(cardState, null);
+                        if (hpResult is int h) health = h;
+                        MonsterTrainAccessibility.LogInfo($"Health from CardState: {health}");
+                    }
+
+                    // If not found on CardState, try GetSpawnCharacterData directly on CardState
+                    MonsterTrainAccessibility.LogInfo($"Stats after CardState check: attack={attack}, health={health}");
+                    if (attack < 0 || health < 0)
+                    {
+                        // GetSpawnCharacterData is directly on CardState, not CardData
+                        var getSpawnCharMethod = type.GetMethod("GetSpawnCharacterData", Type.EmptyTypes);
+                        MonsterTrainAccessibility.LogInfo($"GetSpawnCharacterData on CardState: {(getSpawnCharMethod != null ? "found" : "not found")}");
+                        if (getSpawnCharMethod != null)
+                        {
+                            var charData = getSpawnCharMethod.Invoke(cardState, null);
+                            MonsterTrainAccessibility.LogInfo($"SpawnCharacterData result: {(charData != null ? charData.GetType().Name : "null")}");
+                            if (charData != null)
+                            {
+                                var charDataType = charData.GetType();
+
+                                // Log all methods on character data
+                                var charMethods = charDataType.GetMethods()
+                                    .Where(m => m.Name.Contains("Attack") || m.Name.Contains("Damage") || m.Name.Contains("HP") || m.Name.Contains("Health") || m.Name.Contains("Size"))
+                                    .Select(m => $"{m.Name}({string.Join(", ", m.GetParameters().Select(p => p.ParameterType.Name))})")
+                                    .Distinct()
+                                    .ToArray();
+                                MonsterTrainAccessibility.LogInfo($"CharacterData stat methods available: {string.Join(", ", charMethods)}");
+
+                                if (attack < 0)
+                                {
+                                    var charAttackMethod = charDataType.GetMethod("GetAttackDamage", Type.EmptyTypes);
+                                    if (charAttackMethod != null)
+                                    {
+                                        var attackResult = charAttackMethod.Invoke(charData, null);
+                                        if (attackResult is int a) attack = a;
+                                        MonsterTrainAccessibility.LogInfo($"Attack from CharacterData: {attack}");
+                                    }
+                                }
+
+                                if (health < 0)
+                                {
+                                    var charHPMethod = charDataType.GetMethod("GetHealth", Type.EmptyTypes)
+                                                   ?? charDataType.GetMethod("GetHP", Type.EmptyTypes)
+                                                   ?? charDataType.GetMethod("GetMaxHP", Type.EmptyTypes);
+                                    if (charHPMethod != null)
+                                    {
+                                        var hpResult = charHPMethod.Invoke(charData, null);
+                                        if (hpResult is int h) health = h;
+                                        MonsterTrainAccessibility.LogInfo($"Health from CharacterData: {health}");
+                                    }
+                                }
+
+                                // Log what methods are available if still not found
+                                if (attack < 0 || health < 0)
+                                {
+                                    var statMethods = charDataType.GetMethods()
+                                        .Where(m => m.Name.Contains("Attack") || m.Name.Contains("Damage") || m.Name.Contains("HP") || m.Name.Contains("Health") || m.Name.Contains("Size"))
+                                        .Select(m => m.Name)
+                                        .Distinct()
+                                        .ToArray();
+                                    MonsterTrainAccessibility.LogInfo($"CharacterData stat methods: {string.Join(", ", statMethods)}");
+                                }
+                            }
+                        }
+                    }
+
+                    // Append unit stats
+                    if (attack >= 0 || health >= 0)
+                    {
+                        var stats = new List<string>();
+                        if (attack >= 0) stats.Add($"{attack} attack");
+                        if (health >= 0) stats.Add($"{health} health");
+                        sb.Append($". {string.Join(", ", stats)}");
+                    }
+                }
+
+                // Get keyword tooltips (Permafrost, Frozen, Regen, etc.)
+                // Pass the description we already have to avoid re-fetching
+                string keywordTooltips = GetCardKeywordTooltips(cardState, cardData, description);
+                if (!string.IsNullOrEmpty(keywordTooltips))
+                {
+                    sb.Append($". Keywords: {keywordTooltips}");
+                }
+
+                var result = sb.ToString();
+                MonsterTrainAccessibility.LogInfo($"FormatCardDetails result: {result}");
+                return result;
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error formatting card details: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Get keyword tooltip definitions from a card (Permafrost, Frozen, Regen, etc.)
+        /// Returns formatted string of keyword definitions
+        /// </summary>
+        private string GetCardKeywordTooltips(object cardState, object cardData, string cardDescription = null)
+        {
+            try
+            {
+                var tooltips = new List<string>();
+
+                // Method 1: Try to get linked tooltips directly from CardState
+                if (cardState != null)
+                {
+                    var stateType = cardState.GetType();
+
+                    // Try GetEffectTooltipData or similar methods
+                    var getTooltipsMethod = stateType.GetMethods()
+                        .FirstOrDefault(m => m.Name.Contains("Tooltip") && m.GetParameters().Length == 0);
+                    if (getTooltipsMethod != null)
+                    {
+                        var tooltipResult = getTooltipsMethod.Invoke(cardState, null);
+                        if (tooltipResult is System.Collections.IList tooltipList)
+                        {
+                            foreach (var tooltip in tooltipList)
+                            {
+                                string tooltipText = ExtractTooltipText(tooltip);
+                                if (!string.IsNullOrEmpty(tooltipText))
+                                    tooltips.Add(tooltipText);
+                            }
+                        }
+                    }
+                }
+
+                // Method 2: Get tooltips from CardData's effects
+                if (cardData != null && tooltips.Count == 0)
+                {
+                    var dataType = cardData.GetType();
+
+                    // Get card effects - each effect can have additionalTooltips
+                    var getEffectsMethod = dataType.GetMethod("GetEffects", Type.EmptyTypes);
+                    if (getEffectsMethod != null)
+                    {
+                        var effects = getEffectsMethod.Invoke(cardData, null) as System.Collections.IList;
+                        if (effects != null)
+                        {
+                            foreach (var effect in effects)
+                            {
+                                // Get additionalTooltips from each effect
+                                ExtractTooltipsFromEffect(effect, tooltips);
+
+                                // Also get status effect tooltips from paramStatusEffects
+                                ExtractStatusEffectTooltips(effect, tooltips);
+                            }
+                        }
+                    }
+
+                    // Also check card traits for tooltips
+                    var getTraitsMethod = dataType.GetMethod("GetTraits", Type.EmptyTypes);
+                    if (getTraitsMethod != null)
+                    {
+                        var traits = getTraitsMethod.Invoke(cardData, null) as System.Collections.IList;
+                        if (traits != null)
+                        {
+                            foreach (var trait in traits)
+                            {
+                                ExtractTraitTooltip(trait, tooltips);
+                            }
+                        }
+                    }
+                }
+
+                // Method 3: Parse keywords from card description and look up definitions
+                // Use the passed description if available, otherwise try to fetch it
+                if (tooltips.Count == 0)
+                {
+                    string desc = cardDescription;
+                    if (string.IsNullOrEmpty(desc))
+                    {
+                        desc = GetCardDescriptionForKeywordParsing(cardState, cardData);
+                    }
+                    if (!string.IsNullOrEmpty(desc))
+                    {
+                        ExtractKeywordsFromDescription(desc, tooltips);
+                    }
+                }
+
+                if (tooltips.Count > 0)
+                {
+                    return string.Join(". ", tooltips.Distinct());
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting keyword tooltips: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Extract tooltip text from a tooltip data object
+        /// </summary>
+        private string ExtractTooltipText(object tooltip)
+        {
+            if (tooltip == null) return null;
+
+            try
+            {
+                var tooltipType = tooltip.GetType();
+                string title = null;
+                string body = null;
+
+                // Try GetTitle/GetBody methods
+                var getTitleMethod = tooltipType.GetMethod("GetTitle", Type.EmptyTypes);
+                var getBodyMethod = tooltipType.GetMethod("GetBody", Type.EmptyTypes)
+                                 ?? tooltipType.GetMethod("GetDescription", Type.EmptyTypes);
+
+                if (getTitleMethod != null)
+                    title = getTitleMethod.Invoke(tooltip, null) as string;
+                if (getBodyMethod != null)
+                    body = getBodyMethod.Invoke(tooltip, null) as string;
+
+                // Try title/body fields
+                if (string.IsNullOrEmpty(title))
+                {
+                    var titleField = tooltipType.GetField("title", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+                                  ?? tooltipType.GetField("_title", BindingFlags.NonPublic | BindingFlags.Instance);
+                    if (titleField != null)
+                        title = titleField.GetValue(tooltip) as string;
+                }
+
+                if (string.IsNullOrEmpty(body))
+                {
+                    var bodyField = tooltipType.GetField("body", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+                                 ?? tooltipType.GetField("description", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                    if (bodyField != null)
+                        body = bodyField.GetValue(tooltip) as string;
+                }
+
+                // Localize if needed
+                title = LocalizeIfNeeded(title);
+                body = LocalizeIfNeeded(body);
+
+                if (!string.IsNullOrEmpty(title) && !string.IsNullOrEmpty(body))
+                {
+                    return $"{BattleAccessibility.StripRichTextTags(title)}: {BattleAccessibility.StripRichTextTags(body)}";
+                }
+                else if (!string.IsNullOrEmpty(title))
+                {
+                    return BattleAccessibility.StripRichTextTags(title);
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        /// <summary>
+        /// Extract tooltips from a card effect (CardEffectData)
+        /// </summary>
+        private void ExtractTooltipsFromEffect(object effect, List<string> tooltips)
+        {
+            if (effect == null) return;
+
+            try
+            {
+                var effectType = effect.GetType();
+
+                // Get additionalTooltips field
+                var tooltipsField = effectType.GetField("additionalTooltips", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (tooltipsField != null)
+                {
+                    var additionalTooltips = tooltipsField.GetValue(effect) as System.Collections.IList;
+                    if (additionalTooltips != null)
+                    {
+                        foreach (var tooltip in additionalTooltips)
+                        {
+                            string text = ExtractAdditionalTooltipData(tooltip);
+                            if (!string.IsNullOrEmpty(text) && !tooltips.Contains(text))
+                                tooltips.Add(text);
+                        }
+                    }
+                }
+            }
+            catch { }
+        }
+
+        /// <summary>
+        /// Extract tooltip from AdditionalTooltipData
+        /// </summary>
+        private string ExtractAdditionalTooltipData(object tooltipData)
+        {
+            if (tooltipData == null) return null;
+
+            try
+            {
+                var type = tooltipData.GetType();
+
+                // AdditionalTooltipData has titleKey, descriptionKey, or title/description
+                string title = null;
+                string description = null;
+
+                // Try titleKey/descriptionKey first
+                var titleKeyField = type.GetField("titleKey", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                var descKeyField = type.GetField("descriptionKey", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+
+                if (titleKeyField != null)
+                {
+                    string key = titleKeyField.GetValue(tooltipData) as string;
+                    title = LocalizeKey(key);
+                }
+
+                if (descKeyField != null)
+                {
+                    string key = descKeyField.GetValue(tooltipData) as string;
+                    description = LocalizeKey(key);
+                }
+
+                // Also try direct title/description
+                if (string.IsNullOrEmpty(title))
+                {
+                    var titleField = type.GetField("title", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                    if (titleField != null)
+                        title = titleField.GetValue(tooltipData) as string;
+                }
+
+                if (string.IsNullOrEmpty(description))
+                {
+                    var descField = type.GetField("description", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                    if (descField != null)
+                        description = descField.GetValue(tooltipData) as string;
+                }
+
+                if (!string.IsNullOrEmpty(title) && !string.IsNullOrEmpty(description))
+                {
+                    return $"{BattleAccessibility.StripRichTextTags(title)}: {BattleAccessibility.StripRichTextTags(description)}";
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        /// <summary>
+        /// Extract status effect tooltips from a card effect's paramStatusEffects
+        /// </summary>
+        private void ExtractStatusEffectTooltips(object effect, List<string> tooltips)
+        {
+            if (effect == null) return;
+
+            try
+            {
+                var effectType = effect.GetType();
+
+                // Get paramStatusEffects field
+                var statusField = effectType.GetField("paramStatusEffects", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (statusField != null)
+                {
+                    var statusEffects = statusField.GetValue(effect) as System.Collections.IList;
+                    if (statusEffects != null)
+                    {
+                        foreach (var statusEffect in statusEffects)
+                        {
+                            string tooltip = GetStatusEffectTooltip(statusEffect);
+                            if (!string.IsNullOrEmpty(tooltip) && !tooltips.Contains(tooltip))
+                                tooltips.Add(tooltip);
+                        }
+                    }
+                }
+            }
+            catch { }
+        }
+
+        /// <summary>
+        /// Get tooltip for a status effect stack/application
+        /// </summary>
+        private string GetStatusEffectTooltip(object statusEffectParam)
+        {
+            if (statusEffectParam == null) return null;
+
+            try
+            {
+                var type = statusEffectParam.GetType();
+
+                // Get the statusId
+                string statusId = null;
+                var statusIdField = type.GetField("statusId", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (statusIdField != null)
+                {
+                    statusId = statusIdField.GetValue(statusEffectParam) as string;
+                }
+
+                if (!string.IsNullOrEmpty(statusId))
+                {
+                    // Look up the status effect data
+                    return GetStatusEffectDefinition(statusId);
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        /// <summary>
+        /// Get the definition of a status effect by its ID
+        /// </summary>
+        private string GetStatusEffectDefinition(string statusId)
+        {
+            if (string.IsNullOrEmpty(statusId)) return null;
+
+            try
+            {
+                // Try to get from StatusEffectManager
+                var managerType = GetTypeFromAssemblies("StatusEffectManager");
+                if (managerType != null)
+                {
+                    var instanceProp = managerType.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static);
+                    if (instanceProp != null)
+                    {
+                        var manager = instanceProp.GetValue(null);
+                        if (manager != null)
+                        {
+                            var getAllMethod = managerType.GetMethod("GetAllStatusEffectsData", Type.EmptyTypes);
+                            if (getAllMethod != null)
+                            {
+                                var allData = getAllMethod.Invoke(manager, null);
+                                if (allData != null)
+                                {
+                                    var getDataMethod = allData.GetType().GetMethod("GetStatusEffectData", Type.EmptyTypes);
+                                    if (getDataMethod != null)
+                                    {
+                                        var dataList = getDataMethod.Invoke(allData, null) as System.Collections.IList;
+                                        if (dataList != null)
+                                        {
+                                            foreach (var data in dataList)
+                                            {
+                                                var dataType = data.GetType();
+                                                var getIdMethod = dataType.GetMethod("GetStatusId", Type.EmptyTypes);
+                                                if (getIdMethod != null)
+                                                {
+                                                    string id = getIdMethod.Invoke(data, null) as string;
+                                                    if (id == statusId)
+                                                    {
+                                                        // Found it - get name and description
+                                                        return GetStatusEffectNameAndDescription(data, dataType);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Fallback: try localization directly
+                string locKey = GetStatusEffectLocKey(statusId);
+                string name = LocalizeKey($"{locKey}_CardText");
+                string desc = LocalizeKey($"{locKey}_CardTooltipText");
+
+                if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(desc) && name != $"{locKey}_CardText")
+                {
+                    return $"{BattleAccessibility.StripRichTextTags(name)}: {BattleAccessibility.StripRichTextTags(desc)}";
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        /// <summary>
+        /// Get name and description from StatusEffectData
+        /// </summary>
+        private string GetStatusEffectNameAndDescription(object statusData, Type dataType)
+        {
+            try
+            {
+                string name = null;
+                string description = null;
+
+                // Try GetDisplayName or similar
+                var getNameMethod = dataType.GetMethod("GetDisplayName", Type.EmptyTypes)
+                                 ?? dataType.GetMethod("GetName", Type.EmptyTypes);
+                if (getNameMethod != null)
+                {
+                    name = getNameMethod.Invoke(statusData, null) as string;
+                }
+
+                // Try GetDescription
+                var getDescMethod = dataType.GetMethod("GetDescription", Type.EmptyTypes)
+                                 ?? dataType.GetMethod("GetTooltipText", Type.EmptyTypes);
+                if (getDescMethod != null)
+                {
+                    description = getDescMethod.Invoke(statusData, null) as string;
+                }
+
+                // Fallback to localization
+                if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(description))
+                {
+                    var getIdMethod = dataType.GetMethod("GetStatusId", Type.EmptyTypes);
+                    if (getIdMethod != null)
+                    {
+                        string statusId = getIdMethod.Invoke(statusData, null) as string;
+                        string locKey = GetStatusEffectLocKey(statusId);
+
+                        if (string.IsNullOrEmpty(name))
+                            name = LocalizeKey($"{locKey}_CardText");
+                        if (string.IsNullOrEmpty(description))
+                            description = LocalizeKey($"{locKey}_CardTooltipText");
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(description))
+                {
+                    return $"{BattleAccessibility.StripRichTextTags(name)}: {BattleAccessibility.StripRichTextTags(description)}";
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        /// <summary>
+        /// Get localization key prefix for a status effect ID
+        /// </summary>
+        private string GetStatusEffectLocKey(string statusId)
+        {
+            if (string.IsNullOrEmpty(statusId)) return null;
+
+            // Standard format: StatusEffect_[StatusId] with first letter capitalized
+            if (statusId.Length == 1)
+                return "StatusEffect_" + char.ToUpper(statusId[0]);
+            else if (statusId.Length > 1)
+                return "StatusEffect_" + char.ToUpper(statusId[0]) + statusId.Substring(1);
+
+            return null;
+        }
+
+        /// <summary>
+        /// Extract trait tooltips from CardTraitData
+        /// </summary>
+        private void ExtractTraitTooltip(object trait, List<string> tooltips)
+        {
+            if (trait == null) return;
+
+            try
+            {
+                var traitType = trait.GetType();
+
+                // Get trait name
+                var getNameMethod = traitType.GetMethod("GetTraitStateName", Type.EmptyTypes)
+                                 ?? traitType.GetMethod("GetName", Type.EmptyTypes);
+                if (getNameMethod != null)
+                {
+                    string traitName = getNameMethod.Invoke(trait, null) as string;
+                    if (!string.IsNullOrEmpty(traitName))
+                    {
+                        // Look up trait definition
+                        string tooltip = GetTraitDefinition(traitName);
+                        if (!string.IsNullOrEmpty(tooltip) && !tooltips.Contains(tooltip))
+                            tooltips.Add(tooltip);
+                    }
+                }
+            }
+            catch { }
+        }
+
+        /// <summary>
+        /// Get tooltip definition for a card trait
+        /// </summary>
+        private string GetTraitDefinition(string traitName)
+        {
+            // Common card traits with their definitions
+            var traitDefinitions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                { "permafrost", "Permafrost: Card remains in hand when drawn" },
+                { "frozen", "Frozen: Cannot be played until unfrozen" },
+                { "consume", "Consume: Removed from deck after playing" },
+                { "holdover", "Holdover: Returns to hand at end of turn" },
+                { "purge", "Purge: Removed from deck permanently" },
+                { "exhaust", "Exhaust: Removed from deck for this battle" },
+                { "intrinsic", "Intrinsic: Always drawn on first turn" },
+                { "etch", "Etch: Permanently upgrade this card" }
+            };
+
+            if (traitDefinitions.TryGetValue(traitName, out string definition))
+            {
+                return definition;
+            }
+
+            // Try localization
+            string key = $"CardTrait_{traitName}_Tooltip";
+            string localized = LocalizeKey(key);
+            if (!string.IsNullOrEmpty(localized) && localized != key)
+            {
+                return $"{FormatTraitName(traitName)}: {BattleAccessibility.StripRichTextTags(localized)}";
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Format a trait name for display
+        /// </summary>
+        private string FormatTraitName(string traitName)
+        {
+            if (string.IsNullOrEmpty(traitName)) return traitName;
+
+            // Remove "State" suffix and format
+            traitName = traitName.Replace("State", "");
+            return System.Text.RegularExpressions.Regex.Replace(traitName, "([a-z])([A-Z])", "$1 $2");
+        }
+
+        /// <summary>
+        /// Get card description for keyword parsing
+        /// </summary>
+        private string GetCardDescriptionForKeywordParsing(object cardState, object cardData)
+        {
+            string desc = null;
+
+            try
+            {
+                if (cardState != null)
+                {
+                    var type = cardState.GetType();
+                    var getCardTextMethod = type.GetMethod("GetCardText", Type.EmptyTypes);
+                    if (getCardTextMethod != null)
+                    {
+                        desc = getCardTextMethod.Invoke(cardState, null) as string;
+                    }
+                }
+
+                if (string.IsNullOrEmpty(desc) && cardData != null)
+                {
+                    var dataType = cardData.GetType();
+                    var getDescMethod = dataType.GetMethod("GetDescription", Type.EmptyTypes);
+                    if (getDescMethod != null)
+                    {
+                        desc = getDescMethod.Invoke(cardData, null) as string;
+                    }
+                }
+            }
+            catch { }
+
+            return desc;
+        }
+
+        /// <summary>
+        /// Extract keywords from card description text and look up their definitions
+        /// </summary>
+        private void ExtractKeywordsFromDescription(string description, List<string> tooltips)
+        {
+            if (string.IsNullOrEmpty(description)) return;
+
+            // Known keywords to look for (case-insensitive)
+            var knownKeywords = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                { "Armor", "Armor: Reduces damage taken by the armor amount" },
+                { "Rage", "Rage: Increases attack damage by the rage amount" },
+                { "Regen", "Regen: Restores health each turn equal to regen amount" },
+                { "Frostbite", "Frostbite: Deals damage at end of turn, then decreases by 1" },
+                { "Sap", "Sap: Reduces attack by the sap amount" },
+                { "Dazed", "Dazed: Unit cannot attack this turn" },
+                { "Rooted", "Rooted: Unit cannot move to another floor" },
+                { "Quick", "Quick: Attacks before other units" },
+                { "Multistrike", "Multistrike: Attacks multiple times" },
+                { "Sweep", "Sweep: Attacks all enemies on floor" },
+                { "Trample", "Trample: Excess damage hits the next enemy" },
+                { "Lifesteal", "Lifesteal: Heals for damage dealt" },
+                { "Spikes", "Spikes: Deals damage to attackers" },
+                { "Damage Shield", "Damage Shield: Blocks damage from next attack" },
+                { "Stealth", "Stealth: Cannot be targeted until it attacks" },
+                { "Burnout", "Burnout: Dies at end of turn" },
+                { "Endless", "Endless: Returns to hand when killed" },
+                { "Fragile", "Fragile: Dies when damaged" },
+                { "Heartless", "Heartless: Cannot be healed" },
+                { "Immobile", "Immobile: Cannot be moved" },
+                { "Permafrost", "Permafrost: Card remains in hand between turns" },
+                { "Frozen", "Frozen: Cannot be played until unfrozen" },
+                { "Consume", "Consume: Removed from deck after playing" },
+                { "Holdover", "Holdover: Returns to hand at end of turn" },
+                { "Purge", "Purge: Removed from deck permanently" },
+                { "Intrinsic", "Intrinsic: Always drawn on first turn" },
+                { "Etch", "Etch: Permanently upgrade this card" },
+                { "Emberdrain", "Emberdrain: Reduces ember at start of turn" },
+                { "Spell Weakness", "Spell Weakness: Takes extra damage from spells" },
+                { "Melee Weakness", "Melee Weakness: Takes extra damage from attacks" },
+                { "Spellshield", "Spellshield: Blocks damage from spells" },
+                { "Phased", "Phased: Cannot be targeted" }
+            };
+
+            foreach (var keyword in knownKeywords)
+            {
+                // Check if keyword appears in description (as whole word)
+                if (System.Text.RegularExpressions.Regex.IsMatch(description,
+                    $@"\b{System.Text.RegularExpressions.Regex.Escape(keyword.Key)}\b",
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+                {
+                    if (!tooltips.Contains(keyword.Value))
+                    {
+                        tooltips.Add(keyword.Value);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Localize a string if it looks like a localization key
+        /// </summary>
+        private string LocalizeIfNeeded(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return text;
+
+            // If it looks like a localization key, try to localize
+            if (text.Contains("_") && !text.Contains(" "))
+            {
+                string localized = LocalizeKey(text);
+                if (!string.IsNullOrEmpty(localized) && localized != text)
+                    return localized;
+            }
+
+            return text;
         }
 
         /// <summary>
@@ -3311,6 +8065,243 @@ namespace MonsterTrainAccessibility.Screens
                     MonsterTrainAccessibility.ScreenReader?.Queue(text);
                 }
             }
+        }
+
+        /// <summary>
+        /// Called when the game over screen (victory/defeat) is shown
+        /// </summary>
+        public void OnGameOverScreenEntered(object screen)
+        {
+            try
+            {
+                MonsterTrainAccessibility.LogInfo("Game over screen handler called");
+
+                // Small delay to let UI populate
+                StartCoroutine(ReadGameOverScreenDelayed(screen));
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in OnGameOverScreenEntered: {ex.Message}");
+            }
+        }
+
+        private System.Collections.IEnumerator ReadGameOverScreenDelayed(object screen)
+        {
+            // Wait for UI to populate
+            yield return new UnityEngine.WaitForSeconds(0.5f);
+
+            try
+            {
+                var sb = new StringBuilder();
+
+                // Try to extract data from the screen object via reflection
+                if (screen != null)
+                {
+                    var screenType = screen.GetType();
+                    MonsterTrainAccessibility.LogInfo($"Game over screen type: {screenType.Name}");
+
+                    // Log all fields for debugging
+                    foreach (var field in screenType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
+                    {
+                        try
+                        {
+                            var value = field.GetValue(screen);
+                            MonsterTrainAccessibility.LogInfo($"  Field: {field.Name} = {value}");
+                        }
+                        catch { }
+                    }
+                }
+
+                // Find all text elements in active game over screen
+                var rootObjects = UnityEngine.SceneManagement.SceneManager.GetActiveScene().GetRootGameObjects();
+                foreach (var root in rootObjects)
+                {
+                    if (!root.activeInHierarchy) continue;
+
+                    // Look for game over screen components
+                    string rootName = root.name.ToLower();
+                    if (rootName.Contains("gameover") || rootName.Contains("summary") ||
+                        rootName.Contains("victory") || rootName.Contains("defeat") ||
+                        rootName.Contains("result") || rootName.Contains("endrun"))
+                    {
+                        CollectGameOverText(root.transform, sb);
+                    }
+                    else
+                    {
+                        // Also check children with these names
+                        foreach (Transform child in root.transform)
+                        {
+                            if (!child.gameObject.activeInHierarchy) continue;
+                            string childName = child.name.ToLower();
+                            if (childName.Contains("gameover") || childName.Contains("summary") ||
+                                childName.Contains("victory") || childName.Contains("defeat") ||
+                                childName.Contains("result") || childName.Contains("endrun"))
+                            {
+                                CollectGameOverText(child, sb);
+                            }
+                        }
+                    }
+                }
+
+                // If we didn't find structured data, try to read all visible TMP text
+                if (sb.Length == 0)
+                {
+                    sb.Append(ReadAllVisibleTextOnScreen());
+                }
+
+                string announcement = sb.ToString().Trim();
+                if (!string.IsNullOrEmpty(announcement))
+                {
+                    MonsterTrainAccessibility.LogInfo($"Game over announcement: {announcement}");
+                    MonsterTrainAccessibility.ScreenReader?.Speak(announcement, true);
+                }
+                else
+                {
+                    // Fallback: just announce we're on the game over screen
+                    MonsterTrainAccessibility.ScreenReader?.Speak("Run complete. Press T to read stats.", true);
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error reading game over screen: {ex.Message}");
+                MonsterTrainAccessibility.ScreenReader?.Speak("Run complete.", true);
+            }
+        }
+
+        private void CollectGameOverText(Transform root, StringBuilder sb)
+        {
+            try
+            {
+                // Collect all meaningful text in order
+                var textElements = new List<(int order, string label, string value)>();
+
+                CollectTextRecursive(root, textElements, 0);
+
+                // Sort by order and format
+                textElements.Sort((a, b) => a.order.CompareTo(b.order));
+
+                foreach (var elem in textElements)
+                {
+                    if (!string.IsNullOrEmpty(elem.label) && !string.IsNullOrEmpty(elem.value))
+                    {
+                        sb.Append($"{elem.label}: {elem.value}. ");
+                    }
+                    else if (!string.IsNullOrEmpty(elem.value))
+                    {
+                        sb.Append($"{elem.value}. ");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error collecting game over text: {ex.Message}");
+            }
+        }
+
+        private void CollectTextRecursive(Transform transform, List<(int order, string label, string value)> textElements, int depth)
+        {
+            if (transform == null || !transform.gameObject.activeInHierarchy || depth > 15)
+                return;
+
+            string objName = transform.name.ToLower();
+
+            // Skip certain elements
+            if (objName.Contains("button") && !objName.Contains("label"))
+                return;
+
+            // Get text from this element
+            string text = GetTMPTextDirect(transform.gameObject);
+            if (!string.IsNullOrEmpty(text))
+            {
+                text = BattleAccessibility.StripRichTextTags(text.Trim());
+
+                // Determine if this is a label or value based on name/position
+                bool isLabel = objName.Contains("label") || objName.Contains("title") ||
+                              objName.Contains("header") || objName.Contains("name");
+
+                // Calculate order based on position (y position inverted since UI goes top-down)
+                int order = 0;
+                if (transform is RectTransform rt)
+                {
+                    order = (int)(-rt.anchoredPosition.y * 10 + rt.anchoredPosition.x);
+                }
+
+                if (!string.IsNullOrEmpty(text) && text.Length > 0)
+                {
+                    // Filter out very short or noise text
+                    if (text.Length >= 1 && !text.All(c => c == '/' || c == ',' || char.IsWhiteSpace(c)))
+                    {
+                        textElements.Add((order, isLabel ? text : null, isLabel ? null : text));
+                    }
+                }
+            }
+
+            // Recurse into children
+            foreach (Transform child in transform)
+            {
+                CollectTextRecursive(child, textElements, depth + 1);
+            }
+        }
+
+        private string ReadAllVisibleTextOnScreen()
+        {
+            var sb = new StringBuilder();
+            var seenTexts = new HashSet<string>();
+
+            try
+            {
+                // Find all TMP components in the scene
+                var tmpComponents = UnityEngine.Object.FindObjectsOfType<Component>();
+                var textList = new List<(float y, string text)>();
+
+                foreach (var comp in tmpComponents)
+                {
+                    if (comp == null || !comp.gameObject.activeInHierarchy)
+                        continue;
+
+                    var type = comp.GetType();
+                    if (type.Name.Contains("TextMeshPro") || type.Name == "TMP_Text")
+                    {
+                        var textProp = type.GetProperty("text", BindingFlags.Public | BindingFlags.Instance);
+                        if (textProp != null)
+                        {
+                            string text = textProp.GetValue(comp) as string;
+                            if (!string.IsNullOrEmpty(text))
+                            {
+                                text = BattleAccessibility.StripRichTextTags(text.Trim());
+                                if (!string.IsNullOrEmpty(text) && text.Length > 1 && !seenTexts.Contains(text))
+                                {
+                                    seenTexts.Add(text);
+
+                                    // Get Y position for ordering
+                                    float yPos = 0;
+                                    if (comp.transform is RectTransform rt)
+                                    {
+                                        yPos = rt.position.y;
+                                    }
+
+                                    textList.Add((yPos, text));
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Sort by Y position (top to bottom)
+                textList.Sort((a, b) => b.y.CompareTo(a.y));
+
+                foreach (var item in textList)
+                {
+                    sb.Append(item.text);
+                    sb.Append(". ");
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error reading all visible text: {ex.Message}");
+            }
+
+            return sb.ToString();
         }
 
         /// <summary>
