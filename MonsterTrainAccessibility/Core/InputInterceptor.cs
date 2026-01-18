@@ -1,3 +1,4 @@
+using MonsterTrainAccessibility.Battle;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
@@ -40,6 +41,42 @@ namespace MonsterTrainAccessibility.Core
 
             if (config == null)
                 return;
+
+            // Skip most input handling if floor targeting is active
+            // (FloorTargetingSystem handles its own input)
+            if (FloorTargetingSystem.Instance?.IsTargeting == true)
+            {
+                // Only allow help key during targeting
+                if (Input.GetKeyDown(config.HelpKey.Value))
+                {
+                    MonsterTrainAccessibility.HelpSystem?.ShowHelp();
+                    _inputCooldown = INPUT_COOLDOWN_TIME;
+                }
+                return;
+            }
+
+            // Help key (F1) - always available
+            if (Input.GetKeyDown(config.HelpKey.Value))
+            {
+                MonsterTrainAccessibility.HelpSystem?.ShowHelp();
+                _inputCooldown = INPUT_COOLDOWN_TIME;
+                return;
+            }
+
+            // Number keys for card selection in battle
+            var battle = MonsterTrainAccessibility.BattleHandler;
+            if (battle != null && battle.IsInBattle)
+            {
+                for (int i = 1; i <= 9; i++)
+                {
+                    if (Input.GetKeyDown(KeyCode.Alpha0 + i) || Input.GetKeyDown(KeyCode.Keypad0 + i))
+                    {
+                        battle.SelectCardByIndex(i - 1);
+                        _inputCooldown = INPUT_COOLDOWN_TIME;
+                        return;
+                    }
+                }
+            }
 
             // Information hotkeys - these don't interfere with game navigation
             if (Input.GetKeyDown(config.ReadCurrentKey.Value))

@@ -25,8 +25,30 @@ The csproj automatically copies the built DLL to the game's plugins folder after
 ### Core Components (MonsterTrainAccessibility/Core/)
 
 - **ScreenReaderOutput**: Wrapper for Tolk library - handles speech output, braille, and screen reader detection. All accessibility output goes through this.
-- **InputInterceptor**: Unity MonoBehaviour that handles accessibility hotkeys (C, T, H, F, E, R, V). Navigation is handled by the game's native EventSystem.
+- **InputInterceptor**: Unity MonoBehaviour that handles accessibility hotkeys (F1, C, T, H, F, E, R, V, 1-9). Navigation is handled by the game's native EventSystem.
 - **AccessibilityConfig**: BepInEx configuration - verbosity levels, keybindings, announcement settings.
+
+### Help System (MonsterTrainAccessibility/Help/)
+
+Context-sensitive help that announces available keys based on current game screen.
+
+- **IHelpContext**: Interface for help providers - each screen/mode implements this
+- **HelpSystem**: Coordinator that selects the active context and speaks help text
+- **ScreenStateTracker**: Static enum tracking current game screen (MainMenu, Battle, etc.)
+- **Contexts/**: Individual help providers:
+  - `GlobalHelp` (priority 0): Fallback for any screen
+  - `MainMenuHelp` (40): Main menu navigation
+  - `ClanSelectionHelp` (50): Clan/class selection
+  - `MapHelp` (60): Map navigation
+  - `ShopHelp` (70): Shop purchases
+  - `EventHelp` (70): Event choices
+  - `CardDraftHelp` (80): Card draft selection
+  - `BattleHelp` (90): Battle information keys
+  - `BattleTargetingHelp` (100): Floor targeting mode
+
+### Battle Systems (MonsterTrainAccessibility/Battle/)
+
+- **FloorTargetingSystem**: Keyboard-based floor selection for playing cards. When a card requires floor placement, allows 1/2/3 keys or arrows to select floor, Enter to confirm, Escape to cancel.
 
 ### Screen Handlers (MonsterTrainAccessibility/Screens/)
 
@@ -37,15 +59,32 @@ The csproj automatically copies the built DLL to the game's plugins folder after
 
 ### Hotkeys
 
+#### Global Keys (all screens)
 | Key | Action |
 |-----|--------|
+| F1 | Context-sensitive help |
 | C | Re-read current focused item |
 | T | Read all text on screen |
-| H | Read hand (battle) |
-| F | Read floors (battle) |
-| E | Read enemies (battle) |
-| R | Read resources (battle) |
-| V | Cycle verbosity |
+| V | Cycle verbosity level |
+
+#### Battle Keys
+| Key | Action |
+|-----|--------|
+| H | Read hand (all cards) |
+| F | Read floors (all units) |
+| E | Read enemies (enemy positions) |
+| R | Read resources (ember, pyre, cards) |
+| 1-9 | Select card by position in hand |
+
+#### Floor Targeting Keys (when playing a card)
+| Key | Action |
+|-----|--------|
+| 1 | Select floor 1 (bottom) |
+| 2 | Select floor 2 (middle) |
+| 3 | Select floor 3 (top) |
+| Up/Down | Cycle between floors |
+| Enter | Confirm floor selection |
+| Escape | Cancel card play |
 
 ### Harmony Patches (MonsterTrainAccessibility/Patches/)
 

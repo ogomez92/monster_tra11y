@@ -30,6 +30,7 @@ namespace MonsterTrainAccessibility.Core
         public ConfigEntry<KeyCode> ReadEnemiesKey { get; private set; }
         public ConfigEntry<KeyCode> ReadResourcesKey { get; private set; }
         public ConfigEntry<KeyCode> ToggleVerbosityKey { get; private set; }
+        public ConfigEntry<KeyCode> HelpKey { get; private set; }
 
         // Announcement preferences
         public ConfigEntry<bool> AnnounceCardDraws { get; private set; }
@@ -163,6 +164,13 @@ namespace MonsterTrainAccessibility.Core
                 "ToggleVerbosity",
                 KeyCode.V,
                 "Key to cycle through verbosity levels"
+            );
+
+            HelpKey = config.Bind(
+                "Keys.Information",
+                "Help",
+                KeyCode.F1,
+                "Key to show context-sensitive help for current screen"
             );
 
             // ========== Announcement Preferences ==========

@@ -126,6 +126,7 @@ The mod requires the Tolk library for screen reader communication.
 ### Information Hotkeys
 | Key | Action |
 |-----|--------|
+| F1 | Context-sensitive help (shows available keys for current screen) |
 | C | Re-read current focused item |
 | T | Read all text on screen (patch notes, descriptions, etc.) |
 | V | Cycle verbosity level (Minimal/Normal/Verbose) |
@@ -144,6 +145,17 @@ The mod automatically reads text when:
 | F | Read all floor information |
 | E | Read enemy information and intents |
 | R | Read resources (ember, pyre health) |
+| 1-9 | Select card by position in hand (1 = first card, etc.) |
+
+### Floor Targeting (when playing a card that requires floor selection)
+| Key | Action |
+|-----|--------|
+| 1 | Select Floor 1 (bottom floor) |
+| 2 | Select Floor 2 (middle floor) |
+| 3 | Select Floor 3 (top floor) |
+| Up/Down | Cycle between floors |
+| Enter | Confirm and play card on selected floor |
+| Escape | Cancel card play |
 
 ## Configuration
 
@@ -170,20 +182,29 @@ The battle screen uses the game's native navigation. Use hotkeys for information
 - Press **F** to hear floor status and units
 - Press **E** to hear enemy information
 - Press **R** to hear ember and pyre health
+- Press **F1** for context-sensitive help listing all available keys
 
 ### Playing Cards
-- Navigate to cards using the game's controls
-- Press Enter to play the selected card
-- Use floor selection when placing monsters
+- Press **1-9** to quickly select a card by its position in hand
+- Alternatively, navigate to cards using the game's controls
+- Press **Enter** to play the selected card
+- When a card requires floor placement (like monster cards), floor targeting mode activates:
+  - Press **1**, **2**, or **3** to select a floor directly
+  - Or use **Up/Down arrows** to cycle through floors
+  - The current floor's units will be announced as you select
+  - Press **Enter** to confirm and play the card
+  - Press **Escape** to cancel
 
 ## Tips for Blind Players
 
-1. **Start Simple**: Begin with the tutorial to learn the game flow
-2. **Read Text**: Press T to read patch notes, event descriptions, or any screen text
-3. **Use Battle Hotkeys**: H, F, E, R provide quick status updates during battle
-4. **Check Ember**: Press R regularly to know your available resources
-5. **Enemy Intents**: Press E to hear what enemies plan to do next turn
-6. **Re-read Items**: Press C to re-read the currently focused menu item
+1. **Press F1 for Help**: On any screen, press F1 to hear all available keyboard shortcuts for that context
+2. **Start Simple**: Begin with the tutorial to learn the game flow
+3. **Read Text**: Press T to read patch notes, event descriptions, or any screen text
+4. **Use Battle Hotkeys**: H, F, E, R provide quick status updates during battle
+5. **Quick Card Selection**: Press 1-9 to instantly select cards by position instead of navigating
+6. **Check Ember**: Press R regularly to know your available resources
+7. **Enemy Intents**: Press E to hear what enemies plan to do next turn
+8. **Re-read Items**: Press C to re-read the currently focused menu item
 
 ## Troubleshooting
 

@@ -1,7 +1,10 @@
 using BepInEx;
 using BepInEx.Logging;
 using HarmonyLib;
+using MonsterTrainAccessibility.Battle;
 using MonsterTrainAccessibility.Core;
+using MonsterTrainAccessibility.Help;
+using MonsterTrainAccessibility.Help.Contexts;
 using MonsterTrainAccessibility.Patches;
 using MonsterTrainAccessibility.Screens;
 using System;
@@ -29,6 +32,10 @@ namespace MonsterTrainAccessibility
         public static InputInterceptor InputHandler { get; private set; }
         public static AccessibilityConfig AccessibilitySettings { get; private set; }
 
+        // Help and targeting systems
+        public static HelpSystem HelpSystem { get; private set; }
+        public static FloorTargetingSystem FloorTargeting { get; private set; }
+
         // Screen-specific handlers
         public static MenuAccessibility MenuHandler { get; private set; }
         public static BattleAccessibility BattleHandler { get; private set; }
@@ -55,6 +62,10 @@ namespace MonsterTrainAccessibility
 
                 // Initialize focus management
                 FocusManager = new VirtualFocusManager();
+
+                // Initialize help system
+                HelpSystem = new HelpSystem();
+                RegisterHelpContexts();
 
                 // Initialize screen handlers (non-MonoBehaviour ones)
                 BattleHandler = new BattleAccessibility();
@@ -111,6 +122,26 @@ namespace MonsterTrainAccessibility
 
             InputHandler = handlerGO.AddComponent<InputInterceptor>();
             MenuHandler = handlerGO.AddComponent<MenuAccessibility>();
+            FloorTargeting = handlerGO.AddComponent<FloorTargetingSystem>();
+        }
+
+        /// <summary>
+        /// Register all help contexts with the help system
+        /// </summary>
+        private void RegisterHelpContexts()
+        {
+            HelpSystem.RegisterContexts(
+                new GlobalHelp(),           // Priority 0 - fallback
+                new MainMenuHelp(),         // Priority 40
+                new ClanSelectionHelp(),    // Priority 50
+                new MapHelp(),              // Priority 60
+                new ShopHelp(),             // Priority 70
+                new EventHelp(),            // Priority 70
+                new CardDraftHelp(),        // Priority 80
+                new BattleHelp(),           // Priority 90
+                new BattleTargetingHelp()   // Priority 100 - highest
+            );
+            Log.LogInfo("Registered help contexts");
         }
 
         private void OnDestroy()

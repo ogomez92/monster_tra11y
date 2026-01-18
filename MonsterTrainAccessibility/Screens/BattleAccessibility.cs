@@ -451,6 +451,69 @@ namespace MonsterTrainAccessibility.Screens
             }
         }
 
+        /// <summary>
+        /// Get a text summary of what's on a specific floor (for floor targeting).
+        /// Floor numbers are 1-3 where 1 is bottom (pyre room is floor 0 internally).
+        /// </summary>
+        public string GetFloorSummary(int floorNumber)
+        {
+            try
+            {
+                // Convert user-facing floor number (1-3) to internal room index
+                // In Monster Train: room 0 is pyre, rooms 1-3 are floors 1-3
+                int roomIndex = floorNumber;
+
+                var room = GetRoom(roomIndex);
+                if (room == null)
+                {
+                    return $"Floor {floorNumber}: Unknown";
+                }
+
+                var units = GetUnitsInRoom(room);
+                if (units.Count == 0)
+                {
+                    return "Empty";
+                }
+
+                var friendlyUnits = new List<string>();
+                var enemyUnits = new List<string>();
+
+                foreach (var unit in units)
+                {
+                    string name = GetUnitName(unit);
+                    int hp = GetUnitHP(unit);
+                    int attack = GetUnitAttack(unit);
+                    string description = $"{name} {attack}/{hp}";
+
+                    if (IsEnemyUnit(unit))
+                    {
+                        enemyUnits.Add(description);
+                    }
+                    else
+                    {
+                        friendlyUnits.Add(description);
+                    }
+                }
+
+                var parts = new List<string>();
+                if (friendlyUnits.Count > 0)
+                {
+                    parts.Add($"Your units: {string.Join(", ", friendlyUnits)}");
+                }
+                if (enemyUnits.Count > 0)
+                {
+                    parts.Add($"Enemies: {string.Join(", ", enemyUnits)}");
+                }
+
+                return string.Join(". ", parts);
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting floor summary: {ex.Message}");
+                return "";
+            }
+        }
+
         private List<object> GetUnitsInRoom(object room)
         {
             var units = new List<object>();

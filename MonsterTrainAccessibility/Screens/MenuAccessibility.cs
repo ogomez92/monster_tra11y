@@ -235,26 +235,456 @@ namespace MonsterTrainAccessibility.Screens
                 }
             }
 
-            // 1. Try Unity UI Text component
+            // 1. Check for toggle/checkbox components first
+            text = GetToggleText(go);
+            if (!string.IsNullOrEmpty(text))
+            {
+                return text;
+            }
+
+            // 2. Check for logbook/compendium items
+            text = GetLogbookItemText(go);
+            if (!string.IsNullOrEmpty(text))
+            {
+                return text;
+            }
+
+            // 3. Try to get text with context (handles short button labels)
+            text = GetTextWithContext(go);
+            if (!string.IsNullOrEmpty(text))
+            {
+                return text;
+            }
+
+            // 4. Try the GameObject name as fallback (but make it more readable)
+            text = CleanGameObjectName(go.name);
+
+            return text?.Trim();
+        }
+
+        /// <summary>
+        /// Get text for toggle/checkbox controls with their label
+        /// </summary>
+        private string GetToggleText(GameObject go)
+        {
+            try
+            {
+                // Check for Unity UI Toggle component first
+                var unityToggle = go.GetComponent<Toggle>();
+                if (unityToggle != null)
+                {
+                    string label = GetToggleLabelFromHierarchy(go);
+                    string state = unityToggle.isOn ? "on" : "off";
+                    return string.IsNullOrEmpty(label) ? state : $"{label}: {state}";
+                }
+
+                // Check for game-specific toggle types via reflection
+                foreach (var component in go.GetComponents<Component>())
+                {
+                    if (component == null) continue;
+                    var type = component.GetType();
+                    string typeName = type.Name;
+
+                    // Look for GameUISelectableToggle, GameUISelectableCheckbox, etc.
+                    if (typeName.Contains("Toggle") || typeName.Contains("Checkbox"))
+                    {
+                        // Try to get isOn or isChecked property
+                        bool? isOn = null;
+                        var isOnProp = type.GetProperty("isOn");
+                        if (isOnProp != null)
+                        {
+                            isOn = isOnProp.GetValue(component) as bool?;
+                        }
+                        if (isOn == null)
+                        {
+                            var isCheckedProp = type.GetProperty("isChecked");
+                            if (isCheckedProp != null)
+                            {
+                                isOn = isCheckedProp.GetValue(component) as bool?;
+                            }
+                        }
+                        // Also try m_IsOn field
+                        if (isOn == null)
+                        {
+                            var isOnField = type.GetField("m_IsOn", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                            if (isOnField != null)
+                            {
+                                isOn = isOnField.GetValue(component) as bool?;
+                            }
+                        }
+
+                        if (isOn.HasValue)
+                        {
+                            string label = GetToggleLabelFromHierarchy(go);
+                            string state = isOn.Value ? "on" : "off";
+                            return string.IsNullOrEmpty(label) ? state : $"{label}: {state}";
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting toggle text: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Find the label for a toggle by looking at hierarchy
+        /// </summary>
+        private string GetToggleLabelFromHierarchy(GameObject go)
+        {
+            try
+            {
+                // Check siblings for label text
+                Transform parent = go.transform.parent;
+                if (parent != null)
+                {
+                    foreach (Transform sibling in parent)
+                    {
+                        if (sibling == go.transform) continue;
+
+                        // Skip on/off labels
+                        string sibName = sibling.name.ToLower();
+                        if (sibName.Contains("onlabel") || sibName.Contains("offlabel") ||
+                            sibName == "on" || sibName == "off")
+                            continue;
+
+                        string sibText = GetTMPTextDirect(sibling.gameObject);
+                        if (string.IsNullOrEmpty(sibText))
+                        {
+                            var uiText = sibling.GetComponent<Text>();
+                            sibText = uiText?.text;
+                        }
+
+                        // Skip very short or on/off text
+                        if (!string.IsNullOrEmpty(sibText) && sibText.Length > 2)
+                        {
+                            string lower = sibText.ToLower().Trim();
+                            if (lower != "on" && lower != "off")
+                            {
+                                return sibText.Trim();
+                            }
+                        }
+                    }
+
+                    // Check parent's name for context
+                    string parentName = CleanGameObjectName(parent.name);
+                    if (!string.IsNullOrEmpty(parentName) && parentName.Length > 2)
+                    {
+                        return parentName;
+                    }
+
+                    // Check grandparent siblings
+                    if (parent.parent != null)
+                    {
+                        foreach (Transform uncle in parent.parent)
+                        {
+                            if (uncle == parent) continue;
+
+                            string uncleText = GetTMPTextDirect(uncle.gameObject);
+                            if (string.IsNullOrEmpty(uncleText))
+                            {
+                                var uiText = uncle.GetComponent<Text>();
+                                uncleText = uiText?.text;
+                            }
+
+                            if (!string.IsNullOrEmpty(uncleText) && uncleText.Length > 2)
+                            {
+                                string lower = uncleText.ToLower().Trim();
+                                if (lower != "on" && lower != "off")
+                                {
+                                    return uncleText.Trim();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        /// <summary>
+        /// Get text with additional context for buttons with short labels
+        /// </summary>
+        private string GetTextWithContext(GameObject go)
+        {
+            string directText = GetDirectText(go);
+
+            // If text is very short (1-4 chars) or empty, look for context
+            if (string.IsNullOrEmpty(directText) || directText.Length <= 4)
+            {
+                // Check parent for label
+                string contextLabel = GetContextLabelFromHierarchy(go);
+                if (!string.IsNullOrEmpty(contextLabel))
+                {
+                    if (string.IsNullOrEmpty(directText))
+                    {
+                        return contextLabel;
+                    }
+                    return $"{contextLabel}: {directText}";
+                }
+            }
+
+            return directText;
+        }
+
+        /// <summary>
+        /// Get direct text from a GameObject (immediate text components)
+        /// </summary>
+        private string GetDirectText(GameObject go)
+        {
+            // Try TMP text first
+            string text = GetTMPText(go);
+            if (!string.IsNullOrEmpty(text))
+            {
+                return text.Trim();
+            }
+
+            // Try Unity UI Text
             var uiText = go.GetComponentInChildren<Text>();
             if (uiText != null && !string.IsNullOrEmpty(uiText.text))
             {
-                text = uiText.text;
+                return uiText.text.Trim();
             }
 
-            // 2. Try TextMeshPro (uses reflection since we may not have the assembly reference)
-            if (string.IsNullOrEmpty(text))
+            return null;
+        }
+
+        /// <summary>
+        /// Get context label from hierarchy (parent/sibling/grandparent)
+        /// </summary>
+        private string GetContextLabelFromHierarchy(GameObject go)
+        {
+            try
             {
-                text = GetTMPText(go);
-            }
+                Transform current = go.transform;
 
-            // 3. Try the GameObject name as fallback (but make it more readable)
-            if (string.IsNullOrEmpty(text))
+                // Walk up the hierarchy looking for meaningful labels
+                for (int depth = 0; depth < 4 && current.parent != null; depth++)
+                {
+                    Transform parent = current.parent;
+
+                    // Check siblings of current
+                    foreach (Transform sibling in parent)
+                    {
+                        if (sibling == current) continue;
+
+                        string sibText = GetTMPTextDirect(sibling.gameObject);
+                        if (string.IsNullOrEmpty(sibText))
+                        {
+                            var uiText = sibling.GetComponent<Text>();
+                            sibText = uiText?.text;
+                        }
+
+                        // Accept text that's longer than what we already have
+                        if (!string.IsNullOrEmpty(sibText) && sibText.Trim().Length > 4)
+                        {
+                            return sibText.Trim();
+                        }
+                    }
+
+                    // Check parent's name
+                    string parentName = parent.name;
+                    if (!string.IsNullOrEmpty(parentName))
+                    {
+                        // Clean up common UI suffixes
+                        string cleaned = CleanGameObjectName(parentName);
+                        if (!string.IsNullOrEmpty(cleaned) && cleaned.Length > 4)
+                        {
+                            // Make sure it's not just a generic container name
+                            string lower = cleaned.ToLower();
+                            if (!lower.Contains("container") && !lower.Contains("panel") &&
+                                !lower.Contains("holder") && !lower.Contains("group") &&
+                                !lower.Contains("content") && !lower.Contains("root"))
+                            {
+                                return cleaned;
+                            }
+                        }
+                    }
+
+                    current = parent;
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        /// <summary>
+        /// Get text for logbook/compendium items
+        /// </summary>
+        private string GetLogbookItemText(GameObject go)
+        {
+            try
             {
-                text = CleanGameObjectName(go.name);
+                // Check if this or a parent is part of the compendium
+                if (!IsInCompendiumContext(go))
+                    return null;
+
+                // Look for count labels (format like "25/250" or "X/Y")
+                string countText = FindCountLabelText(go);
+                string itemName = GetItemNameFromHierarchy(go);
+
+                if (!string.IsNullOrEmpty(countText) && !string.IsNullOrEmpty(itemName))
+                {
+                    return $"{itemName}: {countText}";
+                }
+                else if (!string.IsNullOrEmpty(countText))
+                {
+                    // Try to make the count more readable
+                    return FormatCountText(countText);
+                }
+                else if (!string.IsNullOrEmpty(itemName))
+                {
+                    return itemName;
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        /// <summary>
+        /// Check if we're in a compendium/logbook context
+        /// </summary>
+        private bool IsInCompendiumContext(GameObject go)
+        {
+            Transform current = go.transform;
+            while (current != null)
+            {
+                string name = current.name.ToLower();
+                if (name.Contains("compendium") || name.Contains("logbook") ||
+                    name.Contains("collection") || name.Contains("cardlist"))
+                {
+                    return true;
+                }
+                current = current.parent;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Find count label text (X/Y format) in the hierarchy
+        /// </summary>
+        private string FindCountLabelText(GameObject go)
+        {
+            try
+            {
+                Transform parent = go.transform.parent;
+                if (parent == null) return null;
+
+                // Collect all text from siblings to find count patterns
+                var allTexts = new List<string>();
+                foreach (Transform sibling in parent)
+                {
+                    string text = GetTMPTextDirect(sibling.gameObject);
+                    if (!string.IsNullOrEmpty(text))
+                        allTexts.Add(text.Trim());
+
+                    var uiText = sibling.GetComponent<Text>();
+                    if (uiText != null && !string.IsNullOrEmpty(uiText.text))
+                        allTexts.Add(uiText.text.Trim());
+
+                    // Also check children
+                    foreach (Transform child in sibling)
+                    {
+                        string childText = GetTMPTextDirect(child.gameObject);
+                        if (!string.IsNullOrEmpty(childText))
+                            allTexts.Add(childText.Trim());
+                    }
+                }
+
+                // Look for X/Y pattern
+                foreach (var text in allTexts)
+                {
+                    if (System.Text.RegularExpressions.Regex.IsMatch(text, @"^\d+/\d+$"))
+                    {
+                        return text;
+                    }
+                }
+
+                // Look for separate number that could be part of count
+                string number = null;
+                string total = null;
+                foreach (var text in allTexts)
+                {
+                    if (System.Text.RegularExpressions.Regex.IsMatch(text, @"^\d+$"))
+                    {
+                        if (number == null)
+                            number = text;
+                        else if (total == null)
+                            total = text;
+                    }
+                }
+
+                if (number != null && total != null)
+                {
+                    return $"{number}/{total}";
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        /// <summary>
+        /// Get item name from hierarchy for logbook items
+        /// </summary>
+        private string GetItemNameFromHierarchy(GameObject go)
+        {
+            try
+            {
+                // Look for title/name in the hierarchy
+                Transform current = go.transform;
+                for (int i = 0; i < 3 && current != null; i++)
+                {
+                    if (current.parent != null)
+                    {
+                        foreach (Transform sibling in current.parent)
+                        {
+                            string sibName = sibling.name.ToLower();
+                            if (sibName.Contains("title") || sibName.Contains("name") ||
+                                sibName.Contains("label") || sibName.Contains("header"))
+                            {
+                                string text = GetTMPTextDirect(sibling.gameObject);
+                                if (string.IsNullOrEmpty(text))
+                                {
+                                    var uiText = sibling.GetComponent<Text>();
+                                    text = uiText?.text;
+                                }
+                                if (!string.IsNullOrEmpty(text) && text.Length > 2)
+                                {
+                                    // Make sure it's not a number
+                                    if (!System.Text.RegularExpressions.Regex.IsMatch(text.Trim(), @"^\d+$"))
+                                    {
+                                        return text.Trim();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    current = current.parent;
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        /// <summary>
+        /// Format count text to be more readable
+        /// </summary>
+        private string FormatCountText(string countText)
+        {
+            if (string.IsNullOrEmpty(countText))
+                return null;
+
+            // If it's already in X/Y format, make it more readable
+            var match = System.Text.RegularExpressions.Regex.Match(countText, @"^(\d+)/(\d+)$");
+            if (match.Success)
+            {
+                return $"{match.Groups[1].Value} of {match.Groups[2].Value} discovered";
             }
 
-            return text?.Trim();
+            return countText;
         }
 
         /// <summary>

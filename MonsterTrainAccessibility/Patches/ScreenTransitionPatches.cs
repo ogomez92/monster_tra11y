@@ -1,4 +1,5 @@
 using HarmonyLib;
+using MonsterTrainAccessibility.Help;
 using System;
 
 namespace MonsterTrainAccessibility.Patches
@@ -42,6 +43,7 @@ namespace MonsterTrainAccessibility.Patches
         {
             try
             {
+                ScreenStateTracker.SetScreen(Help.GameScreen.MainMenu);
                 MonsterTrainAccessibility.MenuHandler?.OnMainMenuEntered(__instance);
             }
             catch (Exception ex)
@@ -82,6 +84,7 @@ namespace MonsterTrainAccessibility.Patches
         {
             try
             {
+                ScreenStateTracker.SetScreen(Help.GameScreen.Battle);
                 MonsterTrainAccessibility.BattleHandler?.OnBattleEntered();
             }
             catch (Exception ex)
@@ -122,6 +125,7 @@ namespace MonsterTrainAccessibility.Patches
         {
             try
             {
+                ScreenStateTracker.SetScreen(Help.GameScreen.CardDraft);
                 // Extract draft cards from __instance and call handler
                 // This would parse the actual CardDraftScreen to get card data
                 MonsterTrainAccessibility.LogInfo("Card draft screen detected");
@@ -167,6 +171,7 @@ namespace MonsterTrainAccessibility.Patches
         {
             try
             {
+                ScreenStateTracker.SetScreen(Help.GameScreen.ClanSelection);
                 MonsterTrainAccessibility.ScreenReader?.AnnounceScreen("Clan Selection");
             }
             catch (Exception ex)
@@ -213,6 +218,7 @@ namespace MonsterTrainAccessibility.Patches
         {
             try
             {
+                ScreenStateTracker.SetScreen(Help.GameScreen.Map);
                 MonsterTrainAccessibility.ScreenReader?.AnnounceScreen("Map");
             }
             catch (Exception ex)
