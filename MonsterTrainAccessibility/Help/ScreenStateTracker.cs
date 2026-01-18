@@ -10,6 +10,7 @@ namespace MonsterTrainAccessibility.Help
         MainMenu,
         ClanSelection,
         Map,
+        BattleIntro,
         Battle,
         CardDraft,
         Shop,

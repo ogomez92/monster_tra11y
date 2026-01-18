@@ -42,18 +42,15 @@ After subscribing, you must enable the mod loader inside the game.
 6. Press **Enter** to open Mod Settings
 7. Press **Down Arrow** twice to reach the "Enable Mod Loader" checkbox
 8. Press **Enter** to toggle it on (you can use AI with a screenshot to verify it's selected)
-9. Press **Enter** again - a dialog will ask if you want to apply and quit
+9. Press escape - a dialog will ask if you want to apply and quit
 10. The leftmost option is selected by default (Apply & Quit) - press **Enter** to confirm
 11. The game will exit automatically
-12. Launch Monster Train again - BepInEx will now be installed
 
-After restarting, the `BepInEx` folder will appear in your game directory.
+### install the mod
 
-### Alternative: Manual BepInEx Installation
+Once you have enabled the mod loader, do the following:
 
-If you prefer to install BepInEx manually (or if the Workshop method doesn't work):
-
-1. Download BepInEx 5.4.x (x64) from [BepInEx Releases](https://github.com/BepInEx/BepInEx/releases)
+1. Download te latest release of this mod
 2. Extract **all contents** directly to your Monster Train game folder:
    - Default location: `C:\Program Files (x86)\Steam\steamapps\common\Monster Train`
 3. The folder structure should look like:
@@ -66,48 +63,11 @@ If you prefer to install BepInEx manually (or if the Workshop method doesn't wor
    ├── MonsterTrain.exe
    ├── winhttp.dll     (BepInEx loader - must be here)
    └── doorstop_config.ini
+   └── tolk.dll, NVDAControllerClient64.dll, etc
    ```
 4. Launch Monster Train once to let BepInEx initialize
 
-### Step 3: Install the Accessibility Mod
-
-**Important**: Complete Step 2 first (enable mod loader and restart the game) before proceeding. BepInEx must be installed in your game folder.
-
-#### Option A: Use the Build Script (Recommended for Developers)
-
-1. Run `build.ps1` or `build.bat` from the `MonsterTrainAccessibility` folder
-2. Enter your game path when prompted (or press Enter for default)
-3. When asked to deploy, type `Y` to copy all files automatically
-
-The build script will automatically detect and copy files to the correct location:
-- **Steam Workshop**: `Steam\steamapps\workshop\content\1102190\2187468759\BepInEx\plugins\`
-- **Or game folder**: `Monster Train\BepInEx\plugins\` (if using manual BepInEx install)
-
-#### Option B: Manual Installation
-
-1. Download `MonsterTrainAccessibility.dll` from the releases
-2. Copy `MonsterTrainAccessibility.dll` to the BepInEx plugins folder:
-   - **Steam Workshop location** (if you enabled mod loader in-game):
-     `C:\Program Files (x86)\Steam\steamapps\workshop\content\1102190\2187468759\BepInEx\plugins\`
-   - **Or game folder** (if you installed BepInEx manually):
-     `C:\Program Files (x86)\Steam\steamapps\common\Monster Train\BepInEx\plugins\`
-
-### Step 4: Install Tolk Screen Reader Library
-
-The mod requires the Tolk library for screen reader communication.
-
-**Monster Train is a 64-bit application**, so you need the **x64 versions** of all DLLs.
-
-1. Download Tolk from [GitHub Releases](https://github.com/dkager/tolk/releases)
-2. From the **x64** folder, copy these files to `BepInEx/plugins/`:
-   - `Tolk.dll` (required - main library)
-   - `nvdaControllerClient64.dll` (required for NVDA)
-   - `SAAPI64.dll` (optional - for Windows SAPI/Narrator fallback)
-   - `jfwapi64.dll` (optional - for JAWS support)
-
-**Important**: You MUST use the 64-bit (x64) versions. The 32-bit versions will not work.
-
-### Step 5: Launch the Game
+### Step 3: Launch the Game
 
 1. Start your screen reader (NVDA, JAWS, or enable Windows Narrator)
 2. Launch Monster Train
@@ -156,6 +116,44 @@ The mod automatically reads text when:
 | Up/Down | Cycle between floors |
 | Enter | Confirm and play card on selected floor |
 | Escape | Cancel card play |
+
+## Monster Train Native Keyboard Shortcuts
+
+These are the game's built-in keyboard shortcuts that work with or without the accessibility mod.
+
+### Navigation & Floor Management
+
+| Action | Keyboard Shortcut |
+|--------|-------------------|
+| Move Floor Up | `Page Up` / `W` / `Up Arrow` |
+| Move Floor Down | `Page Down` / `S` / `Down Arrow` |
+| View Top Floor | `Home` |
+| View Bottom Floor | `End` |
+| Zoom In / Out | `Scroll Wheel` |
+
+### Combat & Card Actions
+
+| Action | Keyboard Shortcut |
+|--------|-------------------|
+| End Turn | `E` / `Enter` (Hold for safety if enabled in options) |
+| Undo Action | `Z` / `Ctrl + Z` (Only works for certain non-random actions) |
+| Speed Up Gameplay | `Spacebar` (Toggles between speeds during combat) |
+| Toggle Unit Details | `F` (on a unit) |
+| Show Draw Pile | `D` |
+| Show Discard Pile | `G` |
+| Show Exhaust/Consumed Pile | `X` |
+
+### Menu & System
+
+| Action | Keyboard Shortcut |
+|--------|-------------------|
+| Open Menu / Settings | `Esc` |
+| Open Map | `M` |
+| Full Screen Toggle | `Alt + Enter` |
+
+### Note for Controller Users
+
+If you are playing on a PC with a controller, the game has a "Keyboard Mode" that activates when you press a key. If your cursor behaves unexpectedly, check your input settings (Hybrid/Mouse/Controller modes in the options menu).
 
 ## Configuration
 

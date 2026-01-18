@@ -92,6 +92,7 @@ namespace MonsterTrainAccessibility
         {
             // Screen transition patches
             MainMenuScreenPatch.TryPatch(_harmony);
+            BattleIntroScreenPatch.TryPatch(_harmony);
             CombatStartPatch.TryPatch(_harmony);
             CardDraftScreenPatch.TryPatch(_harmony);
             ClassSelectionScreenPatch.TryPatch(_harmony);
@@ -105,6 +106,9 @@ namespace MonsterTrainAccessibility
             UnitDeathPatch.TryPatch(_harmony);
             StatusEffectPatch.TryPatch(_harmony);
             BattleVictoryPatch.TryPatch(_harmony);
+            UnitSpawnPatch.TryPatch(_harmony);
+            EnemyAscendPatch.TryPatch(_harmony);
+            PyreDamagePatch.TryPatch(_harmony);
 
             // Card event patches
             CardDrawPatch.TryPatch(_harmony);
@@ -138,7 +142,9 @@ namespace MonsterTrainAccessibility
                 new ShopHelp(),             // Priority 70
                 new EventHelp(),            // Priority 70
                 new CardDraftHelp(),        // Priority 80
+                new BattleIntroHelp(),      // Priority 85 - pre-battle screen
                 new BattleHelp(),           // Priority 90
+                new TutorialHelp(),         // Priority 95 - tutorial popups
                 new BattleTargetingHelp()   // Priority 100 - highest
             );
             Log.LogInfo("Registered help contexts");

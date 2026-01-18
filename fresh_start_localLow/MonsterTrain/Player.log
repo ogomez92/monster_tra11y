@@ -1,0 +1,285 @@
+Mono path[0] = 'C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Managed'
+Mono config path = 'C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonoBleedingEdge/etc'
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/lib/usr/lib/libSystem.dylib
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/lib/usr/lib/libSystem.dylib.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/lib/usr/lib/libSystem.dylib
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/libc.so.6
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/libc.so.6.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/libc.so.6
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A487E77D40.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A487EB8370.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A4885F9010.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A487AF4110.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A487AF7140.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A488600DE0.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A487AF8150.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A487AFA170.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A4886128C0.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A487AF9160.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A488599070.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A487AFD1A0.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A487CE4F40.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A4887AC080.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A4888BDF50.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A488515E70.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A488516A80.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A4887AA060.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A4887AE0A0.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A48851AD00.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A4887AF0B0.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A4887B00C0.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A488849080.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A4887AD090.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A4887B10D0.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A487EAEA20.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A4887B4100.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A4887B5110.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A487D44E80.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A4887B20E0.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A48BF20080.dll
+Initialize engine version: 2019.4.4f1 (1f1dac67805b)
+[Subsystems] Discovering subsystems at path C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/UnitySubsystems
+GfxDevice: creating device client; threaded=1
+Direct3D:
+    Version:  Direct3D 11.0 [level 11.1]
+    Renderer: Intel(R) Arc(TM) Graphics (ID=0x7d55)
+    Vendor:   
+    VRAM:     18347 MB
+    Driver:   32.0.101.8132
+Begin MonoManager ReloadAssembly
+- Completed reload, in  0.097 seconds
+D3D11 device created for Microsoft Media Foundation video decoding.
+<RI> Initializing input.
+<RI> Input initialized.
+<RI> Initialized touch support.
+UnloadTime: 0.678700 ms
+[Message:   BepInEx] BepInEx 5.4.23.4 - MonsterTrain (17/01/2026 13:00:33)
+[Info   :   BepInEx] Running under Unity v2019.4.4.2039212
+[Info   :   BepInEx] CLR runtime version: 4.0.30319.17020
+[Info   :   BepInEx] Supports SRE: False
+[Info   :   BepInEx] System platform: Bits64, Windows
+[Message:   BepInEx] Preloader started
+[Info   :   BepInEx] Loaded 1 patcher method from [BepInEx.Preloader 5.4.23.4]
+[Info   :   BepInEx] 1 patcher plugin loaded
+[Info   :   BepInEx] Patching [UnityEngine.CoreModule] with [BepInEx.Chainloader]
+[Message:   BepInEx] Preloader finished
+[Message:   BepInEx] Chainloader ready
+[Message:   BepInEx] Chainloader started
+[Debug  :   BepInEx] Skipping loading C:\Program Files (x86)\Steam\steamapps\common\Monster Train\BepInEx\plugins\nvdaControllerClient64.dll because it's not a valid .NET assembly. Full error: Format of the executable (.exe) or library (.dll) is invalid.
+[Debug  :   BepInEx] Skipping loading C:\Program Files (x86)\Steam\steamapps\common\Monster Train\BepInEx\plugins\Tolk.dll because it's not a valid .NET assembly. Full error: Format of the executable (.exe) or library (.dll) is invalid.
+[Info   :   BepInEx] 1 plugin to load
+[Info   :   BepInEx] Loading [Monster Train Accessibility 1.0.0]
+[Info   :Monster Train Accessibility] Monster Train Accessibility v1.0.0 is loading...
+[Info   :Monster Train Accessibility] Screen reader detected: NVDA
+[Info   :Monster Train Accessibility] Speech available: True
+[Info   :Monster Train Accessibility] Braille available: True
+[Info   :Monster Train Accessibility] Registered help context: global (priority 0)
+[Info   :Monster Train Accessibility] Registered help context: main_menu (priority 40)
+[Info   :Monster Train Accessibility] Registered help context: clan_selection (priority 50)
+[Info   :Monster Train Accessibility] Registered help context: map (priority 60)
+[Info   :Monster Train Accessibility] Registered help context: shop (priority 70)
+[Info   :Monster Train Accessibility] Registered help context: event (priority 70)
+[Info   :Monster Train Accessibility] Registered help context: card_draft (priority 80)
+[Info   :Monster Train Accessibility] Registered help context: battle (priority 90)
+[Info   :Monster Train Accessibility] Registered help context: tutorial (priority 95)
+[Info   :Monster Train Accessibility] Registered help context: battle_targeting (priority 100)
+[Info   :Monster Train Accessibility] Registered help contexts
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A58EA9F120.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A58EA9D110.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A58E3795B0.dll
+[Info   :Monster Train Accessibility] Patched MainMenuScreen.Initialize
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A58EAA3140.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A58EAA5150.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A58E37C5E0.dll
+[Info   :Monster Train Accessibility] Patched CombatManager.StartCombat
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A58EAD9030.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A58EAF5090.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A58E37D5F0.dll
+[Info   :Monster Train Accessibility] Patched CardDraftScreen.Setup
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A58EB4D010.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A58EB4F420.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A58E37A5C0.dll
+[Info   :Monster Train Accessibility] Patched ClassSelectionScreen.Initialize
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A58EB62850.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A58EB64C60.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A58E381630.dll
+[Info   :Monster Train Accessibility] Patched MapScreen
+[Warning:  HarmonyX] AccessTools.Method: Could not find method for type ScreenManager and name ChangeScreen and parameters 
+[Warning:  HarmonyX] AccessTools.Method: Could not find method for type ScreenManager and name LoadScreen and parameters 
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A58E37E600.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A4D4318300.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A58E382640.dll
+[Info   :Monster Train Accessibility] Patched ScreenManager.ShowScreen
+[Warning:  HarmonyX] AccessTools.Method: Could not find method for type CombatManager and name StartPlayerTurn and parameters 
+[Warning:  HarmonyX] AccessTools.Method: Could not find method for type CombatManager and name EndPlayerTurn and parameters 
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A58E37F610.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A58E380620.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A58E383650.dll
+[Info   :Monster Train Accessibility] Patched damage method: ApplyDamageToTarget
+[Warning:  HarmonyX] AccessTools.Method: Could not find method for type CharacterState and name Die and parameters 
+[Error  :Monster Train Accessibility] Failed to patch AddStatusEffect: Ambiguous match in Harmony patch for CharacterState:AddStatusEffect
+[Warning:  HarmonyX] AccessTools.Method: Could not find method for type CombatManager and name EndCombat and parameters 
+[Warning:  HarmonyX] AccessTools.Method: Could not find method for type CombatManager and name OnCombatComplete and parameters 
+[Error  :  HarmonyX] Failed to patch void CardManager::DrawCards(int cardCount, CardState playedCard, CardType cardType): System.Exception: Cannot get result from void method void CardManager::DrawCards(int cardCount, CardState playedCard, CardType cardType)
+  at HarmonyLib.Public.Patching.HarmonyManipulator.EmitCallParameter (System.Reflection.MethodInfo patch, System.Boolean allowFirsParamPassthrough, Mono.Cecil.Cil.VariableDefinition& tmpObjectVar, System.Collections.Generic.List`1[HarmonyLib.Public.Patching.HarmonyManipulator+ArgumentBoxInfo]& tmpBoxVars) [0x003e7] in <474744d65d8e460fa08cd5fd82b5d65f>:0 
+  at HarmonyLib.Public.Patching.HarmonyManipulator.WritePostfixes (HarmonyLib.Internal.Util.ILEmitter+Label returnLabel) [0x001a5] in <474744d65d8e460fa08cd5fd82b5d65f>:0 
+  at HarmonyLib.Public.Patching.HarmonyManipulator.WriteImpl () [0x00234] in <474744d65d8e460fa08cd5fd82b5d65f>:0 
+[Error  :Monster Train Accessibility] Failed to patch DrawCards: IL Compile Error (unknown location)
+[Error  :  HarmonyX] Failed to patch bool CardManager::PlayCard(int cardIndex, SpawnPoint dropLocation, CardSelectionBehaviour+SelectionError& lastSelectionError): System.Exception: Parameter "card" not found in method bool CardManager::PlayCard(int cardIndex, SpawnPoint dropLocation, CardSelectionBehaviour+SelectionError& lastSelectionError)
+  at HarmonyLib.Public.Patching.HarmonyManipulator.EmitCallParameter (System.Reflection.MethodInfo patch, System.Boolean allowFirsParamPassthrough, Mono.Cecil.Cil.VariableDefinition& tmpObjectVar, System.Collections.Generic.List`1[HarmonyLib.Public.Patching.HarmonyManipulator+ArgumentBoxInfo]& tmpBoxVars) [0x007ae] in <474744d65d8e460fa08cd5fd82b5d65f>:0 
+  at HarmonyLib.Public.Patching.HarmonyManipulator.WritePostfixes (HarmonyLib.Internal.Util.ILEmitter+Label returnLabel) [0x001a5] in <474744d65d8e460fa08cd5fd82b5d65f>:0 
+  at HarmonyLib.Public.Patching.HarmonyManipulator.WriteImpl () [0x00234] in <474744d65d8e460fa08cd5fd82b5d65f>:0 
+[Error  :Monster Train Accessibility] Failed to patch PlayCard: IL Compile Error (unknown location)
+[Error  :  HarmonyX] Failed to patch System.Collections.IEnumerator CardManager::DiscardCard(CardManager+DiscardCardParams discardCardParams, bool fromNaturalPlay): System.Exception: Parameter "card" not found in method System.Collections.IEnumerator CardManager::DiscardCard(CardManager+DiscardCardParams discardCardParams, bool fromNaturalPlay)
+  at HarmonyLib.Public.Patching.HarmonyManipulator.EmitCallParameter (System.Reflection.MethodInfo patch, System.Boolean allowFirsParamPassthrough, Mono.Cecil.Cil.VariableDefinition& tmpObjectVar, System.Collections.Generic.List`1[HarmonyLib.Public.Patching.HarmonyManipulator+ArgumentBoxInfo]& tmpBoxVars) [0x007ae] in <474744d65d8e460fa08cd5fd82b5d65f>:0 
+  at HarmonyLib.Public.Patching.HarmonyManipulator.WritePostfixes (HarmonyLib.Internal.Util.ILEmitter+Label returnLabel) [0x001a5] in <474744d65d8e460fa08cd5fd82b5d65f>:0 
+  at HarmonyLib.Public.Patching.HarmonyManipulator.WriteImpl () [0x00234] in <474744d65d8e460fa08cd5fd82b5d65f>:0 
+[Error  :Monster Train Accessibility] Failed to patch DiscardCard: IL Compile Error (unknown location)
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A58E386680.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A58E385670.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A58E387690.dll
+[Info   :Monster Train Accessibility] Patched deck shuffle
+[Warning:  HarmonyX] AccessTools.Method: Could not find method for type CardManager and name OnHandChanged and parameters 
+[Warning:  HarmonyX] AccessTools.Method: Could not find method for type CardManager and name UpdateHand and parameters 
+[Info   :Monster Train Accessibility] Monster Train Accessibility loaded successfully!
+[Message:   BepInEx] Chainloader startup complete
+Setting up 11 worker threads for Enlighten.
+  Thread -> id: 4768 -> priority: 1 
+  Thread -> id: 571c -> priority: 1 
+  Thread -> id: 3bf8 -> priority: 1 
+  Thread -> id: 4b84 -> priority: 1 
+  Thread -> id: 3d8c -> priority: 1 
+  Thread -> id: 70f0 -> priority: 1 
+  Thread -> id: c6c -> priority: 1 
+  Thread -> id: 1e18 -> priority: 1 
+  Thread -> id: 1880 -> priority: 1 
+  Thread -> id: 4928 -> priority: 1 
+  Thread -> id: 48ec -> priority: 1 
+Unloading 8 Unused Serialized files (Serialized files now loaded: 0)
+
+Unloading 3 unused Assets to reduce memory usage. Loaded Objects now: 23580.
+Total: 30.080100 ms (FindLiveObjects: 0.705300 ms CreateObjectMapping: 0.601800 ms MarkObjects: 28.736400 ms  DeleteObjects: 0.035600 ms)
+
+[Info   :Monster Train Accessibility] Screen transition detected
+Unloading 8 Unused Serialized files (Serialized files now loaded: 0)
+
+Unloading 15 unused Assets to reduce memory usage. Loaded Objects now: 25630.
+Total: 35.407200 ms (FindLiveObjects: 0.747400 ms CreateObjectMapping: 0.615300 ms MarkObjects: 33.970500 ms  DeleteObjects: 0.073100 ms)
+
+Unloading 6 Unused Serialized files (Serialized files now loaded: 0)
+
+Unloading 1 unused Assets to reduce memory usage. Loaded Objects now: 25930.
+Total: 33.214400 ms (FindLiveObjects: 0.802300 ms CreateObjectMapping: 0.645400 ms MarkObjects: 31.739000 ms  DeleteObjects: 0.027200 ms)
+
+Unloading 10 Unused Serialized files (Serialized files now loaded: 0)
+
+Unloading 1 unused Assets to reduce memory usage. Loaded Objects now: 32653.
+Total: 43.359900 ms (FindLiveObjects: 1.043300 ms CreateObjectMapping: 0.713100 ms MarkObjects: 41.543800 ms  DeleteObjects: 0.059300 ms)
+
+Unloading 4 Unused Serialized files (Serialized files now loaded: 0)
+
+Unloading 1 unused Assets to reduce memory usage. Loaded Objects now: 32689.
+Total: 47.316400 ms (FindLiveObjects: 1.133400 ms CreateObjectMapping: 0.761500 ms MarkObjects: 45.372800 ms  DeleteObjects: 0.048100 ms)
+
+[AVProVideo] Initialising AVPro Video (script v1.11.4 plugin v1.11.4) on Intel(R) Arc(TM) Graphics/Direct3D 11.0 [level 11.1] (MT True) on WindowsPlayer Windows 10  (10.0.0) 64bit 
+(Filename: C:\buildslave\unity\build\Runtime/Export/Debug/Debug.bindings.h Line: 35)
+
+[AVProVideo] Opening C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/StreamingAssets/intro_fmv.mp4 (offset 0) with API MediaFoundation 
+(Filename: C:\buildslave\unity\build\Runtime/Export/Debug/Debug.bindings.h Line: 35)
+
+[AVProVideo] Using playback path: MF-MediaEngine-Hardware (1920x1080@60,00) 
+(Filename: C:\buildslave\unity\build\Runtime/Export/Debug/Debug.bindings.h Line: 35)
+
+[Info   :Monster Train Accessibility] Screen transition detected
+Unloading 5 Unused Serialized files (Serialized files now loaded: 0)
+[Info   :Monster Train Accessibility] Screen changed: Unknown -> MainMenu
+[Info   :Monster Train Accessibility] Main menu entered
+
+Unloading 5 unused Assets to reduce memory usage. Loaded Objects now: 34347.
+Total: 46.738800 ms (FindLiveObjects: 1.322800 ms CreateObjectMapping: 0.801800 ms MarkObjects: 44.553300 ms  DeleteObjects: 0.060400 ms)
+
+[Info   :Monster Train Accessibility] Showing help for context: tutorial
+[Info   :Monster Train Accessibility] Tutorial text announced
+[Info   :Monster Train Accessibility] Showing help for context: tutorial
+[Info   :Monster Train Accessibility] Showing help for context: tutorial
+[Info   :Monster Train Accessibility] Showing help for context: tutorial
+[Info   :Monster Train Accessibility] Screen transition detected
+Multiple UIParticleOverlayCamera in scene. 
+(Filename: C:\buildslave\unity\build\Runtime/Export/Debug/Debug.bindings.h Line: 35)
+
+Unloading 9 Unused Serialized files (Serialized files now loaded: 4)
+
+Unloading 134 unused Assets to reduce memory usage. Loaded Objects now: 50337.
+Total: 69.217200 ms (FindLiveObjects: 2.126200 ms CreateObjectMapping: 1.440800 ms MarkObjects: 65.401500 ms  DeleteObjects: 0.248300 ms)
+
+Unloading 8 Unused Serialized files (Serialized files now loaded: 4)
+
+Unloading 1 unused Assets to reduce memory usage. Loaded Objects now: 50711.
+Total: 66.961600 ms (FindLiveObjects: 1.617100 ms CreateObjectMapping: 1.563900 ms MarkObjects: 63.642500 ms  DeleteObjects: 0.137600 ms)
+
+Unloading 5 Unused Serialized files (Serialized files now loaded: 4)
+
+Unloading 1 unused Assets to reduce memory usage. Loaded Objects now: 55734.
+Total: 80.657800 ms (FindLiveObjects: 2.130900 ms CreateObjectMapping: 1.518700 ms MarkObjects: 76.927500 ms  DeleteObjects: 0.080200 ms)
+
+Unloading 7 Unused Serialized files (Serialized files now loaded: 4)
+
+Unloading 1 unused Assets to reduce memory usage. Loaded Objects now: 57837.
+Total: 89.305400 ms (FindLiveObjects: 2.391100 ms CreateObjectMapping: 1.785200 ms MarkObjects: 85.023400 ms  DeleteObjects: 0.105200 ms)
+
+Unloading 6 Unused Serialized files (Serialized files now loaded: 4)
+
+Unloading 1 unused Assets to reduce memory usage. Loaded Objects now: 58248.
+Total: 88.530900 ms (FindLiveObjects: 2.389700 ms CreateObjectMapping: 1.367200 ms MarkObjects: 84.684000 ms  DeleteObjects: 0.089600 ms)
+
+Unloading 5 Unused Serialized files (Serialized files now loaded: 4)
+
+Unloading 1 unused Assets to reduce memory usage. Loaded Objects now: 71076.
+Total: 110.691700 ms (FindLiveObjects: 4.179200 ms CreateObjectMapping: 2.086500 ms MarkObjects: 104.295500 ms  DeleteObjects: 0.129600 ms)
+
+[Info   :Monster Train Accessibility] Screen changed: MainMenu -> Map
+[Info   :Monster Train Accessibility] Tutorial text announced
+[Info   :Monster Train Accessibility] Showing help for context: tutorial
+[Info   :Monster Train Accessibility] Showing help for context: tutorial
+[Info   :Monster Train Accessibility] Screen transition detected
+Unloading 5 Unused Serialized files (Serialized files now loaded: 4)
+
+Unloading 281 unused Assets to reduce memory usage. Loaded Objects now: 67485.
+Total: 105.534000 ms (FindLiveObjects: 2.936300 ms CreateObjectMapping: 1.525800 ms MarkObjects: 100.620400 ms  DeleteObjects: 0.450800 ms)
+
+[Info   :Monster Train Accessibility] Showing help for context: tutorial
+[Info   :Monster Train Accessibility] Screen reader output shutdown complete
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A5B16B6430.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A5B16BA450.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A5B23AC240.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A5B16BC460.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A5B16BE470.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A5B23AA220.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A58ECCB340.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A5BD7258D0.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A5B23AE260.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A5BFDF6040.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A58E3CB0A0.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A5B23AB230.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A58ED0A610.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A58ED0CA20.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A5B23B22A0.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A58EC7C230.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A58EC85F00.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A5B23AF270.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A5B23B1290.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A5B23B32B0.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A5B23B0280.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A5BCF279C0.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A5BCF23D90.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A5B23B52D0.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A5B23B42C0.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A58EC846E0.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A5B23B9310.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A5B23B8300.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A5B23B62E0.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A5B23B72F0.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A58E3896B0.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A58E38C6E0.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A58E38A6C0.dll
+Fallback handler could not load library C:/Program Files (x86)/Steam/steamapps/common/Monster Train/MonsterTrain_Data/Mono/data-000002A5BC8CF370.dll

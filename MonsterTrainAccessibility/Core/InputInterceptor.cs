@@ -140,7 +140,7 @@ namespace MonsterTrainAccessibility.Core
             }
             else
             {
-                MonsterTrainAccessibility.ScreenReader?.Speak("Not in battle", true);
+                MonsterTrainAccessibility.ScreenReader?.Queue("Not in battle");
             }
         }
 
@@ -156,7 +156,7 @@ namespace MonsterTrainAccessibility.Core
             }
             else
             {
-                MonsterTrainAccessibility.ScreenReader?.Speak("Not in battle", true);
+                MonsterTrainAccessibility.ScreenReader?.Queue("Not in battle");
             }
         }
 
@@ -172,7 +172,7 @@ namespace MonsterTrainAccessibility.Core
             }
             else
             {
-                MonsterTrainAccessibility.ScreenReader?.Speak("Not in battle", true);
+                MonsterTrainAccessibility.ScreenReader?.Queue("Not in battle");
             }
         }
 
@@ -189,7 +189,7 @@ namespace MonsterTrainAccessibility.Core
             else
             {
                 // Could also read gold/other resources outside battle
-                MonsterTrainAccessibility.ScreenReader?.Speak("Not in battle", true);
+                MonsterTrainAccessibility.ScreenReader?.Queue("Not in battle");
             }
         }
 

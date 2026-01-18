@@ -129,7 +129,7 @@ namespace MonsterTrainAccessibility.Core
             }
             else
             {
-                MonsterTrainAccessibility.ScreenReader?.Speak("Cannot play this card", true);
+                MonsterTrainAccessibility.ScreenReader?.Queue("Cannot play this card");
             }
         }
     }

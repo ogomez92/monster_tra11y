@@ -16,10 +16,16 @@ namespace MonsterTrainAccessibility.Help.Contexts
 
         public string GetHelpText()
         {
-            return "Arrow keys: Navigate between available paths. " +
-                   "Enter: Select path and proceed to next encounter. " +
-                   "C: Re-read current node type. " +
-                   "T: Read all available paths. " +
+            return "Map screen. Navigate your path through each ring. " +
+                   "Up/Down arrows: Move between rings. " +
+                   "Left/Right arrows: Choose between left path, center battle, or right path. " +
+                   "Enter: Select the current node. " +
+                   "C: Re-read current node details. " +
+                   "T: Read all available choices for this ring. " +
+                   "Node types: Battle (required fight), Merchant (buy/sell cards), " +
+                   "Artifact (gain relic), Upgrade (enhance cards), Event (random encounter), " +
+                   "Concealed Caverns (mystery reward), Pyre Remains (restore pyre health), " +
+                   "Hellvent (remove cards). " +
                    "Escape: Open pause menu.";
         }
     }

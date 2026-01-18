@@ -335,7 +335,7 @@ namespace MonsterTrainAccessibility.Screens
         }
 
         /// <summary>
-        /// Announce cards drawn
+        /// Announce cards drawn (with card names)
         /// </summary>
         public void OnCardsDrawn(List<string> cardNames)
         {
@@ -349,6 +349,44 @@ namespace MonsterTrainAccessibility.Screens
             else
             {
                 MonsterTrainAccessibility.ScreenReader?.Queue($"Drew: {string.Join(", ", cardNames)}");
+            }
+        }
+
+        /// <summary>
+        /// Announce cards drawn (count only, used when card names aren't available)
+        /// </summary>
+        public void OnCardsDrawn(int count)
+        {
+            if (!MonsterTrainAccessibility.AccessibilitySettings.AnnounceCardDraws.Value)
+                return;
+
+            if (count == 1)
+            {
+                MonsterTrainAccessibility.ScreenReader?.Queue("Drew 1 card");
+            }
+            else if (count > 1)
+            {
+                MonsterTrainAccessibility.ScreenReader?.Queue($"Drew {count} cards");
+            }
+        }
+
+        /// <summary>
+        /// Called when a card is played by index
+        /// </summary>
+        public void OnCardPlayed(int cardIndex)
+        {
+            // The card was played successfully
+            MonsterTrainAccessibility.ScreenReader?.Queue("Card played");
+        }
+
+        /// <summary>
+        /// Called when a card is discarded
+        /// </summary>
+        public void OnCardDiscarded(string cardName)
+        {
+            if (!string.IsNullOrEmpty(cardName) && cardName != "Card")
+            {
+                MonsterTrainAccessibility.ScreenReader?.Queue($"Discarded {cardName}");
             }
         }
 
@@ -796,6 +834,52 @@ namespace MonsterTrainAccessibility.Screens
                 return;
 
             MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName} gains {effectName} {stacks}");
+        }
+
+        /// <summary>
+        /// Announce unit spawned (entering the battlefield)
+        /// </summary>
+        public void OnUnitSpawned(string unitName, bool isEnemy, int floorIndex)
+        {
+            if (!IsInBattle)
+                return;
+
+            if (!MonsterTrainAccessibility.AccessibilitySettings.AnnounceSpawns.Value)
+                return;
+
+            // Determine floor name
+            string floorName = floorIndex == 0 ? "pyre room" : $"floor {floorIndex}";
+
+            if (isEnemy)
+            {
+                MonsterTrainAccessibility.ScreenReader?.Queue($"Enemy {unitName} enters on {floorName}");
+            }
+            else
+            {
+                MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName} summoned on {floorName}");
+            }
+        }
+
+        /// <summary>
+        /// Announce enemies ascending floors
+        /// </summary>
+        public void OnEnemiesAscended()
+        {
+            if (!IsInBattle)
+                return;
+
+            MonsterTrainAccessibility.ScreenReader?.Queue("Enemies ascend");
+        }
+
+        /// <summary>
+        /// Announce pyre damage
+        /// </summary>
+        public void OnPyreDamaged(int damage, int remainingHP)
+        {
+            if (!IsInBattle)
+                return;
+
+            MonsterTrainAccessibility.ScreenReader?.Queue($"Pyre takes {damage} damage! {remainingHP} health remaining");
         }
 
         #endregion

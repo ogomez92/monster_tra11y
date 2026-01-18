@@ -10,7 +10,7 @@ namespace MonsterTrainAccessibility.Patches
     /// </summary>
 
     /// <summary>
-    /// Detect cards drawn
+    /// Detect cards drawn - DrawCards is a void method, so we use a simple postfix
     /// </summary>
     public static class CardDrawPatch
     {
@@ -36,31 +36,16 @@ namespace MonsterTrainAccessibility.Patches
             }
         }
 
-        public static void Postfix(object __result)
+        // DrawCards is void, so we just get notified that cards were drawn
+        // The cardCount parameter tells us how many cards were requested
+        public static void Postfix(int cardCount)
         {
             try
             {
-                if (__result == null) return;
-
-                // __result is typically List<CardState>
-                var cardsList = __result as System.Collections.IList;
-                if (cardsList != null && cardsList.Count > 0)
+                if (cardCount > 0)
                 {
-                    var cardNames = new List<string>();
-
-                    foreach (var card in cardsList)
-                    {
-                        string name = GetCardName(card);
-                        if (!string.IsNullOrEmpty(name))
-                        {
-                            cardNames.Add(name);
-                        }
-                    }
-
-                    if (cardNames.Count > 0)
-                    {
-                        MonsterTrainAccessibility.BattleHandler?.OnCardsDrawn(cardNames);
-                    }
+                    // Just notify that drawing happened - the hand will be refreshed
+                    MonsterTrainAccessibility.BattleHandler?.OnCardsDrawn(cardCount);
                 }
             }
             catch (Exception ex)
@@ -68,29 +53,11 @@ namespace MonsterTrainAccessibility.Patches
                 MonsterTrainAccessibility.LogError($"Error in draw cards patch: {ex.Message}");
             }
         }
-
-        private static string GetCardName(object cardState)
-        {
-            try
-            {
-                var getDataMethod = cardState.GetType().GetMethod("GetCardDataRead");
-                if (getDataMethod != null)
-                {
-                    var data = getDataMethod.Invoke(cardState, null);
-                    var getNameMethod = data?.GetType().GetMethod("GetNameKey");
-                    if (getNameMethod != null)
-                    {
-                        return getNameMethod.Invoke(data, null) as string ?? "Card";
-                    }
-                }
-            }
-            catch { }
-            return "Card";
-        }
     }
 
     /// <summary>
     /// Detect card played
+    /// PlayCard signature: PlayCard(int cardIndex, SpawnPoint dropLocation, CardSelectionBehaviour+SelectionError& lastSelectionError)
     /// </summary>
     public static class CardPlayedPatch
     {
@@ -116,43 +83,28 @@ namespace MonsterTrainAccessibility.Patches
             }
         }
 
-        public static void Postfix(object card)
+        // The method takes cardIndex, not a card object. We just get notified a card was played.
+        public static void Postfix(int cardIndex, bool __result)
         {
             try
             {
-                if (card == null) return;
-
-                string cardName = GetCardName(card);
-                MonsterTrainAccessibility.ScreenReader?.Speak($"Played {cardName}", true);
+                // __result indicates if the card was successfully played
+                if (__result)
+                {
+                    MonsterTrainAccessibility.BattleHandler?.OnCardPlayed(cardIndex);
+                }
             }
             catch (Exception ex)
             {
                 MonsterTrainAccessibility.LogError($"Error in play card patch: {ex.Message}");
             }
         }
-
-        private static string GetCardName(object cardState)
-        {
-            try
-            {
-                var getDataMethod = cardState.GetType().GetMethod("GetCardDataRead");
-                if (getDataMethod != null)
-                {
-                    var data = getDataMethod.Invoke(cardState, null);
-                    var getNameMethod = data?.GetType().GetMethod("GetNameKey");
-                    if (getNameMethod != null)
-                    {
-                        return getNameMethod.Invoke(data, null) as string ?? "Card";
-                    }
-                }
-            }
-            catch { }
-            return "Card";
-        }
     }
 
     /// <summary>
     /// Detect card discarded
+    /// DiscardCard signature: DiscardCard(CardManager+DiscardCardParams discardCardParams, bool fromNaturalPlay)
+    /// Returns IEnumerator (coroutine)
     /// </summary>
     public static class CardDiscardedPatch
     {
@@ -166,8 +118,9 @@ namespace MonsterTrainAccessibility.Patches
                     var method = AccessTools.Method(cardManagerType, "DiscardCard");
                     if (method != null)
                     {
-                        var postfix = new HarmonyMethod(typeof(CardDiscardedPatch).GetMethod(nameof(Postfix)));
-                        harmony.Patch(method, postfix: postfix);
+                        // Use prefix since we want to see the params before the coroutine starts
+                        var prefix = new HarmonyMethod(typeof(CardDiscardedPatch).GetMethod(nameof(Prefix)));
+                        harmony.Patch(method, prefix: prefix);
                         MonsterTrainAccessibility.LogInfo("Patched CardManager.DiscardCard");
                     }
                 }
@@ -178,14 +131,28 @@ namespace MonsterTrainAccessibility.Patches
             }
         }
 
-        public static void Postfix(object card)
+        // Use prefix to capture the discard params before the coroutine runs
+        public static void Prefix(object discardCardParams)
         {
             try
             {
-                if (card == null) return;
+                if (discardCardParams == null) return;
 
-                string cardName = GetCardName(card);
-                MonsterTrainAccessibility.ScreenReader?.Queue($"Discarded {cardName}");
+                // Try to get the card from DiscardCardParams
+                var paramsType = discardCardParams.GetType();
+                var cardField = paramsType.GetField("discardCard") ??
+                               paramsType.GetField("card") ??
+                               paramsType.GetField("_discardCard");
+
+                if (cardField != null)
+                {
+                    var card = cardField.GetValue(discardCardParams);
+                    if (card != null)
+                    {
+                        string cardName = GetCardName(card);
+                        MonsterTrainAccessibility.BattleHandler?.OnCardDiscarded(cardName);
+                    }
+                }
             }
             catch (Exception ex)
             {
@@ -201,10 +168,16 @@ namespace MonsterTrainAccessibility.Patches
                 if (getDataMethod != null)
                 {
                     var data = getDataMethod.Invoke(cardState, null);
-                    var getNameMethod = data?.GetType().GetMethod("GetNameKey");
-                    if (getNameMethod != null)
+                    if (data != null)
                     {
-                        return getNameMethod.Invoke(data, null) as string ?? "Card";
+                        // Try GetName first (returns localized name)
+                        var getNameMethod = data.GetType().GetMethod("GetName");
+                        if (getNameMethod != null)
+                        {
+                            var name = getNameMethod.Invoke(data, null) as string;
+                            if (!string.IsNullOrEmpty(name))
+                                return name;
+                        }
                     }
                 }
             }

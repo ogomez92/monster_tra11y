@@ -54,6 +54,54 @@ namespace MonsterTrainAccessibility.Patches
     }
 
     /// <summary>
+    /// Detect battle intro screen (pre-battle, showing enemy info and Fight button)
+    /// </summary>
+    public static class BattleIntroScreenPatch
+    {
+        public static void TryPatch(Harmony harmony)
+        {
+            try
+            {
+                var targetType = AccessTools.TypeByName("BattleIntroScreen");
+                if (targetType != null)
+                {
+                    // Try Initialize or Setup method
+                    var method = AccessTools.Method(targetType, "Initialize") ??
+                                 AccessTools.Method(targetType, "Setup") ??
+                                 AccessTools.Method(targetType, "Show");
+                    if (method != null)
+                    {
+                        var postfix = new HarmonyMethod(typeof(BattleIntroScreenPatch).GetMethod(nameof(Postfix)));
+                        harmony.Patch(method, postfix: postfix);
+                        MonsterTrainAccessibility.LogInfo($"Patched BattleIntroScreen.{method.Name}");
+                    }
+                    else
+                    {
+                        MonsterTrainAccessibility.LogWarning("Could not find method to patch on BattleIntroScreen");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Failed to patch BattleIntroScreen: {ex.Message}");
+            }
+        }
+
+        public static void Postfix(object __instance)
+        {
+            try
+            {
+                ScreenStateTracker.SetScreen(Help.GameScreen.BattleIntro);
+                MonsterTrainAccessibility.LogInfo("Battle intro screen entered");
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in BattleIntroScreen patch: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
     /// Detect when combat starts
     /// </summary>
     public static class CombatStartPatch

@@ -1,0 +1,1126 @@
+2026-01-18T08:09:12 00 DEBUG [Engine] Booting AppManager on build #12923
+2026-01-18T08:09:12 00 DEBUG [Engine] OS: Windows 10  (10.0.0) 64bit
+2026-01-18T08:09:12 00 DEBUG [Engine] System Language: Spanish
+2026-01-18T08:09:12 00 DEBUG [Engine] CPU: Intel(R) Core(TM) Ultra 7 155H - Cores: 22 - Freq: 2995
+2026-01-18T08:09:12 00 DEBUG [Engine] System Memory: 32189
+2026-01-18T08:09:12 00 DEBUG [Engine] GPU: Intel - Intel(R) Arc(TM) Graphics - Direct3D 11.0 [level 11.1] - Shader Level: 50 - Memory: 18347
+2026-01-18T08:09:12 00 DEBUG [Engine] Free space on C:\ drive: 794675036160 bytes
+2026-01-18T08:09:12 00 VERBOSE [Engine] e11a00a579ffdd0d9344972bd653c841
+2026-01-18T08:09:13 01 VERBOSE [Analytics] Analytics Track: GameBoot [Buffering] (Platform: Steam), 
+2026-01-18T08:09:13 01 DEBUG [Engine] BlackScreenTrace: LoadingScreen: AppManager.InitializeSystems
+2026-01-18T08:09:13 01 DEBUG [Engine] BlackScreenTrace: LoadingScreen: AppManager.CheckFlux
+2026-01-18T08:09:13 01 DEBUG [Engine] BlackScreenTrace: LoadingScreen: AppManager.InitializeSystems 2
+2026-01-18T08:09:13 01 DEBUG [Engine] BlackScreenTrace: LoadingScreen: AppManager.GetStartUpData
+2026-01-18T08:09:13 01 VERBOSE [Engine] [Mod] Modding ENABLED
+2026-01-18T08:09:13 01 VERBOSE [Engine] [Mod] Listing installed mods:
+2026-01-18T08:09:13 01 VERBOSE [Engine] [Mod] Discovered mod 2205086946 named "Trainworks Mod Tools". Active/enabled = True
+2026-01-18T08:09:13 01 DEBUG [Engine] SaveManager.Start Begin
+2026-01-18T08:09:13 01 VERBOSE [LoadingScreen] Pending Task added: SaveDataFileTask [Spinner] [LoadMetagame]
+2026-01-18T08:09:13 01 VERBOSE [LoadingScreen] Pending Task added: SaveDataFileTask [Spinner] [LoadOrReset-Class-]
+2026-01-18T08:09:13 01 VERBOSE [LoadingScreen] Pending Task added: SaveDataFileTask [Spinner] [LoadOrReset-Daily-]
+2026-01-18T08:09:13 01 VERBOSE [LoadingScreen] Pending Task added: SaveDataFileTask [Spinner] [LoadOrReset-Matchmaker-]
+2026-01-18T08:09:13 01 VERBOSE [LoadingScreen] Pending Task added: LoadInstantly [Spinner]
+2026-01-18T08:09:13 01 DEBUG [Engine] SaveManager.Start End
+2026-01-18T08:09:13 01 VERBOSE [LoadingScreen] Pending Task added: SaveDataFileTask [Spinner] [Load-PreferencesPrimary]
+2026-01-18T08:09:13 01 VERBOSE [LoadingScreen] Pending Task added: SaveDataFileTask [Spinner] [Load-PreferencesLocal]
+2026-01-18T08:09:13 01 DEBUG [Engine] ScreenManager.Start Begin
+2026-01-18T08:09:13 01 DEBUG [Engine] BlackScreenTrace: LoadingScreen: SetScreenActive True
+2026-01-18T08:09:13 01 VERBOSE [Gameplay] Showing screen Loading
+2026-01-18T08:09:13 01 DEBUG [Engine] BlackScreenTrace: LoadingScreen: SetScreenActive 3
+2026-01-18T08:09:13 01 DEBUG [Engine] BlackScreenTrace: LoadingScreen: DoSetScreenActive
+2026-01-18T08:09:13 01 DEBUG [Engine] BlackScreenTrace: LoadingScreen: DoSetScreenActive 4
+2026-01-18T08:09:13 01 DEBUG [Engine] BlackScreenTrace: LoadingScreen: TryToLoadScreenFromScene False
+2026-01-18T08:09:13 01 DEBUG [Engine] BlackScreenTrace: LoadingScreen: LoadSceneIfNotLoaded
+2026-01-18T08:09:13 01 DEBUG [Engine] BlackScreenTrace: LoadingScreen: LoadSceneIfNotLoaded 2
+2026-01-18T08:09:13 01 DEBUG [Engine] BlackScreenTrace: LoadingScreen: LoadSceneIfNotLoaded 5
+2026-01-18T08:09:13 01 DEBUG [Engine] BlackScreenTrace: LoadingScreen: DoSetScreenActive 6
+2026-01-18T08:09:13 01 VERBOSE [LoadingScreen] Pending Task added: PreloadAdditiveScreen [FullScreen] [Settings] [show] [Settings]
+2026-01-18T08:09:13 01 VERBOSE [LoadingScreen] Pending Task added: PreloadAdditiveScreen [FullScreen] [Dialog] [show] [Dialog]
+2026-01-18T08:09:13 01 VERBOSE [LoadingScreen] Pending Task added: LoadScreen [FullScreen] [Hud] [show]
+2026-01-18T08:09:13 01 DEBUG [Engine] ScreenManager.Start End
+2026-01-18T08:09:13 01 DEBUG [Engine] SoundManager.Start Begin
+2026-01-18T08:09:13 01 DEBUG [Engine] SoundManager.Start End
+2026-01-18T08:09:13 01 DEBUG [Engine] InputManager.Start Begin
+2026-01-18T08:09:13 01 DEBUG [Engine] InputManager.Start End
+2026-01-18T08:09:13 01 DEBUG [Engine] LanguageManager.Start Begin
+2026-01-18T08:09:13 01 DEBUG [Engine] LanguageManager.Start End
+2026-01-18T08:09:13 01 DEBUG [Engine] GameVFXManager.Start Begin
+2026-01-18T08:09:13 01 DEBUG [Engine] GameVFXManager.Start End
+2026-01-18T08:09:13 01 DEBUG [Engine] StoryManager.Start Begin
+2026-01-18T08:09:13 01 VERBOSE [Random] ResetRng StoryEvents [-2035883577]
+2026-01-18T08:09:13 01 VERBOSE [Random] RangeInt StoryEvents [0 2147483647] [1579869006]
+2026-01-18T08:09:13 01 DEBUG [Engine] StoryManager.Start End
+2026-01-18T08:09:13 01 DEBUG [Engine] StatusEffectManager.Start Begin
+2026-01-18T08:09:13 01 DEBUG [Engine] StatusEffectManager.Start End
+2026-01-18T08:09:13 01 DEBUG [Engine] CardStatistics.Start Begin
+2026-01-18T08:09:13 01 DEBUG [Engine] CardStatistics.Start End
+2026-01-18T08:09:13 01 DEBUG [Engine] RelicManager.Start Begin
+2026-01-18T08:09:13 01 DEBUG [Engine] RelicManager.Start End
+2026-01-18T08:09:13 01 DEBUG [Engine] PlayerManager.Start Begin
+2026-01-18T08:09:13 01 DEBUG [Engine] PlayerManager.Start End
+2026-01-18T08:09:13 01 DEBUG [Engine] AssetLoadingManager.Start Begin
+2026-01-18T08:09:13 01 DEBUG [Engine] AssetLoadingManager.Start End
+2026-01-18T08:09:13 01 DEBUG [Engine] GraphicsSettingsManager.Start Begin
+2026-01-18T08:09:13 01 VERBOSE [Engine] Monitor resolution changed from [0 x 0 @ 0Hz] to [1920 x 1200 @ 60Hz]
+2026-01-18T08:09:13 01 VERBOSE [Engine] GraphicsSettingsManager Init: systemResolution [1920 x 1200], systemAspectRatio [1600], systemRefreshRate [60]
+2026-01-18T08:09:13 01 VERBOSE [Engine] GraphicsSettingsManager Init: Adding Unity reported resolutions:
+2026-01-18T08:09:13 01 VERBOSE [Engine] GraphicsSettingsManager Init: Supported resolution filtered out [640 x 480], aspect ratio [1333] (Has a different aspect ratio than monitor)
+2026-01-18T08:09:13 01 VERBOSE [Engine] GraphicsSettingsManager Init: Supported resolution filtered out [800 x 600], aspect ratio [1333] (Has a different aspect ratio than monitor)
+2026-01-18T08:09:13 01 VERBOSE [Engine] GraphicsSettingsManager Init: Supported resolution filtered out [1024 x 768], aspect ratio [1333] (Has a different aspect ratio than monitor)
+2026-01-18T08:09:13 01 VERBOSE [Engine] GraphicsSettingsManager Init: Supported resolution filtered out [1152 x 864], aspect ratio [1333] (Has a different aspect ratio than monitor)
+2026-01-18T08:09:13 01 VERBOSE [Engine] GraphicsSettingsManager Init: Supported resolution filtered out [1280 x 600], aspect ratio [2133] (Has a different aspect ratio than monitor)
+2026-01-18T08:09:13 01 VERBOSE [Engine] GraphicsSettingsManager Init: Supported resolution filtered out [1280 x 720], aspect ratio [1777] (Has a different aspect ratio than monitor)
+2026-01-18T08:09:13 01 VERBOSE [Engine] GraphicsSettingsManager Init: Supported resolution filtered out [1280 x 768], aspect ratio [1666] (Has a different aspect ratio than monitor)
+2026-01-18T08:09:13 01 VERBOSE [Engine] GraphicsSettingsManager Init: Supported resolution [1280 x 800], refresh rate [60]
+2026-01-18T08:09:13 01 VERBOSE [Engine] GraphicsSettingsManager Init: Supported resolution filtered out [1280 x 960], aspect ratio [1333] (Has a different aspect ratio than monitor)
+2026-01-18T08:09:13 01 VERBOSE [Engine] GraphicsSettingsManager Init: Supported resolution filtered out [1280 x 1024], aspect ratio [1250] (Has a different aspect ratio than monitor)
+2026-01-18T08:09:13 01 VERBOSE [Engine] GraphicsSettingsManager Init: Supported resolution filtered out [1360 x 768], aspect ratio [1770] (Has a different aspect ratio than monitor)
+2026-01-18T08:09:13 01 VERBOSE [Engine] GraphicsSettingsManager Init: Supported resolution filtered out [1366 x 768], aspect ratio [1778] (Has a different aspect ratio than monitor)
+2026-01-18T08:09:13 01 VERBOSE [Engine] GraphicsSettingsManager Init: Supported resolution filtered out [1400 x 1050], aspect ratio [1333] (Has a different aspect ratio than monitor)
+2026-01-18T08:09:13 01 VERBOSE [Engine] GraphicsSettingsManager Init: Supported resolution [1440 x 900], refresh rate [60]
+2026-01-18T08:09:13 01 VERBOSE [Engine] GraphicsSettingsManager Init: Supported resolution filtered out [1600 x 900], aspect ratio [1777] (Has a different aspect ratio than monitor)
+2026-01-18T08:09:13 01 VERBOSE [Engine] GraphicsSettingsManager Init: Supported resolution filtered out [1600 x 1200], aspect ratio [1333] (Has a different aspect ratio than monitor)
+2026-01-18T08:09:13 01 VERBOSE [Engine] GraphicsSettingsManager Init: Supported resolution [1680 x 1050], refresh rate [60]
+2026-01-18T08:09:13 01 VERBOSE [Engine] GraphicsSettingsManager Init: Supported resolution filtered out [1920 x 1080], aspect ratio [1777] (Has a different aspect ratio than monitor)
+2026-01-18T08:09:13 01 VERBOSE [Engine] GraphicsSettingsManager Init: Supported resolution [1920 x 1200], refresh rate [60]
+2026-01-18T08:09:13 01 VERBOSE [Engine] GraphicsSettingsManager Init: Adding special resolutions:
+2026-01-18T08:09:13 01 VERBOSE [Engine] GraphicsSettingsManager Init: Supported resolution [1280 x 720], refresh rate [60]
+2026-01-18T08:09:13 01 VERBOSE [Engine] GraphicsSettingsManager Init: Supported resolution [1920 x 1080], refresh rate [60]
+2026-01-18T08:09:13 01 VERBOSE [Engine] GraphicsSettingsManager Init: Max windowed resolution [1440 x 900]
+2026-01-18T08:09:13 01 VERBOSE [Engine] Updating currentScreenSettings to [{"version":1,"display":0,"resolution":{"width":1920,"height":1200,"fullScreen":true},"exclusiveWhenInFullScreen":false,"vSyncCount":1,"framerateForVsyncCount0":-1}]
+2026-01-18T08:09:13 01 DEBUG [Engine] GraphicsSettingsManager.Start End
+2026-01-18T08:09:13 01 DEBUG [Engine] AnalyticsManager.Start Begin
+2026-01-18T08:09:13 01 DEBUG [Engine] AnalyticsManager.Start End
+2026-01-18T08:09:13 01 DEBUG [Engine] PubSubManager.Start Begin
+2026-01-18T08:09:13 01 DEBUG [Engine] PubSubManager.Start End
+2026-01-18T08:09:13 01 DEBUG [Engine] GameStateManager.Start Begin
+2026-01-18T08:09:13 01 DEBUG [Engine] GameStateManager.Start End
+2026-01-18T08:09:13 01 DEBUG [Engine] AchievementManager.Start Begin
+2026-01-18T08:09:13 01 DEBUG [Engine] AchievementManager.Start End
+2026-01-18T08:09:13 01 DEBUG [Engine] RichPresenceManager.Start Begin
+2026-01-18T08:09:13 01 VERBOSE [RichPresence] Setting Steam Rich Presence to: Monster Train: Main Menu
+2026-01-18T08:09:13 01 VERBOSE [RichPresence] Setting Steam Rich Presence to: Monster Train: Main Menu
+2026-01-18T08:09:13 01 VERBOSE [RichPresence] Setting Steam Rich Presence to: Monster Train: Main Menu
+2026-01-18T08:09:13 01 DEBUG [Engine] RichPresenceManager.Start End
+2026-01-18T08:09:13 01 DEBUG [Engine] DiscordManager.Start Begin
+2026-01-18T08:09:13 01 VERBOSE [Network] Spinning Discord service up.
+2026-01-18T08:09:13 01 VERBOSE [RichPresence] Setting Steam Rich Presence to: Monster Train: Main Menu
+2026-01-18T08:09:13 01 VERBOSE [RichPresence] Setting Discord Rich Presence to: Monster Train, Main Menu
+2026-01-18T08:09:13 01 DEBUG [Engine] DiscordManager.Start End
+2026-01-18T08:09:13 01 DEBUG [Engine] BattleModeManager.Start Begin
+2026-01-18T08:09:13 01 DEBUG [Engine] BattleModeManager.Start End
+2026-01-18T08:09:13 01 DEBUG [Engine] FileCacheManager.Start Begin
+2026-01-18T08:09:13 01 DEBUG [Engine] FileCacheManager.Start End
+2026-01-18T08:09:13 01 DEBUG [Engine] RunHistoryManager.Start Begin
+2026-01-18T08:09:13 01 VERBOSE [LoadingScreen] Pending Task added: SaveDataFileTask [Spinner] [RunHistoryInitUser]
+2026-01-18T08:09:13 01 DEBUG [Engine] RunHistoryManager.Start End
+2026-01-18T08:09:13 01 DEBUG [Engine] BlackScreenTrace: LoadingScreen: StartGame.Start
+2026-01-18T08:09:13 01 DEBUG [Engine] BlackScreenTrace: LoadingScreen: StartGame start coroutine
+2026-01-18T08:09:13 01 DEBUG [Engine] BlackScreenTrace: LoadingScreen: StartGame.GoToNextScreen
+2026-01-18T08:09:13 01 DEBUG [Engine] BlackScreenTrace: LoadingScreen: StartGame.Start 2
+2026-01-18T08:09:13 01 DEBUG [Engine] SaveManager.Update  (1 1)
+2026-01-18T08:09:13 01 DEBUG [Engine] SaveManager.Update 2 (1 1)
+2026-01-18T08:09:13 01 DEBUG [Engine] GameVFXManager.Update  (1 1)
+2026-01-18T08:09:13 01 DEBUG [Engine] GameVFXManager.Update 2 (1 1)
+2026-01-18T08:09:13 01 DEBUG [Engine] GraphicsSettingsManager.Update  (1 1)
+2026-01-18T08:09:13 01 DEBUG [Engine] GraphicsSettingsManager.Update 2 (1 1)
+2026-01-18T08:09:13 01 DEBUG [Engine] AnalyticsManager.Update  (1 1)
+2026-01-18T08:09:13 01 VERBOSE [Analytics] Analytics Init: User Id: Steam-76561198983806636, User name: oriolgomez
+2026-01-18T08:09:13 01 DEBUG [Engine] BlackScreenTrace: LoadingScreen: AnalyticsManager.InitializeApiAuthorization
+2026-01-18T08:09:13 01 DEBUG [Engine] BlackScreenTrace: LoadingScreen: AnalyticsManager.InitializeApiAuthorization 2
+2026-01-18T08:09:13 01 DEBUG [Engine] BlackScreenTrace: LoadingScreen: AnalyticsManager.InitializeApiAuthorization 4
+2026-01-18T08:09:13 01 DEBUG [Engine] AnalyticsManager.Update 2 (1 1)
+2026-01-18T08:09:13 01 DEBUG [Engine] GameStateManager.Update  (1 1)
+2026-01-18T08:09:13 01 DEBUG [Engine] GameStateManager.Update 2 (1 1)
+2026-01-18T08:09:13 01 DEBUG [Engine] DiscordManager.Update  (1 1)
+2026-01-18T08:09:13 01 DEBUG [Engine] DiscordManager.Update 2 (1 1)
+2026-01-18T08:09:13 01 DEBUG [Engine] BattleModeManager.Update  (1 1)
+2026-01-18T08:09:13 01 DEBUG [Engine] BattleModeManager.Update 2 (1 1)
+2026-01-18T08:09:13 01 DEBUG [Engine] InputManager.Update  (1 1)
+2026-01-18T08:09:13 01 DEBUG [Engine] InputManager.Update 2 (1 1)
+2026-01-18T08:09:13 02 DEBUG [Engine] BlackScreenTrace: LoadingScreen: LoadingScreen.Awake
+2026-01-18T08:09:13 02 DEBUG [Engine] BlackScreenTrace: LoadingScreen: OnSceneLoaded loading
+2026-01-18T08:09:13 02 DEBUG [Engine] BlackScreenTrace: LoadingScreen: UIScreen.Start
+2026-01-18T08:09:13 02 DEBUG [Engine] LoadingScreen.CanInitialize: False: registered False, allowInitialization False, inputManager False, assetLoadingManager False, soundManager False, screenManager False assetLoadingManager False, _saveManager False, _storyManager False, _screenManager False, _runHistoryManager False
+2026-01-18T08:09:13 02 DEBUG [Engine] LoadingScreen.CanInitialize: False: registered False, allowInitialization False, inputManager False, assetLoadingManager False, soundManager False, screenManager False assetLoadingManager False, _saveManager False, _storyManager False, _screenManager False, _runHistoryManager False
+2026-01-18T08:09:13 02 DEBUG [Engine] LoadingScreen.CanInitialize: False: registered False, allowInitialization False, inputManager False, assetLoadingManager False, soundManager False, screenManager False assetLoadingManager False, _saveManager True, _storyManager False, _screenManager False, _runHistoryManager False
+2026-01-18T08:09:13 02 DEBUG [Engine] BlackScreenTrace: LoadingScreen: RegisterScreen
+2026-01-18T08:09:13 02 DEBUG [Engine] BlackScreenTrace: LoadingScreen: SetScreenObjectActive True
+2026-01-18T08:09:13 02 DEBUG [Engine] LoadingScreen.CanInitialize: False: registered False, allowInitialization True, inputManager False, assetLoadingManager False, soundManager False, screenManager True assetLoadingManager False, _saveManager True, _storyManager False, _screenManager False, _runHistoryManager False
+2026-01-18T08:09:13 02 DEBUG [Engine] LoadingScreen.CanInitialize: False: registered True, allowInitialization True, inputManager False, assetLoadingManager False, soundManager False, screenManager True assetLoadingManager False, _saveManager True, _storyManager False, _screenManager True, _runHistoryManager False
+2026-01-18T08:09:13 02 DEBUG [Engine] LoadingScreen.CanInitialize: False: registered True, allowInitialization True, inputManager False, assetLoadingManager False, soundManager True, screenManager True assetLoadingManager False, _saveManager True, _storyManager False, _screenManager True, _runHistoryManager False
+2026-01-18T08:09:13 02 DEBUG [Engine] LoadingScreen.CanInitialize: False: registered True, allowInitialization True, inputManager True, assetLoadingManager False, soundManager True, screenManager True assetLoadingManager False, _saveManager True, _storyManager False, _screenManager True, _runHistoryManager False
+2026-01-18T08:09:13 02 DEBUG [Engine] LoadingScreen.CanInitialize: False: registered True, allowInitialization True, inputManager True, assetLoadingManager False, soundManager True, screenManager True assetLoadingManager False, _saveManager True, _storyManager False, _screenManager True, _runHistoryManager False
+2026-01-18T08:09:13 02 DEBUG [Engine] LoadingScreen.CanInitialize: False: registered True, allowInitialization True, inputManager True, assetLoadingManager False, soundManager True, screenManager True assetLoadingManager False, _saveManager True, _storyManager False, _screenManager True, _runHistoryManager False
+2026-01-18T08:09:13 02 DEBUG [Engine] LoadingScreen.CanInitialize: False: registered True, allowInitialization True, inputManager True, assetLoadingManager False, soundManager True, screenManager True assetLoadingManager False, _saveManager True, _storyManager True, _screenManager True, _runHistoryManager False
+2026-01-18T08:09:13 02 DEBUG [Engine] LoadingScreen.CanInitialize: False: registered True, allowInitialization True, inputManager True, assetLoadingManager False, soundManager True, screenManager True assetLoadingManager False, _saveManager True, _storyManager True, _screenManager True, _runHistoryManager False
+2026-01-18T08:09:13 02 DEBUG [Engine] LoadingScreen.CanInitialize: False: registered True, allowInitialization True, inputManager True, assetLoadingManager False, soundManager True, screenManager True assetLoadingManager False, _saveManager True, _storyManager True, _screenManager True, _runHistoryManager False
+2026-01-18T08:09:13 02 DEBUG [Engine] LoadingScreen.CanInitialize: False: registered True, allowInitialization True, inputManager True, assetLoadingManager False, soundManager True, screenManager True assetLoadingManager False, _saveManager True, _storyManager True, _screenManager True, _runHistoryManager False
+2026-01-18T08:09:13 02 DEBUG [Engine] LoadingScreen.CanInitialize: False: registered True, allowInitialization True, inputManager True, assetLoadingManager False, soundManager True, screenManager True assetLoadingManager False, _saveManager True, _storyManager True, _screenManager True, _runHistoryManager False
+2026-01-18T08:09:13 02 DEBUG [Engine] LoadingScreen.CanInitialize: False: registered True, allowInitialization True, inputManager True, assetLoadingManager True, soundManager True, screenManager True assetLoadingManager True, _saveManager True, _storyManager True, _screenManager True, _runHistoryManager False
+2026-01-18T08:09:13 02 DEBUG [Engine] LoadingScreen.CanInitialize: False: registered True, allowInitialization True, inputManager True, assetLoadingManager True, soundManager True, screenManager True assetLoadingManager True, _saveManager True, _storyManager True, _screenManager True, _runHistoryManager False
+2026-01-18T08:09:13 02 DEBUG [Engine] LoadingScreen.CanInitialize: False: registered True, allowInitialization True, inputManager True, assetLoadingManager True, soundManager True, screenManager True assetLoadingManager True, _saveManager True, _storyManager True, _screenManager True, _runHistoryManager False
+2026-01-18T08:09:13 02 DEBUG [Engine] LoadingScreen.CanInitialize: False: registered True, allowInitialization True, inputManager True, assetLoadingManager True, soundManager True, screenManager True assetLoadingManager True, _saveManager True, _storyManager True, _screenManager True, _runHistoryManager False
+2026-01-18T08:09:13 02 DEBUG [Engine] LoadingScreen.CanInitialize: False: registered True, allowInitialization True, inputManager True, assetLoadingManager True, soundManager True, screenManager True assetLoadingManager True, _saveManager True, _storyManager True, _screenManager True, _runHistoryManager False
+2026-01-18T08:09:13 02 DEBUG [Engine] LoadingScreen.CanInitialize: False: registered True, allowInitialization True, inputManager True, assetLoadingManager True, soundManager True, screenManager True assetLoadingManager True, _saveManager True, _storyManager True, _screenManager True, _runHistoryManager False
+2026-01-18T08:09:13 02 DEBUG [Engine] LoadingScreen.CanInitialize: False: registered True, allowInitialization True, inputManager True, assetLoadingManager True, soundManager True, screenManager True assetLoadingManager True, _saveManager True, _storyManager True, _screenManager True, _runHistoryManager False
+2026-01-18T08:09:13 02 DEBUG [Engine] LoadingScreen.CanInitialize: False: registered True, allowInitialization True, inputManager True, assetLoadingManager True, soundManager True, screenManager True assetLoadingManager True, _saveManager True, _storyManager True, _screenManager True, _runHistoryManager False
+2026-01-18T08:09:13 02 DEBUG [Engine] LoadingScreen.CanInitialize: False: registered True, allowInitialization True, inputManager True, assetLoadingManager True, soundManager True, screenManager True assetLoadingManager True, _saveManager True, _storyManager True, _screenManager True, _runHistoryManager False
+2026-01-18T08:09:13 02 DEBUG [Engine] LoadingScreen.CanInitialize: True: registered True, allowInitialization True, inputManager True, assetLoadingManager True, soundManager True, screenManager True assetLoadingManager True, _saveManager True, _storyManager True, _screenManager True, _runHistoryManager True
+2026-01-18T08:09:13 02 VERBOSE [LoadingScreen] Normal Task added: SaveDataFileTask [Spinner] [LoadMetagame]
+2026-01-18T08:09:13 02 VERBOSE [LoadingScreen] Normal Task starting: SaveDataFileTask [Spinner] [LoadMetagame]
+2026-01-18T08:09:13 02 VERBOSE [LoadingScreen] Normal Task added: SaveDataFileTask [Spinner] [LoadOrReset-Class-]
+2026-01-18T08:09:13 02 VERBOSE [LoadingScreen] Normal Task added: SaveDataFileTask [Spinner] [LoadOrReset-Daily-]
+2026-01-18T08:09:13 02 VERBOSE [LoadingScreen] Normal Task added: SaveDataFileTask [Spinner] [LoadOrReset-Matchmaker-]
+2026-01-18T08:09:13 02 VERBOSE [LoadingScreen] Normal Task added: LoadInstantly [Spinner]
+2026-01-18T08:09:13 02 VERBOSE [LoadingScreen] Normal Task added: SaveDataFileTask [Spinner] [Load-PreferencesPrimary]
+2026-01-18T08:09:13 02 VERBOSE [LoadingScreen] Normal Task added: SaveDataFileTask [Spinner] [Load-PreferencesLocal]
+2026-01-18T08:09:13 02 VERBOSE [LoadingScreen] Normal Task added: PreloadAdditiveScreen [FullScreen] [Settings] [show] [Settings]
+2026-01-18T08:09:13 02 VERBOSE [AssetLoading] LoadingScreen: Loading time 0,0s
+2026-01-18T08:09:13 02 VERBOSE [LoadingScreen] Normal Task added: PreloadAdditiveScreen [FullScreen] [Dialog] [show] [Dialog]
+2026-01-18T08:09:13 02 VERBOSE [LoadingScreen] Normal Task added: LoadScreen [FullScreen] [Hud] [show]
+2026-01-18T08:09:13 02 VERBOSE [LoadingScreen] Normal Task added: SaveDataFileTask [Spinner] [RunHistoryInitUser]
+2026-01-18T08:09:13 02 DEBUG [Engine] SaveManager.Update  (2 2)
+2026-01-18T08:09:13 02 DEBUG [Engine] SaveManager.Update 2 (2 2)
+2026-01-18T08:09:13 02 DEBUG [Engine] GameVFXManager.Update  (2 2)
+2026-01-18T08:09:13 02 DEBUG [Engine] GameVFXManager.Update 2 (2 2)
+2026-01-18T08:09:13 02 DEBUG [Engine] GraphicsSettingsManager.Update  (2 2)
+2026-01-18T08:09:13 02 DEBUG [Engine] GraphicsSettingsManager.Update 2 (2 2)
+2026-01-18T08:09:13 02 DEBUG [Engine] AnalyticsManager.Update  (2 2)
+2026-01-18T08:09:13 02 DEBUG [Engine] AnalyticsManager.Update 2 (2 2)
+2026-01-18T08:09:13 02 DEBUG [Engine] GameStateManager.Update  (2 2)
+2026-01-18T08:09:13 02 DEBUG [Engine] GameStateManager.Update 2 (2 2)
+2026-01-18T08:09:13 02 DEBUG [Engine] DiscordManager.Update  (2 2)
+2026-01-18T08:09:13 02 DEBUG [Engine] DiscordManager.Update 2 (2 2)
+2026-01-18T08:09:13 02 DEBUG [Engine] BattleModeManager.Update  (2 2)
+2026-01-18T08:09:13 02 DEBUG [Engine] BattleModeManager.Update 2 (2 2)
+2026-01-18T08:09:13 02 DEBUG [Engine] BlackScreenTrace: LoadingScreen: StartGame.GoToNextScreen 2
+2026-01-18T08:09:13 02 VERBOSE [Gameplay] Showing screen IntroFmv
+2026-01-18T08:09:13 02 VERBOSE [LoadingScreen] Normal Task added: LoadScreen [FullScreen] [IntroFmv] [show]
+2026-01-18T08:09:13 02 VERBOSE [LoadingScreen] Task done: SaveDataFileTask [Spinner] [LoadMetagame] 0,0s
+2026-01-18T08:09:13 02 DEBUG [Engine] InputManager.Update  (2 2)
+2026-01-18T08:09:13 02 DEBUG [Engine] InputManager.Update 2 (2 2)
+2026-01-18T08:09:13 03 DEBUG [Engine] SaveManager.Update  (3 3)
+2026-01-18T08:09:13 03 DEBUG [Engine] SaveManager.Update 2 (3 3)
+2026-01-18T08:09:13 03 DEBUG [Engine] GameVFXManager.Update  (3 3)
+2026-01-18T08:09:13 03 DEBUG [Engine] GameVFXManager.Update 2 (3 3)
+2026-01-18T08:09:13 03 DEBUG [Engine] GraphicsSettingsManager.Update  (3 3)
+2026-01-18T08:09:13 03 DEBUG [Engine] GraphicsSettingsManager.Update 2 (3 3)
+2026-01-18T08:09:13 03 DEBUG [Engine] AnalyticsManager.Update  (3 3)
+2026-01-18T08:09:13 03 DEBUG [Engine] AnalyticsManager.Update 2 (3 3)
+2026-01-18T08:09:13 03 DEBUG [Engine] GameStateManager.Update  (3 3)
+2026-01-18T08:09:13 03 DEBUG [Engine] GameStateManager.Update 2 (3 3)
+2026-01-18T08:09:13 03 DEBUG [Engine] DiscordManager.Update  (3 3)
+2026-01-18T08:09:13 03 DEBUG [Engine] DiscordManager.Update 2 (3 3)
+2026-01-18T08:09:13 03 DEBUG [Engine] BattleModeManager.Update  (3 3)
+2026-01-18T08:09:13 03 DEBUG [Engine] BattleModeManager.Update 2 (3 3)
+2026-01-18T08:09:13 03 DEBUG [Engine] InputManager.Update  (3 3)
+2026-01-18T08:09:13 03 DEBUG [Engine] InputManager.Update 2 (3 3)
+2026-01-18T08:09:13 04 DEBUG [Engine] SaveManager.Update  (4 4)
+2026-01-18T08:09:13 04 DEBUG [Engine] SaveManager.Update 2 (4 4)
+2026-01-18T08:09:13 04 DEBUG [Engine] GameVFXManager.Update  (4 4)
+2026-01-18T08:09:13 04 DEBUG [Engine] GameVFXManager.Update 2 (4 4)
+2026-01-18T08:09:13 04 DEBUG [Engine] GraphicsSettingsManager.Update  (4 4)
+2026-01-18T08:09:13 04 DEBUG [Engine] GraphicsSettingsManager.Update 2 (4 4)
+2026-01-18T08:09:13 04 DEBUG [Engine] AnalyticsManager.Update  (4 4)
+2026-01-18T08:09:13 04 DEBUG [Engine] AnalyticsManager.Update 2 (4 4)
+2026-01-18T08:09:13 04 DEBUG [Engine] GameStateManager.Update  (4 4)
+2026-01-18T08:09:13 04 DEBUG [Engine] GameStateManager.Update 2 (4 4)
+2026-01-18T08:09:13 04 DEBUG [Engine] DiscordManager.Update  (4 4)
+2026-01-18T08:09:13 04 DEBUG [Engine] DiscordManager.Update 2 (4 4)
+2026-01-18T08:09:13 04 DEBUG [Engine] BattleModeManager.Update  (4 4)
+2026-01-18T08:09:13 04 DEBUG [Engine] BattleModeManager.Update 2 (4 4)
+2026-01-18T08:09:13 04 DEBUG [Engine] InputManager.Update  (4 4)
+2026-01-18T08:09:13 04 DEBUG [Engine] InputManager.Update 2 (4 4)
+2026-01-18T08:09:13 05 DEBUG [Engine] SaveManager.Update  (5 5)
+2026-01-18T08:09:13 05 DEBUG [Engine] SaveManager.Update 2 (5 5)
+2026-01-18T08:09:13 05 DEBUG [Engine] GameVFXManager.Update  (5 5)
+2026-01-18T08:09:13 05 DEBUG [Engine] GameVFXManager.Update 2 (5 5)
+2026-01-18T08:09:13 05 DEBUG [Engine] GraphicsSettingsManager.Update  (5 5)
+2026-01-18T08:09:13 05 DEBUG [Engine] GraphicsSettingsManager.Update 2 (5 5)
+2026-01-18T08:09:13 05 DEBUG [Engine] AnalyticsManager.Update  (5 5)
+2026-01-18T08:09:13 05 DEBUG [Engine] AnalyticsManager.Update 2 (5 5)
+2026-01-18T08:09:13 05 DEBUG [Engine] GameStateManager.Update  (5 5)
+2026-01-18T08:09:13 05 DEBUG [Engine] GameStateManager.Update 2 (5 5)
+2026-01-18T08:09:13 05 DEBUG [Engine] DiscordManager.Update  (5 5)
+2026-01-18T08:09:13 05 DEBUG [Engine] DiscordManager.Update 2 (5 5)
+2026-01-18T08:09:13 05 DEBUG [Engine] BattleModeManager.Update  (5 5)
+2026-01-18T08:09:13 05 DEBUG [Engine] BattleModeManager.Update 2 (5 5)
+2026-01-18T08:09:13 05 DEBUG [Engine] InputManager.Update  (5 5)
+2026-01-18T08:09:13 05 DEBUG [Engine] InputManager.Update 2 (5 5)
+2026-01-18T08:09:13 20 VERBOSE [Network] Steam: [163 - GetAuthSessionTicketResponse] - 7 -- k_EResultOK
+2026-01-18T08:09:13 20 DEBUG [Engine] BlackScreenTrace: LoadingScreen: AnalyticsManager.GetAuthorizationToken
+2026-01-18T08:09:13 20 DEBUG [Engine] BlackScreenTrace: LoadingScreen: AnalyticsManager.GetAuthorizationToken 2
+2026-01-18T08:09:14 27 VERBOSE [AssetLoading] LoadingScreen: GC Enabled, Memory 243,4 MB (Highest so far: 243,4 MB), Unity 181,6, Mono 61,8, Graphics Driver 0,0, Assets loaded: cards 0/285, characters 0/276, other 0
+2026-01-18T08:09:14 27 VERBOSE [LoadingScreen] Normal Task starting: SaveDataFileTask [Spinner] [LoadOrReset-Class-]
+2026-01-18T08:09:14 27 VERBOSE [Save] Loading save game from C:/Users/Usuario/AppData/LocalLow/Shiny Shoe/MonsterTrain\saves\save-singlePlayer.json
+2026-01-18T08:09:14 27 VERBOSE [Determinism] Load IsChallenge [False] RunId [73f60010-f671-465c-9740-9b106a4c1927] Version [12923]
+2026-01-18T08:09:14 27 VERBOSE [Gameplay] Running CardUpgradeState.Setup for HornbreakerMultistrike
+2026-01-18T08:09:14 27 VERBOSE [Gameplay] Running CardState.Setup for HornbreakerChampion
+2026-01-18T08:09:14 27 VERBOSE [Gameplay] Running CardEffectState.Setup for card HornbreakerChampion
+2026-01-18T08:09:14 27 VERBOSE [Gameplay] Running CardState.Setup for StarterHeal
+2026-01-18T08:09:14 27 VERBOSE [Gameplay] Running CardEffectState.Setup for card StarterHeal
+2026-01-18T08:09:14 27 VERBOSE [Gameplay] Running CardEffectState.Setup for card StarterHeal
+2026-01-18T08:09:14 27 VERBOSE [Gameplay] Running CardState.Setup for StarterHeal
+2026-01-18T08:09:14 27 VERBOSE [Gameplay] Running CardEffectState.Setup for card StarterHeal
+2026-01-18T08:09:14 27 VERBOSE [Gameplay] Running CardEffectState.Setup for card StarterHeal
+2026-01-18T08:09:14 27 VERBOSE [Gameplay] Running CardState.Setup for StarterHeal
+2026-01-18T08:09:14 27 VERBOSE [Gameplay] Running CardEffectState.Setup for card StarterHeal
+2026-01-18T08:09:14 27 VERBOSE [Gameplay] Running CardEffectState.Setup for card StarterHeal
+2026-01-18T08:09:14 27 VERBOSE [Gameplay] Running CardState.Setup for StarterHeal
+2026-01-18T08:09:14 27 VERBOSE [Gameplay] Running CardEffectState.Setup for card StarterHeal
+2026-01-18T08:09:14 27 VERBOSE [Gameplay] Running CardEffectState.Setup for card StarterHeal
+2026-01-18T08:09:14 27 VERBOSE [Gameplay] Running CardState.Setup for StarterHeal
+2026-01-18T08:09:14 27 VERBOSE [Gameplay] Running CardEffectState.Setup for card StarterHeal
+2026-01-18T08:09:14 27 VERBOSE [Gameplay] Running CardEffectState.Setup for card StarterHeal
+2026-01-18T08:09:14 27 VERBOSE [Gameplay] Running CardState.Setup for StarterTorch
+2026-01-18T08:09:14 27 VERBOSE [Gameplay] Running CardEffectState.Setup for card StarterTorch
+2026-01-18T08:09:14 27 VERBOSE [Gameplay] Running CardState.Setup for StarterTorch
+2026-01-18T08:09:14 27 VERBOSE [Gameplay] Running CardEffectState.Setup for card StarterTorch
+2026-01-18T08:09:14 27 VERBOSE [Gameplay] Running CardState.Setup for StarterTorch
+2026-01-18T08:09:14 27 VERBOSE [Gameplay] Running CardEffectState.Setup for card StarterTorch
+2026-01-18T08:09:14 27 VERBOSE [Gameplay] Running CardState.Setup for StarterTorch
+2026-01-18T08:09:14 27 VERBOSE [Gameplay] Running CardEffectState.Setup for card StarterTorch
+2026-01-18T08:09:14 27 VERBOSE [Gameplay] Running CardState.Setup for StarterTorch
+2026-01-18T08:09:14 27 VERBOSE [Gameplay] Running CardEffectState.Setup for card StarterTorch
+2026-01-18T08:09:14 27 VERBOSE [Gameplay] Running CardState.Setup for TrainSteward
+2026-01-18T08:09:14 27 VERBOSE [Gameplay] Running CardEffectState.Setup for card TrainSteward
+2026-01-18T08:09:14 27 VERBOSE [Gameplay] Running CardState.Setup for TrainSteward
+2026-01-18T08:09:14 27 VERBOSE [Gameplay] Running CardEffectState.Setup for card TrainSteward
+2026-01-18T08:09:14 27 VERBOSE [Gameplay] Running CardState.Setup for TrainSteward
+2026-01-18T08:09:14 27 VERBOSE [Gameplay] Running CardEffectState.Setup for card TrainSteward
+2026-01-18T08:09:14 27 VERBOSE [Gameplay] Running CardState.Setup for TrainSteward
+2026-01-18T08:09:14 27 VERBOSE [Gameplay] Running CardEffectState.Setup for card TrainSteward
+2026-01-18T08:09:14 27 VERBOSE [RichPresence] Setting Steam Rich Presence to: Monster Train: Main Menu
+2026-01-18T08:09:14 27 VERBOSE [RichPresence] Setting Discord Rich Presence to: Monster Train, Main Menu
+2026-01-18T08:09:14 27 VERBOSE [LoadingScreen] Task done: SaveDataFileTask [Spinner] [LoadOrReset-Class-] 0,0s
+2026-01-18T08:09:14 27 VERBOSE [LoadingScreen] Normal Task starting: SaveDataFileTask [Spinner] [LoadOrReset-Daily-]
+2026-01-18T08:09:14 28 VERBOSE [Save] Loading save game from C:/Users/Usuario/AppData/LocalLow/Shiny Shoe/MonsterTrain\saves\save-dailyChallenge.json
+2026-01-18T08:09:14 28 VERBOSE [Determinism] Load IsChallenge [False] RunId [816253fc-412e-42e2-b2a7-429c573dd4f2] Version [12923]
+2026-01-18T08:09:14 28 VERBOSE [RichPresence] Setting Steam Rich Presence to: Monster Train: Main Menu
+2026-01-18T08:09:14 28 VERBOSE [RichPresence] Setting Discord Rich Presence to: Monster Train, Main Menu
+2026-01-18T08:09:14 28 VERBOSE [LoadingScreen] Task done: SaveDataFileTask [Spinner] [LoadOrReset-Daily-] 0,0s
+2026-01-18T08:09:14 28 VERBOSE [LoadingScreen] Normal Task starting: SaveDataFileTask [Spinner] [LoadOrReset-Matchmaker-]
+2026-01-18T08:09:14 30 VERBOSE [Save] Loading save game from C:/Users/Usuario/AppData/LocalLow/Shiny Shoe/MonsterTrain\saves\save-hellRoyale.json
+2026-01-18T08:09:14 30 VERBOSE [Determinism] Load IsChallenge [False] RunId [0016f276-8f49-42ea-bdfa-cd9c41c4a197] Version [12923]
+2026-01-18T08:09:14 30 VERBOSE [RichPresence] Setting Steam Rich Presence to: Monster Train: Main Menu
+2026-01-18T08:09:14 30 VERBOSE [RichPresence] Setting Discord Rich Presence to: Monster Train, Main Menu
+2026-01-18T08:09:14 30 VERBOSE [LoadingScreen] Task done: SaveDataFileTask [Spinner] [LoadOrReset-Matchmaker-] 0,0s
+2026-01-18T08:09:14 30 VERBOSE [LoadingScreen] Normal Task starting: LoadInstantly [Spinner]
+2026-01-18T08:09:14 30 VERBOSE [LoadingScreen] Task done: LoadInstantly [Spinner] 0,0s
+2026-01-18T08:09:14 30 VERBOSE [LoadingScreen] Normal Task starting: SaveDataFileTask [Spinner] [Load-PreferencesPrimary]
+2026-01-18T08:09:14 31 VERBOSE [Engine] Initial load of preferences file: C:/Users/Usuario/AppData/LocalLow/Shiny Shoe/MonsterTrain\preferences.json
+2026-01-18T08:09:14 31 VERBOSE [LoadingScreen] Task done: SaveDataFileTask [Spinner] [Load-PreferencesPrimary] 0,0s
+2026-01-18T08:09:14 31 VERBOSE [LoadingScreen] Normal Task starting: SaveDataFileTask [Spinner] [Load-PreferencesLocal]
+2026-01-18T08:09:14 32 VERBOSE [Engine] Initial load of preferences file: C:/Users/Usuario/AppData/LocalLow/Shiny Shoe/MonsterTrain\preferences-local.json
+2026-01-18T08:09:14 32 VERBOSE [LoadingScreen] Task done: SaveDataFileTask [Spinner] [Load-PreferencesLocal] 0,0s
+2026-01-18T08:09:14 32 VERBOSE [Engine] Setting VSync count to: 0
+2026-01-18T08:09:14 32 VERBOSE [Engine] Setting target framerate when VSync is off: 60
+2026-01-18T08:09:14 32 VERBOSE [LoadingScreen] Normal Task starting: PreloadAdditiveScreen [FullScreen] [Settings] [show] [Settings]
+2026-01-18T08:09:14 34 VERBOSE [Engine] Updating currentScreenSettings to [{"version":1,"display":0,"resolution":{"width":1920,"height":1200,"fullScreen":true},"exclusiveWhenInFullScreen":false,"vSyncCount":0,"framerateForVsyncCount0":60}]
+2026-01-18T08:09:14 35 DEBUG [Engine] BlackScreenTrace: LoadingScreen: OnSceneLoaded settings
+2026-01-18T08:09:14 37 VERBOSE [Gameplay] Hiding screen Settings
+2026-01-18T08:09:14 38 VERBOSE [LoadingScreen] Task done: PreloadAdditiveScreen [FullScreen] [Settings] [show] [Settings] 0,1s
+2026-01-18T08:09:14 38 VERBOSE [LoadingScreen] Normal Task starting: PreloadAdditiveScreen [FullScreen] [Dialog] [show] [Dialog]
+2026-01-18T08:09:14 41 DEBUG [Engine] BlackScreenTrace: LoadingScreen: OnSceneLoaded dialog
+2026-01-18T08:09:14 43 VERBOSE [Gameplay] Hiding screen Dialog
+2026-01-18T08:09:14 44 VERBOSE [LoadingScreen] Task done: PreloadAdditiveScreen [FullScreen] [Dialog] [show] [Dialog] 0,1s
+2026-01-18T08:09:14 44 VERBOSE [LoadingScreen] Normal Task starting: LoadScreen [FullScreen] [Hud] [show]
+2026-01-18T08:09:14 48 DEBUG [Engine] BlackScreenTrace: LoadingScreen: OnSceneLoaded hud
+2026-01-18T08:09:14 48 VERBOSE [LoadingScreen] Task done: LoadScreen [FullScreen] [Hud] [show] 0,1s
+2026-01-18T08:09:14 48 VERBOSE [LoadingScreen] Normal Task starting: SaveDataFileTask [Spinner] [RunHistoryInitUser]
+2026-01-18T08:09:14 48 VERBOSE [RunHistory] Run history migration state: MigrationDone
+2026-01-18T08:09:14 48 VERBOSE [LoadingScreen] Task done: SaveDataFileTask [Spinner] [RunHistoryInitUser] 0,1s
+2026-01-18T08:09:14 48 VERBOSE [LoadingScreen] Normal Task starting: LoadScreen [FullScreen] [IntroFmv] [show]
+2026-01-18T08:09:14 50 DEBUG [Engine] BlackScreenTrace: LoadingScreen: OnSceneUnloaded start
+2026-01-18T08:09:14 52 DEBUG [Engine] BlackScreenTrace: LoadingScreen: OnSceneLoaded intro_fmv
+2026-01-18T08:09:14 52 VERBOSE [LoadingScreen] Task done: LoadScreen [FullScreen] [IntroFmv] [show] 0,1s
+2026-01-18T08:09:14 52 VERBOSE [AssetLoading] LoadingScreen: Loading time 0,7s
+2026-01-18T08:09:14 57 VERBOSE [RunHistory] Backing up run history: runHistory.db
+2026-01-18T08:09:14 57 VERBOSE [AssetLoading] LoadingScreen: GC Enabled, Memory 259,5 MB (Highest so far: 259,5 MB), Unity 197,7, Mono 61,8, Graphics Driver 0,0, Assets loaded: cards 0/285, characters 0/276, other 0
+2026-01-18T08:09:15 69 DEBUG [Network] ogomez92 <539338471173652480> has connected!
+2026-01-18T08:09:15 69 DEBUG [Network] ogomez92 <539338471173652480> has connected!
+2026-01-18T08:09:15 80 DEBUG [Engine] BlackScreenTrace: LoadingScreen: AppManager.GetStartUpData 2
+2026-01-18T08:09:15 80 VERBOSE [Stats] Filtering friend list to those with submitted runs
+2026-01-18T08:09:15 06 VERBOSE [Stats] Found friends with submitted runs: 0
+2026-01-18T08:09:15 06 VERBOSE [Stats] Begin retrieving player stats - page size: 25
+2026-01-18T08:09:15 06 VERBOSE [Stats] All stats set as downloaded
+2026-01-18T08:09:17 93 VERBOSE [Gameplay] Showing screen MainMenu
+2026-01-18T08:09:17 93 VERBOSE [LoadingScreen] Normal Task added: LoadScreen [FullScreen] [MainMenu] [show]
+2026-01-18T08:09:17 23 VERBOSE [AssetLoading] LoadingScreen: GC Enabled, Memory 260,5 MB (Highest so far: 260,5 MB), Unity 198,7, Mono 61,8, Graphics Driver 0,0, Assets loaded: cards 0/285, characters 0/276, other 0
+2026-01-18T08:09:17 23 VERBOSE [LoadingScreen] Normal Task starting: LoadScreen [FullScreen] [MainMenu] [show]
+2026-01-18T08:09:17 23 VERBOSE [Gameplay] Hiding screen IntroFmv
+2026-01-18T08:09:17 24 DEBUG [Engine] BlackScreenTrace: LoadingScreen: OnSceneUnloaded intro_fmv
+2026-01-18T08:09:17 29 DEBUG [Engine] BlackScreenTrace: LoadingScreen: OnSceneLoaded main_menu
+2026-01-18T08:09:17 29 VERBOSE [LoadingScreen] Task done: LoadScreen [FullScreen] [MainMenu] [show] 0,1s
+2026-01-18T08:09:17 29 VERBOSE [AssetLoading] LoadingScreen: Loading time 0,1s
+2026-01-18T08:09:17 29 VERBOSE [Gameplay] Showing screen MainMenu
+2026-01-18T08:09:17 29 VERBOSE [Gameflow] Entered Main Menu
+2026-01-18T08:09:17 29 VERBOSE [RichPresence] Setting Steam Rich Presence to: Monster Train: Main Menu
+2026-01-18T08:09:17 29 VERBOSE [RichPresence] Setting Discord Rich Presence to: Monster Train, Main Menu
+2026-01-18T08:09:17 34 VERBOSE [AssetLoading] LoadingScreen: GC Enabled, Memory 264,2 MB (Highest so far: 264,2 MB), Unity 202,4, Mono 61,8, Graphics Driver 0,0, Assets loaded: cards 0/285, characters 0/276, other 0
+2026-01-18T08:09:46 12 VERBOSE [Gameplay] Resetting battle mode - timer scalar: 1
+2026-01-18T08:09:46 12 VERBOSE [Gameplay] Showing screen Dialog
+2026-01-18T08:09:47 10 VERBOSE [Analytics] Analytics Track: RunEnd [Sending] (RunID: 73f60010-f671-465c-9740-9b106a4c1927), (RunType: Class), (Class: ClassHellhorned), (SubClass: ClassAwoken), (ClassLevel: 1), (SubClassLevel: 1), (ClassChampionId: 0), (SubClassChampionId: 0), (BattleIndex: 0), (AscensionLevel: 0), (EnabledDlcs: ), (HP: 80), (Score: 0), (ReasonEnded: Abandoned), (BattleName: Level1BattleHealersFTUE), (RunTime: 38), (InBattle: True), (CrystalCount: 0), (Deck: TrainSteward, TrainSteward, TrainSteward, TrainSteward, StarterTorch, StarterTorch, StarterTorch, StarterTorch, StarterTorch, StarterHeal, StarterHeal, StarterHeal, StarterHeal, StarterHeal, HornbreakerChampion, ), (Blessings: ), 
+2026-01-18T08:09:47 10 VERBOSE [LoadingScreen] Normal Task added: SaveDataFileTask [Background] [SaveMetagame]
+2026-01-18T08:09:47 10 VERBOSE [LoadingScreen] Normal Task starting: SaveDataFileTask [Background] [SaveMetagame]
+2026-01-18T08:09:47 10 VERBOSE [Save] Resetting save of type Class (sharecode: )
+2026-01-18T08:09:47 10 VERBOSE [Random] ResetRng StoryEvents [-2035883577]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 2147483647] [1323502012]
+2026-01-18T08:09:47 10 VERBOSE [Save] Starting new save file with seed 771156185
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Adjusting gold by 0 => 50
+2026-01-18T08:09:47 10 VERBOSE [Save] Saving game
+2026-01-18T08:09:47 10 VERBOSE [LoadingScreen] Normal Task added: SaveDataFileTask [Background] [WriteSaveFile-save-singlePlayer.json]
+2026-01-18T08:09:47 10 VERBOSE [RichPresence] Setting Steam Rich Presence to: Monster Train: Main Menu
+2026-01-18T08:09:47 10 VERBOSE [RichPresence] Setting Discord Rich Presence to: Monster Train, Main Menu
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Selected class Hellhorned, subclass Awoken, ascension level 0
+2026-01-18T08:09:47 10 VERBOSE [Save] Resetting save of type Class (sharecode: )
+2026-01-18T08:09:47 10 VERBOSE [Random] ResetRng StoryEvents [-2035883577]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 2147483647] [95592901]
+2026-01-18T08:09:47 10 VERBOSE [Save] Starting new save file with seed 1673577851
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Adjusting gold by 0 => 50
+2026-01-18T08:09:47 10 VERBOSE [Save] Saving game
+2026-01-18T08:09:47 10 VERBOSE [LoadingScreen] Normal Task added: SaveDataFileTask [Background] [WriteSaveFile-save-singlePlayer.json]
+2026-01-18T08:09:47 10 VERBOSE [RichPresence] Setting Steam Rich Presence to: Monster Train: Main Menu
+2026-01-18T08:09:47 10 VERBOSE [RichPresence] Setting Discord Rich Presence to: Monster Train, Main Menu
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Adjusting gold by 50 => 50
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt SetupRun [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt SetupRun [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt SetupRun [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Running CardState.Setup for TrainSteward
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Running CardEffectState.Setup for card TrainSteward
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Running CardState.Setup for TrainSteward
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Running CardEffectState.Setup for card TrainSteward
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Running CardState.Setup for TrainSteward
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Running CardEffectState.Setup for card TrainSteward
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Running CardState.Setup for TrainSteward
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Running CardEffectState.Setup for card TrainSteward
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Running CardState.Setup for StarterTorch
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Running CardEffectState.Setup for card StarterTorch
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Running CardState.Setup for StarterTorch
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Running CardEffectState.Setup for card StarterTorch
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Running CardState.Setup for StarterTorch
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Running CardEffectState.Setup for card StarterTorch
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Running CardState.Setup for StarterTorch
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Running CardEffectState.Setup for card StarterTorch
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Running CardState.Setup for StarterTorch
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Running CardEffectState.Setup for card StarterTorch
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Running CardState.Setup for StarterHeal
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Running CardEffectState.Setup for card StarterHeal
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Running CardEffectState.Setup for card StarterHeal
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Running CardState.Setup for StarterHeal
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Running CardEffectState.Setup for card StarterHeal
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Running CardEffectState.Setup for card StarterHeal
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Running CardState.Setup for StarterHeal
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Running CardEffectState.Setup for card StarterHeal
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Running CardEffectState.Setup for card StarterHeal
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Running CardState.Setup for StarterHeal
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Running CardEffectState.Setup for card StarterHeal
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Running CardEffectState.Setup for card StarterHeal
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Running CardState.Setup for StarterHeal
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Running CardEffectState.Setup for card StarterHeal
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Running CardEffectState.Setup for card StarterHeal
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Running CardState.Setup for HornbreakerChampion
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Running CardEffectState.Setup for card HornbreakerChampion
+2026-01-18T08:09:47 10 VERBOSE [Determinism] Start ChallengeId [None] UserId [oriolgomez] RunId [edf0ee78-9cfd-497c-af69-af562efd2c69] Version [12923] seed [1673577851]
+2026-01-18T08:09:47 10 VERBOSE [Save] SetupRun
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Running RunState.Setup for RunDataFtue
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt SetupRun [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt SetupRun [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt SetupRun [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt SetupRun [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt SetupRun [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt SetupRun [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt SetupRun [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt SetupRun [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt SetupRun [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Save] {"seed":1673577851,"isBattleMode":false,"isFtueRun":true,"battleModeStartTime":"","battleModeTimerScalar":0.0,"battleWarmup":0,"version":"12923","mainClassInfo":{"className":"c595c344-d323-4cf1-9ad6-41edc2aebbd0","classLevel":1,"championIndex":0,"random":false},"subclassInfo":{"className":"fd119fcf-c2cf-469e-8a5a-e9b0f265560d","classLevel":1,"championIndex":0,"random":false},"ascensionLevel":0,"spChallengeId":"","covenants":[],"mutators":[],"enabledDlcs":[]}
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Trials [0 7] [3]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Trials [0 6] [1]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Trials [0 6] [3]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 2] [1]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 2] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 4] [1]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 4] [2]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 536] [68]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 3] [2]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 3] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 516] [327]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 496] [229]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 471] [62]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 40] [36]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 39] [10]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 38] [28]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 37] [18]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 36] [6]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 35] [29]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 34] [32]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 33] [23]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 32] [9]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 31] [15]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 30] [20]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 29] [17]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 28] [1]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 27] [17]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 26] [8]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 25] [3]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 24] [6]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 23] [22]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 22] [1]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 21] [12]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 20] [9]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 19] [13]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 18] [16]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 17] [11]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 16] [15]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 15] [12]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 14] [6]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 13] [10]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 12] [7]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 11] [10]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 10] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 9] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 8] [2]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 7] [2]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 6] [2]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 5] [1]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 4] [2]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 3] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 2] [1]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 2] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 2] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 2] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 6] [3]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 13] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 12] [5]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 100] [41]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 6] [2]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 5] [2]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 4] [1]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 3] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 2] [1]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 5] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 11] [8]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 10] [7]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 501] [88]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 486] [135]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 461] [166]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 441] [254]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 421] [249]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 411] [8]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 401] [137]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 381] [100]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 356] [293]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 326] [45]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 301] [207]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 292] [224]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 262] [227]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 247] [99]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 232] [202]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 212] [67]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 200] [125]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 160] [73]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 135] [116]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 115] [45]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 37] [5]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 36] [31]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 35] [23]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 34] [9]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 33] [21]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 32] [7]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 31] [28]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 30] [1]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 29] [27]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 28] [15]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 27] [14]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 26] [8]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 25] [13]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 24] [19]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 23] [3]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 22] [19]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 21] [7]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 20] [9]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 19] [10]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 18] [6]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 17] [6]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 16] [8]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 15] [13]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 14] [1]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 13] [4]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 12] [11]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 11] [8]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 10] [5]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 9] [5]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 8] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 7] [6]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 6] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 5] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 4] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 3] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 2] [1]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 100] [22]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 5] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 4] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 3] [2]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 2] [1]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 100] [33]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 4] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 3] [1]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 2] [1]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 100] [87]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 5] [3]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 4] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 3] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 2] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 4] [1]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 9] [6]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 8] [5]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 7] [3]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 3] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 2] [1]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 6] [4]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 5] [4]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 4] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 481] [148]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 456] [45]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 3] [2]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 2] [1]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 13] [1]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 6] [5]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 12] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 11] [5]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 10] [6]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 32] [30]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 31] [26]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 30] [4]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 29] [25]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 28] [12]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 27] [24]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 26] [24]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 25] [4]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 24] [18]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 23] [4]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 22] [20]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 21] [12]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 20] [18]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 19] [3]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 18] [7]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 17] [12]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 16] [11]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 15] [1]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 14] [10]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 13] [2]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 12] [10]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 11] [10]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 10] [3]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 9] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 8] [2]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 7] [4]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 6] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 5] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 4] [2]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 3] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 2] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 5] [2]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 9] [7]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 8] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 466] [162]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 446] [247]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 406] [192]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 391] [368]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 376] [347]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 356] [141]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 336] [41]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 311] [178]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 301] [218]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 292] [104]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 267] [256]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 247] [138]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 227] [158]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 212] [78]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 200] [91]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 175] [8]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 165] [40]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 140] [121]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 110] [27]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 95] [59]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 70] [37]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt StoryEvents [0 55] [20]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 4] [1]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 3] [1]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 7] [2]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 6] [2]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 5] [3]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 4] [3]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 3] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 2] [1]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 1] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 13] [8]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 12] [11]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 11] [1]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 100] [16]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 3] [1]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 2] [1]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 100] [84]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 4] [0]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 3] [2]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 2] [1]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 100] [26]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 2] [1]
+2026-01-18T08:09:47 10 VERBOSE [Random] RangeInt Rewards [0 100] [32]
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Running CardUpgradeState.Setup for HornbreakerMultistrike
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Card upgrade HornbreakerMultistrike for HornbreakerChampion
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Running CardState.Setup for HornbreakerChampion
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Running CardEffectState.Setup for card HornbreakerChampion
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Running CardUpgradeState.Setup for HornbreakerMultistrike
+2026-01-18T08:09:47 10 VERBOSE [Random] AdvanceToNextNode
+2026-01-18T08:09:47 10 VERBOSE [Analytics] Analytics Track: RunStart [Sending] (RunID: edf0ee78-9cfd-497c-af69-af562efd2c69), (RunType: Class), (Class: ClassHellhorned), (SubClass: ClassAwoken), (ClassLevel: 1), (SubClassLevel: 1), (ClassChampionId: 0), (SubClassChampionId: 0), (BattleIndex: 0), (AscensionLevel: 0), (EnabledDlcs: ), (Covenants: ), (Mutators: ), 
+2026-01-18T08:09:47 10 VERBOSE [LoadingScreen] Normal Task added: LoadClassAssets [FullScreen]
+2026-01-18T08:09:47 10 VERBOSE [AssetLoading] LoadingScreen: Loading time 0,1s
+2026-01-18T08:09:47 10 VERBOSE [Gameplay] Hiding screen Dialog
+2026-01-18T08:09:48 11 VERBOSE [LoadingScreen] Task done: SaveDataFileTask [Background] [SaveMetagame] 0,1s
+2026-01-18T08:09:48 37 VERBOSE [AssetLoading] LoadingScreen: GC Enabled, Memory 280,2 MB (Highest so far: 280,2 MB), Unity 202,5, Mono 77,8, Graphics Driver 0,0, Assets loaded: cards 0/285, characters 0/276, other 0
+2026-01-18T08:09:48 37 VERBOSE [LoadingScreen] Normal Task starting: SaveDataFileTask [Background] [WriteSaveFile-save-singlePlayer.json]
+2026-01-18T08:09:48 38 VERBOSE [LoadingScreen] Task done: SaveDataFileTask [Background] [WriteSaveFile-save-singlePlayer.json] 0,0s
+2026-01-18T08:09:48 38 VERBOSE [LoadingScreen] Normal Task starting: SaveDataFileTask [Background] [WriteSaveFile-save-singlePlayer.json]
+2026-01-18T08:09:48 39 VERBOSE [LoadingScreen] Task done: SaveDataFileTask [Background] [WriteSaveFile-save-singlePlayer.json] 0,0s
+2026-01-18T08:09:48 39 VERBOSE [LoadingScreen] Normal Task starting: LoadClassAssets [FullScreen]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/cards/Portrait_Prefabs/CardArt_Spell_SinnersBurden.prefab] [ScourgeT1]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_UltimatePenance.prefab] [ScourgeUltimate]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_WeightOfContrition.prefab] [ScourgeT2]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_SelfFlagellation.prefab] [ScourgeT3]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Demon_Champion.prefab] [HornbreakerChampion]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_ShardtailQueen.prefab] [ImpQueenChampion]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Spell_Zap.prefab] [StarterTorch]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Impling.prefab] [StarterImp]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Spell_Heal.prefab] [StarterHeal]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_Rootseeds.prefab] [StarterBuff]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Spell_Awoken_MoveToFront.prefab] [VineGrasp]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/cards/Portrait_Prefabs/CardArt_RestoringRetreat.prefab] [RestoringRetreat]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Spell_Awoken_HealthBuff.prefab] [UnleashTheWildwood]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_ShardChanneler.prefab] [ShardChanneler]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Channeler.prefab] [WildwoodCustodian]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Spell_Awoken_RegenMaxHealth.prefab] [SteelEnhancer]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Spell_PotionRegen.prefab] [RegenPotion]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Spell_PyreShards.prefab] [SpikePotion]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/cards/Portrait_Prefabs/CardArt_Spell_Sting.prefab] [Sting]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Spell_Awoken_Root.prefab] [Ensnare]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Spell_Engraft.prefab] [Engraft]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Spell_Awoken_AwokensLeaflet.prefab] [WildwoodTome]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Spell_SpreadingSpores.prefab] [SpreadingSpores]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_AwokensRailSpike.prefab] [AwokensRailSpike]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Channeler_Rare.prefab] [EdgePrior]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Spell_FocusedGrowth.prefab] [FocusedGrowth]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/cards/Portrait_Prefabs/CardArt_Spell_InvigoratingSolution.prefab] [CardDrawPotion]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_PreservedThorns.prefab] [AddThornsPotion]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_PyreGro.prefab] [PyreGro]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_Sharpen.prefab] [Sharpen]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_RazorsharpEdge.prefab] [RazorsharpEdge]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Awake.prefab] [Awake]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/scene_prefabs/CardArt_CycleOfLife.prefab] [CycleOfLife]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_ChannelSong.prefab] [Channelsong]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_BrambleLash.prefab] [BrambleLash]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_AdaptiveMutation.prefab] [AdaptiveMutation]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_RestorationDetonation.prefab] [RestorationDetonation]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_Glimmer.prefab] [Glimmer]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Demon_Imp_Ember.prefab] [EmberedInfery]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Spell_AttackBuff.prefab] [RageSerum]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Spell_HornBreak.prefab] [HornBreak]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Demon_Imp.prefab] [AggressiveImp]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Cards/Portrait_Prefabs/CardArt_WelderHelper.prefab] [WelderHelper]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Demon_Imp_Explodes.prefab] [UnstableInfery]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Spell_Empower.prefab] [Enflame]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Spell_Awoken_InferusTome.prefab] [OnehornsTome]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_Vent.prefab] [Vent]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Spell_DarkOffering.prefab] [DarkDeal]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Cards/Portrait_Prefabs/CardArt_SPL_Imp_GainEnergy.prefab] [ImpPressive]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Cards/Portrait_Prefabs/CardArt_SPL_Imp_ReturnCards.prefab] [ImpProvisation]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_TranscendImp.prefab] [TranscendImp]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Spell_TiresomeClimb.prefab] [TiresomeClimb]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Spell_BerserkersGift.prefab] [RitualOfBattle]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Spell_Awoken_Smite.prefab] [Inferno]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_ImpInABox.prefab] [ImpInABox]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_ImpPlosion.prefab] [ImpOlate]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_BrandingRite.prefab] [BrandingRite]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_MarchOfShields.prefab] [MarchOfShields]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_AlloyOfTheAncients.prefab] [ImmortalityPotion]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Demon_Imp_DrawsCard.prefab] [EnlightenedInfery]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_Fortify.prefab] [Fortify]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_Reinforce.prefab] [Reinforce]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_HellhornedSpike.prefab] [SpikeOfTheHellhorned]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_BatteringRam.prefab] [BatteringRam]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_LastStand.prefab] [LastStand]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_HiddenPassage.prefab] [HiddenPassage]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/cards/Portrait_Prefabs/CardArt_HuskHermit.prefab] [HuskHermit]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Golem.prefab] [AwokenHollow]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Animus_Uncommon.prefab] [AnimusOfWill]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Demon_Axe.prefab] [HornedWarrior]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Steelworker.prefab] [Steelworker]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Primademon.prefab] [Basher]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Golem_RareCardDraw.prefab] [WiltingSapwood]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_VineMother.prefab] [Vinemother]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_ShatteredShell.prefab] [ShatteredShell]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Animus.prefab] [AnimusOfSpeed]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Golem_Spiked.prefab] [ThornedHollow]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Omegademon.prefab] [AlphaFiend]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Demon_Shatter.prefab] [BrandedWarrior]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Railbeater.prefab] [Railbeater]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/cards/Portrait_Prefabs/CardArt_LegionOfCrowns.prefab] [ConsumerOfCrowns]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_UnshackledBrute.prefab] [DerangedBrute]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_TrainSteward.prefab] [TrainSteward]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_GiftOfGratitude.prefab] [GainXGold]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_PettyTheft.prefab] [DamageStealGold]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_SteelPulleyClaw.prefab] [RoomHeroAscendDazed]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_TrapChute.prefab] [HeroBottomBump]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_SpikedriverColony.prefab] [ReplicatingUnit]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_AutomatedRailSpikes.prefab] [ReplicatingSpell]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/scene_prefabs/CardArt_Spell_Deadweight.prefab] [UnplayableUnpurgeable]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_ExcavatedEmber.prefab] [SelfPurgeBlight]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_VengefulShard.prefab] [BlightPyreDamageInHand]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Dante.prefab] [DanteUnit]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_Awoken_FullFloorDamage.prefab] [AnnhilateSingleKill]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_Awoken_DoubleEdgeSword.prefab] [AnnhilateRoomDamageScaling]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_HoliestOfShields.prefab] [AnnhilateShieldHeal]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_RemnantPact.prefab] [RemnantPact]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_UnnamedTome.prefab] [UnnamedTome]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_UmbraStone.prefab] [UmbraStone]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_WaxenSpike.prefab] [WaxenSpike]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_SpikeOfTheStygianGuard.prefab] [SpikeOfTheStygian]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_ShroudSpike.prefab] [ShroudSpike]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_SPL_BoneRattler.prefab] [ScalingBuffTrain]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_PyrePolish.prefab] [ScalingHealTrain]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_DantesCandle.prefab] [BlightDanteCandle]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_ExcavatedEmber.prefab] [SelfPurgeEnergyGain]
+2026-01-18T08:09:48 39 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_BDeeohgee.prefab] [BoneDog]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/cards/Portrait_Prefabs/CardArt_Spell_SinnersBurden.prefab] [ScourgeT1] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_UltimatePenance.prefab] [ScourgeUltimate] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_WeightOfContrition.prefab] [ScourgeT2] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_SelfFlagellation.prefab] [ScourgeT3] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Demon_Champion.prefab] [HornbreakerChampion] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_ShardtailQueen.prefab] [ImpQueenChampion] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Spell_Zap.prefab] [StarterTorch] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Impling.prefab] [StarterImp] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Spell_Heal.prefab] [StarterHeal] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_Rootseeds.prefab] [StarterBuff] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Spell_Awoken_MoveToFront.prefab] [VineGrasp] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/cards/Portrait_Prefabs/CardArt_RestoringRetreat.prefab] [RestoringRetreat] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Spell_Awoken_HealthBuff.prefab] [UnleashTheWildwood] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_ShardChanneler.prefab] [ShardChanneler] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Channeler.prefab] [WildwoodCustodian] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Spell_Awoken_RegenMaxHealth.prefab] [SteelEnhancer] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Spell_PotionRegen.prefab] [RegenPotion] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Spell_PyreShards.prefab] [SpikePotion] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/cards/Portrait_Prefabs/CardArt_Spell_Sting.prefab] [Sting] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Spell_Awoken_Root.prefab] [Ensnare] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Spell_Engraft.prefab] [Engraft] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Spell_Awoken_AwokensLeaflet.prefab] [WildwoodTome] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Spell_SpreadingSpores.prefab] [SpreadingSpores] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_AwokensRailSpike.prefab] [AwokensRailSpike] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Channeler_Rare.prefab] [EdgePrior] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Spell_FocusedGrowth.prefab] [FocusedGrowth] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/cards/Portrait_Prefabs/CardArt_Spell_InvigoratingSolution.prefab] [CardDrawPotion] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_PreservedThorns.prefab] [AddThornsPotion] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_PyreGro.prefab] [PyreGro] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_Sharpen.prefab] [Sharpen] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_RazorsharpEdge.prefab] [RazorsharpEdge] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Awake.prefab] [Awake] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/scene_prefabs/CardArt_CycleOfLife.prefab] [CycleOfLife] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_ChannelSong.prefab] [Channelsong] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_BrambleLash.prefab] [BrambleLash] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_AdaptiveMutation.prefab] [AdaptiveMutation] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_RestorationDetonation.prefab] [RestorationDetonation] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_Glimmer.prefab] [Glimmer] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Demon_Imp_Ember.prefab] [EmberedInfery] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Spell_AttackBuff.prefab] [RageSerum] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Spell_HornBreak.prefab] [HornBreak] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Demon_Imp.prefab] [AggressiveImp] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Cards/Portrait_Prefabs/CardArt_WelderHelper.prefab] [WelderHelper] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Demon_Imp_Explodes.prefab] [UnstableInfery] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Spell_Empower.prefab] [Enflame] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Spell_Awoken_InferusTome.prefab] [OnehornsTome] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_Vent.prefab] [Vent] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Spell_DarkOffering.prefab] [DarkDeal] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Cards/Portrait_Prefabs/CardArt_SPL_Imp_GainEnergy.prefab] [ImpPressive] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Cards/Portrait_Prefabs/CardArt_SPL_Imp_ReturnCards.prefab] [ImpProvisation] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_TranscendImp.prefab] [TranscendImp] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Spell_TiresomeClimb.prefab] [TiresomeClimb] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Spell_BerserkersGift.prefab] [RitualOfBattle] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Spell_Awoken_Smite.prefab] [Inferno] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_ImpInABox.prefab] [ImpInABox] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_ImpPlosion.prefab] [ImpOlate] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_BrandingRite.prefab] [BrandingRite] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_MarchOfShields.prefab] [MarchOfShields] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_AlloyOfTheAncients.prefab] [ImmortalityPotion] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Demon_Imp_DrawsCard.prefab] [EnlightenedInfery] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_Fortify.prefab] [Fortify] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_Reinforce.prefab] [Reinforce] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_HellhornedSpike.prefab] [SpikeOfTheHellhorned] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_BatteringRam.prefab] [BatteringRam] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_LastStand.prefab] [LastStand] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_HiddenPassage.prefab] [HiddenPassage] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/cards/Portrait_Prefabs/CardArt_HuskHermit.prefab] [HuskHermit] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Golem.prefab] [AwokenHollow] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Animus_Uncommon.prefab] [AnimusOfWill] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Demon_Axe.prefab] [HornedWarrior] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Steelworker.prefab] [Steelworker] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Primademon.prefab] [Basher] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Golem_RareCardDraw.prefab] [WiltingSapwood] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_VineMother.prefab] [Vinemother] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_ShatteredShell.prefab] [ShatteredShell] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Animus.prefab] [AnimusOfSpeed] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Golem_Spiked.prefab] [ThornedHollow] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Omegademon.prefab] [AlphaFiend] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Demon_Shatter.prefab] [BrandedWarrior] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Cards/Portrait_Prefabs/CardArt_Railbeater.prefab] [Railbeater] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/cards/Portrait_Prefabs/CardArt_LegionOfCrowns.prefab] [ConsumerOfCrowns] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_UnshackledBrute.prefab] [DerangedBrute] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_TrainSteward.prefab] [TrainSteward] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_GiftOfGratitude.prefab] [GainXGold] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_PettyTheft.prefab] [DamageStealGold] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_SteelPulleyClaw.prefab] [RoomHeroAscendDazed] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_TrapChute.prefab] [HeroBottomBump] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_SpikedriverColony.prefab] [ReplicatingUnit] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_AutomatedRailSpikes.prefab] [ReplicatingSpell] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/scene_prefabs/CardArt_Spell_Deadweight.prefab] [UnplayableUnpurgeable] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_ExcavatedEmber.prefab] [SelfPurgeBlight] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_VengefulShard.prefab] [BlightPyreDamageInHand] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Dante.prefab] [DanteUnit] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_Awoken_FullFloorDamage.prefab] [AnnhilateSingleKill] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_Awoken_DoubleEdgeSword.prefab] [AnnhilateRoomDamageScaling] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_HoliestOfShields.prefab] [AnnhilateShieldHeal] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_RemnantPact.prefab] [RemnantPact] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_UnnamedTome.prefab] [UnnamedTome] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_UmbraStone.prefab] [UmbraStone] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_WaxenSpike.prefab] [WaxenSpike] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_SpikeOfTheStygianGuard.prefab] [SpikeOfTheStygian] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_ShroudSpike.prefab] [ShroudSpike] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_SPL_BoneRattler.prefab] [ScalingBuffTrain] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_PyrePolish.prefab] [ScalingHealTrain] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_DantesCandle.prefab] [BlightDanteCandle] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_ExcavatedEmber.prefab] [SelfPurgeEnergyGain] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CardArt/Portrait_Prefabs/CardArt_Spell_BDeeohgee.prefab] [BoneDog] [Succeeded]
+2026-01-18T08:09:49 26 VERBOSE [LoadingScreen] Task done: LoadClassAssets [FullScreen] 1,5s
+2026-01-18T08:09:49 26 VERBOSE [LoadingScreen] Normal Task added: LoadClassAssets [FullScreen]
+2026-01-18T08:09:49 26 VERBOSE [LoadingScreen] Normal Task added: LoadCharactersFromCurrentlyLoadedCards [FullScreen]
+2026-01-18T08:09:49 26 VERBOSE [LoadingScreen] Normal Task starting: LoadClassAssets [FullScreen]
+2026-01-18T08:09:49 27 VERBOSE [LoadingScreen] Task done: LoadClassAssets [FullScreen] 0,0s
+2026-01-18T08:09:49 27 VERBOSE [LoadingScreen] Normal Task starting: LoadCharactersFromCurrentlyLoadedCards [FullScreen]
+2026-01-18T08:09:49 27 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Characters/Character_Prefabs/Character_Demon_Champion.prefab] [MonsterChampionHellhornedHornbreaker]
+2026-01-18T08:09:49 27 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CharacterArt/Character_Prefabs/Character_ShardtailQueen.prefab] [MonsterChampionHellhornedShardtail]
+2026-01-18T08:09:49 27 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CharacterArt/Character_Prefabs/Character_Impling.prefab] [MonsterQueensImp]
+2026-01-18T08:09:49 27 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CharacterArt/Character_Prefabs/Character_ShardChanneler.prefab] [ShardChanneler]
+2026-01-18T08:09:49 27 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Characters/Character_Prefabs/Character_Channeler.prefab] [WildwoodCustodian]
+2026-01-18T08:09:49 27 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Characters/Character_Prefabs/Character_Channeler_Rare.prefab] [EdgePrior]
+2026-01-18T08:09:49 27 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/characters/Character_Prefabs/Character_PyreChomper.prefab] [MonsterEmberedInfery]
+2026-01-18T08:09:49 27 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Characters/Character_Prefabs/Character_DemonImp.prefab] [MonsterAggressiveImp]
+2026-01-18T08:09:49 27 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Characters/Character_Prefabs/Character_WelderHelper.prefab] [WelderHelper]
+2026-01-18T08:09:49 27 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/characters/Character_Prefabs/Character_MoultingImp.prefab] [MonsterUnstableInfery]
+2026-01-18T08:09:49 27 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CharacterArt/Character_Prefabs/Character_TranscendImp.prefab] [Transcendimp]
+2026-01-18T08:09:49 27 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/characters/Character_Prefabs/Character_ImpishScholar.prefab] [MonsterEnlightenedInfery]
+2026-01-18T08:09:49 27 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/characters/Character_Prefabs/Character_HuskHermit.prefab] [HuskHermit]
+2026-01-18T08:09:49 27 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Characters/Character_Prefabs/Character_Golem.prefab] [MonsterHollowGolem]
+2026-01-18T08:09:49 27 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Characters/Character_Prefabs/Character_Animus_Uncommon.prefab] [MonsterAnimusBow]
+2026-01-18T08:09:49 27 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Characters/Character_Prefabs/Character_Demon_Axe.prefab] [BasicDemon]
+2026-01-18T08:09:49 27 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Characters/Character_Prefabs/Character_Steelworker.prefab] [Steelworker]
+2026-01-18T08:09:49 27 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CharacterArt/Character_Prefabs/Character_Primademon.prefab] [MonsterBasher]
+2026-01-18T08:09:49 27 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Characters/Character_Prefabs/Character_Golem_RareCardDraw.prefab] [WiltingSapwood]
+2026-01-18T08:09:49 27 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CharacterArt/Character_Prefabs/Character_VineMother.prefab] [Vinemother]
+2026-01-18T08:09:49 27 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CharacterArt/Character_Prefabs/Character_ShatteredShell.prefab] [ShatteredShell]
+2026-01-18T08:09:49 27 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Characters/Character_Prefabs/Character_Animus.prefab] [MonsterAnimusSword]
+2026-01-18T08:09:49 27 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Characters/Character_Prefabs/Character_Golem_Spiked.prefab] [MonsterIronMaiden]
+2026-01-18T08:09:49 27 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CharacterArt/Character_Prefabs/Character_Omegademon.prefab] [AlphaFiend]
+2026-01-18T08:09:49 27 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Characters/Character_Prefabs/Character_Demon_Shatter.prefab] [MonsterChaosBasic]
+2026-01-18T08:09:49 27 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Characters/Character_Prefabs/Character_Railbeater.prefab] [Railbeater]
+2026-01-18T08:09:49 27 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Characters/Character_Prefabs/Character_LegionOfCrowns.prefab] [ConsumerOfCrowns]
+2026-01-18T08:09:49 27 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CharacterArt/Character_Prefabs/Character_UnshackledBrute.prefab] [DerangedBrute]
+2026-01-18T08:09:49 27 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CharacterArt/Character_Prefabs/Character_TrainSteward.prefab] [TrainSteward]
+2026-01-18T08:09:49 27 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CharacterArt/Character_Prefabs/Character_SpikedriverColony.prefab] [MonsterReplicatingExtinguish_Event]
+2026-01-18T08:09:49 27 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/CharacterArt/Character_Prefabs/Character_Dante.prefab] [MonsterDante]
+2026-01-18T08:09:51 88 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Characters/Character_Prefabs/Character_Demon_Champion.prefab] [MonsterChampionHellhornedHornbreaker] [Succeeded]
+2026-01-18T08:09:51 88 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CharacterArt/Character_Prefabs/Character_ShardtailQueen.prefab] [MonsterChampionHellhornedShardtail] [Succeeded]
+2026-01-18T08:09:51 88 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CharacterArt/Character_Prefabs/Character_Impling.prefab] [MonsterQueensImp] [Succeeded]
+2026-01-18T08:09:51 88 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CharacterArt/Character_Prefabs/Character_ShardChanneler.prefab] [ShardChanneler] [Succeeded]
+2026-01-18T08:09:51 88 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Characters/Character_Prefabs/Character_Channeler.prefab] [WildwoodCustodian] [Succeeded]
+2026-01-18T08:09:51 88 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Characters/Character_Prefabs/Character_Channeler_Rare.prefab] [EdgePrior] [Succeeded]
+2026-01-18T08:09:51 88 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/characters/Character_Prefabs/Character_PyreChomper.prefab] [MonsterEmberedInfery] [Succeeded]
+2026-01-18T08:09:51 88 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Characters/Character_Prefabs/Character_DemonImp.prefab] [MonsterAggressiveImp] [Succeeded]
+2026-01-18T08:09:51 88 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Characters/Character_Prefabs/Character_WelderHelper.prefab] [WelderHelper] [Succeeded]
+2026-01-18T08:09:51 88 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/characters/Character_Prefabs/Character_MoultingImp.prefab] [MonsterUnstableInfery] [Succeeded]
+2026-01-18T08:09:51 88 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CharacterArt/Character_Prefabs/Character_TranscendImp.prefab] [Transcendimp] [Succeeded]
+2026-01-18T08:09:51 88 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/characters/Character_Prefabs/Character_ImpishScholar.prefab] [MonsterEnlightenedInfery] [Succeeded]
+2026-01-18T08:09:51 88 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/characters/Character_Prefabs/Character_HuskHermit.prefab] [HuskHermit] [Succeeded]
+2026-01-18T08:09:51 88 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Characters/Character_Prefabs/Character_Golem.prefab] [MonsterHollowGolem] [Succeeded]
+2026-01-18T08:09:51 88 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Characters/Character_Prefabs/Character_Animus_Uncommon.prefab] [MonsterAnimusBow] [Succeeded]
+2026-01-18T08:09:51 88 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Characters/Character_Prefabs/Character_Demon_Axe.prefab] [BasicDemon] [Succeeded]
+2026-01-18T08:09:51 88 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Characters/Character_Prefabs/Character_Steelworker.prefab] [Steelworker] [Succeeded]
+2026-01-18T08:09:51 88 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CharacterArt/Character_Prefabs/Character_Primademon.prefab] [MonsterBasher] [Succeeded]
+2026-01-18T08:09:51 88 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Characters/Character_Prefabs/Character_Golem_RareCardDraw.prefab] [WiltingSapwood] [Succeeded]
+2026-01-18T08:09:51 88 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CharacterArt/Character_Prefabs/Character_VineMother.prefab] [Vinemother] [Succeeded]
+2026-01-18T08:09:51 88 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CharacterArt/Character_Prefabs/Character_ShatteredShell.prefab] [ShatteredShell] [Succeeded]
+2026-01-18T08:09:51 88 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Characters/Character_Prefabs/Character_Animus.prefab] [MonsterAnimusSword] [Succeeded]
+2026-01-18T08:09:51 88 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Characters/Character_Prefabs/Character_Golem_Spiked.prefab] [MonsterIronMaiden] [Succeeded]
+2026-01-18T08:09:51 88 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CharacterArt/Character_Prefabs/Character_Omegademon.prefab] [AlphaFiend] [Succeeded]
+2026-01-18T08:09:51 88 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Characters/Character_Prefabs/Character_Demon_Shatter.prefab] [MonsterChaosBasic] [Succeeded]
+2026-01-18T08:09:51 88 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Characters/Character_Prefabs/Character_Railbeater.prefab] [Railbeater] [Succeeded]
+2026-01-18T08:09:51 88 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Characters/Character_Prefabs/Character_LegionOfCrowns.prefab] [ConsumerOfCrowns] [Succeeded]
+2026-01-18T08:09:51 88 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CharacterArt/Character_Prefabs/Character_UnshackledBrute.prefab] [DerangedBrute] [Succeeded]
+2026-01-18T08:09:51 88 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CharacterArt/Character_Prefabs/Character_TrainSteward.prefab] [TrainSteward] [Succeeded]
+2026-01-18T08:09:51 88 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CharacterArt/Character_Prefabs/Character_SpikedriverColony.prefab] [MonsterReplicatingExtinguish_Event] [Succeeded]
+2026-01-18T08:09:51 88 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/CharacterArt/Character_Prefabs/Character_Dante.prefab] [MonsterDante] [Succeeded]
+2026-01-18T08:09:51 88 VERBOSE [LoadingScreen] Task done: LoadCharactersFromCurrentlyLoadedCards [FullScreen] 1,0s
+2026-01-18T08:09:51 88 VERBOSE [Gameplay] Showing screen Map
+2026-01-18T08:09:51 88 VERBOSE [LoadingScreen] Normal Task added: LoadScreen [FullScreen] [Map] [show]
+2026-01-18T08:09:51 88 VERBOSE [LoadingScreen] Normal Task starting: LoadScreen [FullScreen] [Map] [show]
+2026-01-18T08:09:51 88 VERBOSE [Gameplay] Hiding screen MainMenu
+2026-01-18T08:09:51 89 DEBUG [Engine] BlackScreenTrace: LoadingScreen: OnSceneUnloaded main_menu
+2026-01-18T08:09:51 10 DEBUG [Engine] BlackScreenTrace: LoadingScreen: OnSceneLoaded map
+2026-01-18T08:09:51 10 VERBOSE [LoadingScreen] Normal Task added: PreloadAdditiveScreen [FullScreen] [Minimap] [show] [Minimap]
+2026-01-18T08:09:51 10 VERBOSE [LoadingScreen] Normal Task added: PreloadAdditiveScreen [FullScreen] [Dialog] [show] [Dialog]
+2026-01-18T08:09:51 10 VERBOSE [LoadingScreen] Normal Task added: PreloadAdditiveScreen [FullScreen] [Reward] [show] [Reward]
+2026-01-18T08:09:51 10 VERBOSE [LoadingScreen] Normal Task added: PreloadAdditiveScreen [FullScreen] [Draft] [show] [Draft]
+2026-01-18T08:09:51 10 VERBOSE [LoadingScreen] Normal Task added: PreloadAdditiveScreen [FullScreen] [Deck] [show] [Deck]
+2026-01-18T08:09:51 10 VERBOSE [LoadingScreen] Normal Task added: PreloadAdditiveScreen [FullScreen] [RelicChoice] [show] [RelicChoice]
+2026-01-18T08:09:51 10 VERBOSE [LoadingScreen] Task done: LoadScreen [FullScreen] [Map] [show] 0,4s
+2026-01-18T08:09:51 10 VERBOSE [LoadingScreen] Normal Task starting: PreloadAdditiveScreen [FullScreen] [Minimap] [show] [Minimap]
+2026-01-18T08:09:51 10 VERBOSE [RichPresence] Setting Steam Rich Presence to: Monster Train: Main Menu
+2026-01-18T08:09:51 10 VERBOSE [RichPresence] Setting Discord Rich Presence to: Monster Train, Main Menu
+2026-01-18T08:09:51 15 DEBUG [Engine] BlackScreenTrace: LoadingScreen: OnSceneLoaded minimap
+2026-01-18T08:09:51 19 VERBOSE [Gameplay] Hiding screen Minimap
+2026-01-18T08:09:51 20 VERBOSE [LoadingScreen] Task done: PreloadAdditiveScreen [FullScreen] [Minimap] [show] [Minimap] 0,3s
+2026-01-18T08:09:51 20 VERBOSE [LoadingScreen] Normal Task starting: PreloadAdditiveScreen [FullScreen] [Dialog] [show] [Dialog]
+2026-01-18T08:09:51 20 VERBOSE [LoadingScreen] Task done: PreloadAdditiveScreen [FullScreen] [Dialog] [show] [Dialog] 0,0s
+2026-01-18T08:09:51 20 VERBOSE [LoadingScreen] Normal Task starting: PreloadAdditiveScreen [FullScreen] [Reward] [show] [Reward]
+2026-01-18T08:09:51 23 DEBUG [Engine] BlackScreenTrace: LoadingScreen: OnSceneLoaded reward
+2026-01-18T08:09:51 26 VERBOSE [LoadingScreen] Task done: PreloadAdditiveScreen [FullScreen] [Reward] [show] [Reward] 0,2s
+2026-01-18T08:09:51 26 VERBOSE [LoadingScreen] Normal Task starting: PreloadAdditiveScreen [FullScreen] [Draft] [show] [Draft]
+2026-01-18T08:09:51 29 DEBUG [Engine] BlackScreenTrace: LoadingScreen: OnSceneLoaded card_draft
+2026-01-18T08:09:52 31 VERBOSE [Gameplay] Hiding screen Draft
+2026-01-18T08:09:52 32 VERBOSE [LoadingScreen] Task done: PreloadAdditiveScreen [FullScreen] [Draft] [show] [Draft] 0,2s
+2026-01-18T08:09:52 32 VERBOSE [LoadingScreen] Normal Task starting: PreloadAdditiveScreen [FullScreen] [Deck] [show] [Deck]
+2026-01-18T08:09:52 35 DEBUG [Engine] BlackScreenTrace: LoadingScreen: OnSceneLoaded deck
+2026-01-18T08:09:52 36 VERBOSE [Gameplay] Hiding screen Reward
+2026-01-18T08:09:52 37 VERBOSE [Gameplay] Hiding screen Deck
+2026-01-18T08:09:52 38 VERBOSE [LoadingScreen] Task done: PreloadAdditiveScreen [FullScreen] [Deck] [show] [Deck] 0,3s
+2026-01-18T08:09:52 38 VERBOSE [LoadingScreen] Normal Task starting: PreloadAdditiveScreen [FullScreen] [RelicChoice] [show] [RelicChoice]
+2026-01-18T08:09:52 40 DEBUG [Engine] BlackScreenTrace: LoadingScreen: OnSceneLoaded relic_draft
+2026-01-18T08:09:52 42 VERBOSE [Gameplay] Hiding screen RelicChoice
+2026-01-18T08:09:52 43 VERBOSE [LoadingScreen] Task done: PreloadAdditiveScreen [FullScreen] [RelicChoice] [show] [RelicChoice] 0,2s
+2026-01-18T08:09:52 43 VERBOSE [Gameflow] Entered Map
+2026-01-18T08:09:52 43 VERBOSE [Gameplay] Showing screen Dialog
+2026-01-18T08:09:52 43 VERBOSE [Gameplay] Marking OneTimeMessage Welcome complete.
+2026-01-18T08:09:52 43 VERBOSE [LoadingScreen] Normal Task added: SaveDataFileTask [Background] [SaveMetagame]
+2026-01-18T08:09:52 43 VERBOSE [AssetLoading] LoadingScreen: Loading time 4,2s
+2026-01-18T08:09:52 48 VERBOSE [AssetLoading] LoadingScreen: GC Enabled, Memory 429,9 MB (Highest so far: 429,9 MB), Unity 336,1, Mono 93,8, Graphics Driver 0,0, Assets loaded: cards 107/285, characters 31/276, other 0
+2026-01-18T08:09:53 78 VERBOSE [LoadingScreen] Normal Task starting: SaveDataFileTask [Background] [SaveMetagame]
+2026-01-18T08:09:53 79 VERBOSE [LoadingScreen] Task done: SaveDataFileTask [Background] [SaveMetagame] 0,0s
+2026-01-18T08:09:53 79 VERBOSE [AssetLoading] LoadingScreen: Loading time 0,0s
+2026-01-18T08:09:58 11 VERBOSE [Gameflow] Changing GameSequence from Initial to TransitioningIntoSection.
+2026-01-18T08:09:58 11 VERBOSE [RichPresence] Setting Steam Rich Presence to: Single Player: Level 1: Limbo
+2026-01-18T08:09:58 11 VERBOSE [RichPresence] Setting Discord Rich Presence to: Single Player, Level 1: Limbo
+2026-01-18T08:09:58 11 VERBOSE [Save] Saving game
+2026-01-18T08:09:58 11 VERBOSE [Save] Current run time: 00:00:08
+2026-01-18T08:09:58 11 VERBOSE [LoadingScreen] Normal Task added: SaveDataFileTask [Background] [WriteSaveFile-save-singlePlayer.json]
+2026-01-18T08:09:58 11 VERBOSE [LoadingScreen] Normal Task starting: SaveDataFileTask [Background] [WriteSaveFile-save-singlePlayer.json]
+2026-01-18T08:09:58 11 VERBOSE [Gameplay] Hiding screen Dialog
+2026-01-18T08:09:58 12 VERBOSE [LoadingScreen] Task done: SaveDataFileTask [Background] [WriteSaveFile-save-singlePlayer.json] 0,0s
+2026-01-18T08:09:58 12 VERBOSE [AssetLoading] LoadingScreen: Loading time 0,0s
+2026-01-18T08:10:00 86 VERBOSE [Gameflow] Changing GameSequence from TransitioningIntoSection to DestinationReached.
+2026-01-18T08:10:00 86 VERBOSE [RichPresence] Setting Steam Rich Presence to: Single Player: Level 1: Limbo
+2026-01-18T08:10:00 86 VERBOSE [RichPresence] Setting Discord Rich Presence to: Single Player, Level 1: Limbo
+2026-01-18T08:10:00 86 VERBOSE [Save] Saving game
+2026-01-18T08:10:00 86 VERBOSE [Save] Current run time: 00:00:09
+2026-01-18T08:10:00 86 VERBOSE [LoadingScreen] Normal Task added: SaveDataFileTask [Background] [WriteSaveFile-save-singlePlayer.json]
+2026-01-18T08:10:00 86 VERBOSE [LoadingScreen] Normal Task starting: SaveDataFileTask [Background] [WriteSaveFile-save-singlePlayer.json]
+2026-01-18T08:10:00 86 VERBOSE [LoadingScreen] Task done: SaveDataFileTask [Background] [WriteSaveFile-save-singlePlayer.json] 0,0s
+2026-01-18T08:10:00 86 VERBOSE [AssetLoading] LoadingScreen: Loading time 0,0s
+2026-01-18T08:10:06 78 VERBOSE [Gameflow] Triggered Map Battle Node
+2026-01-18T08:10:06 78 VERBOSE [Gameflow] Changing GameSequence from DestinationReached to BattleIntro.
+2026-01-18T08:10:06 78 VERBOSE [RichPresence] Setting Steam Rich Presence to: Single Player: Level 1: Limbo
+2026-01-18T08:10:06 78 VERBOSE [RichPresence] Setting Discord Rich Presence to: Single Player, Level 1: Limbo
+2026-01-18T08:10:06 78 VERBOSE [Save] Saving game
+2026-01-18T08:10:06 78 VERBOSE [Save] Current run time: 00:00:15
+2026-01-18T08:10:06 78 VERBOSE [LoadingScreen] Normal Task added: SaveDataFileTask [Background] [WriteSaveFile-save-singlePlayer.json]
+2026-01-18T08:10:06 78 VERBOSE [LoadingScreen] Normal Task starting: SaveDataFileTask [Background] [WriteSaveFile-save-singlePlayer.json]
+2026-01-18T08:10:06 79 VERBOSE [LoadingScreen] Task done: SaveDataFileTask [Background] [WriteSaveFile-save-singlePlayer.json] 0,0s
+2026-01-18T08:10:06 79 VERBOSE [AssetLoading] LoadingScreen: Loading time 0,0s
+2026-01-18T08:10:07 54 VERBOSE [LoadingScreen] Normal Task added: LoadBattleIntroAssets [FullScreen] [Level1BattleHealersFTUE]
+2026-01-18T08:10:08 84 VERBOSE [AssetLoading] LoadingScreen: GC Enabled, Memory 433,9 MB (Highest so far: 433,9 MB), Unity 324,2, Mono 109,8, Graphics Driver 0,0, Assets loaded: cards 107/285, characters 31/276, other 0
+2026-01-18T08:10:08 84 VERBOSE [LoadingScreen] Normal Task starting: LoadBattleIntroAssets [FullScreen] [Level1BattleHealersFTUE]
+2026-01-18T08:10:08 84 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Characters/Character_Prefabs/Character_PrimeInquisitor.prefab] [Boss_Level1]
+2026-01-18T08:10:08 84 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Characters/Character_Prefabs/Character_LuxPriest.prefab] [ClericT1]
+2026-01-18T08:10:08 84 VERBOSE [AssetLoading] Loading asset begin [Assets/GameData/Characters/Character_Prefabs/Character_ReforgedDisciple.prefab] [HeavyT1Basic]
+2026-01-18T08:10:08 86 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Characters/Character_Prefabs/Character_PrimeInquisitor.prefab] [Boss_Level1] [Succeeded]
+2026-01-18T08:10:08 86 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Characters/Character_Prefabs/Character_LuxPriest.prefab] [ClericT1] [Succeeded]
+2026-01-18T08:10:08 86 VERBOSE [AssetLoading] Loading asset end [Assets/GameData/Characters/Character_Prefabs/Character_ReforgedDisciple.prefab] [HeavyT1Basic] [Succeeded]
+2026-01-18T08:10:08 86 VERBOSE [LoadingScreen] Task done: LoadBattleIntroAssets [FullScreen] [Level1BattleHealersFTUE] 0,0s
+2026-01-18T08:10:08 86 VERBOSE [Gameplay] Showing screen BattleIntro
+2026-01-18T08:10:08 86 VERBOSE [LoadingScreen] Normal Task added: LoadScreen [FullScreen] [BattleIntro] [show]
+2026-01-18T08:10:08 86 VERBOSE [LoadingScreen] Normal Task starting: LoadScreen [FullScreen] [BattleIntro] [show]
+2026-01-18T08:10:08 86 VERBOSE [Gameplay] Hiding screen Map
+2026-01-18T08:10:08 87 DEBUG [Engine] BlackScreenTrace: LoadingScreen: OnSceneUnloaded map
+2026-01-18T08:10:08 90 DEBUG [Engine] BlackScreenTrace: LoadingScreen: OnSceneLoaded battle_intro
+2026-01-18T08:10:08 90 VERBOSE [LoadingScreen] Normal Task added: PreloadAdditiveScreen [FullScreen] [Minimap] [show] [Minimap]
+2026-01-18T08:10:08 90 VERBOSE [LoadingScreen] Task done: LoadScreen [FullScreen] [BattleIntro] [show] 0,1s
+2026-01-18T08:10:08 90 VERBOSE [LoadingScreen] Normal Task starting: PreloadAdditiveScreen [FullScreen] [Minimap] [show] [Minimap]
+2026-01-18T08:10:08 90 VERBOSE [LoadingScreen] Task done: PreloadAdditiveScreen [FullScreen] [Minimap] [show] [Minimap] 0,0s
+2026-01-18T08:10:08 90 VERBOSE [AssetLoading] LoadingScreen: Loading time 0,1s
+2026-01-18T08:10:08 90 VERBOSE [Gameflow] Entered Battle Intro
+2026-01-18T08:10:08 95 VERBOSE [AssetLoading] LoadingScreen: GC Enabled, Memory 423,9 MB (Highest so far: 433,9 MB), Unity 314,2, Mono 109,8, Graphics Driver 0,0, Assets loaded: cards 107/285, characters 34/276, other 0
+2026-01-18T08:10:45 49 VERBOSE [LoadingScreen] WantsToQuit
+2026-01-18T08:10:45 49 VERBOSE [LoadingScreen] WantsToQuit Don't allow quitting yet because we want to save the game first
+2026-01-18T08:10:45 49 VERBOSE [LoadingScreen] Normal Task added: LoadWaitFrames [Spinner] [1]
+2026-01-18T08:10:45 49 VERBOSE [LoadingScreen] Normal Task starting: LoadWaitFrames [Spinner] [1]
+2026-01-18T08:10:45 49 VERBOSE [LoadingScreen] Normal Task added: LoadWaitFrames [Spinner] [1]
+2026-01-18T08:10:45 49 VERBOSE [Save] Saving game
+2026-01-18T08:10:45 49 VERBOSE [Save] Current run time: 00:00:53
+2026-01-18T08:10:45 49 VERBOSE [LoadingScreen] Flush Task added: SaveDataFileTask [Background] [WriteSaveFile-save-singlePlayer.json]
+2026-01-18T08:10:45 49 VERBOSE [LoadingScreen] Flush Task starting: SaveDataFileTask [Background] [WriteSaveFile-save-singlePlayer.json]
+2026-01-18T08:10:45 49 VERBOSE [LoadingScreen] Flush Task added: LoadInstantly [Background]
+2026-01-18T08:10:45 50 VERBOSE [LoadingScreen] Task done: LoadWaitFrames [Spinner] [1] 0,0s
+2026-01-18T08:10:45 50 VERBOSE [LoadingScreen] Task done: SaveDataFileTask [Background] [WriteSaveFile-save-singlePlayer.json] 0,0s
+2026-01-18T08:10:45 50 VERBOSE [LoadingScreen] Flush Task starting: LoadInstantly [Background]
+2026-01-18T08:10:45 50 VERBOSE [LoadingScreen] Task done: LoadInstantly [Background] 0,0s
+2026-01-18T08:10:45 50 VERBOSE [LoadingScreen] Normal Task starting: LoadWaitFrames [Spinner] [1]
+2026-01-18T08:10:45 51 VERBOSE [LoadingScreen] SavingBeforeQuitCoroutine done.  Now quitting game.
+2026-01-18T08:10:45 51 VERBOSE [LoadingScreen] Task done: LoadWaitFrames [Spinner] [1] 0,0s
+2026-01-18T08:10:45 51 VERBOSE [LoadingScreen] According to LoadingScreen.IsApplicationQuitting(), the game is shutting down - skip forwarding all inputs
+2026-01-18T08:10:45 51 VERBOSE [AssetLoading] LoadingScreen: Loading time 0,0s
+2026-01-18T08:10:45 51 VERBOSE [LoadingScreen] WantsToQuit
+2026-01-18T08:10:45 51 VERBOSE [LoadingScreen] WantsToQuit Allow quitting because saving is done
+2026-01-18T08:10:45 51 DEBUG [Network] Shutting Discord service down.
+2026-01-18T08:10:45 51 DEBUG [Engine] BlackScreenTrace: LoadingScreen: LoadingScreen.OnDestroy

@@ -237,9 +237,14 @@ namespace MonsterTrainAccessibility.Patches
 
     /// <summary>
     /// Detect status effect application
+    /// Note: AddStatusEffect has multiple overloads, so we need to find the right one
     /// </summary>
     public static class StatusEffectPatch
     {
+        // Track last announced effect to avoid duplicate announcements
+        private static string _lastAnnouncedEffect = "";
+        private static float _lastAnnouncedTime = 0f;
+
         public static void TryPatch(Harmony harmony)
         {
             try
@@ -247,64 +252,128 @@ namespace MonsterTrainAccessibility.Patches
                 var characterType = AccessTools.TypeByName("CharacterState");
                 if (characterType != null)
                 {
-                    var method = AccessTools.Method(characterType, "AddStatusEffect");
+                    // AddStatusEffect has multiple overloads - try to find a specific one
+                    System.Reflection.MethodInfo method = null;
+
+                    // Get all methods named AddStatusEffect
+                    var methods = characterType.GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                    foreach (var m in methods)
+                    {
+                        if (m.Name == "AddStatusEffect")
+                        {
+                            var parameters = m.GetParameters();
+                            // Prefer the simplest overload
+                            if (method == null || parameters.Length < method.GetParameters().Length)
+                            {
+                                method = m;
+                            }
+                        }
+                    }
+
                     if (method != null)
                     {
                         var postfix = new HarmonyMethod(typeof(StatusEffectPatch).GetMethod(nameof(Postfix)));
                         harmony.Patch(method, postfix: postfix);
-                        MonsterTrainAccessibility.LogInfo("Patched CharacterState.AddStatusEffect");
+                        MonsterTrainAccessibility.LogInfo($"Patched CharacterState.AddStatusEffect (params: {method.GetParameters().Length})");
+                    }
+                    else
+                    {
+                        MonsterTrainAccessibility.LogWarning("Could not find suitable AddStatusEffect overload to patch");
                     }
                 }
             }
             catch (Exception ex)
             {
-                MonsterTrainAccessibility.LogError($"Failed to patch AddStatusEffect: {ex.Message}");
+                MonsterTrainAccessibility.LogWarning($"Skipping AddStatusEffect patch: {ex.Message}");
             }
         }
 
-        public static void Postfix(object __instance, object statusEffect)
+        public static void Postfix(object __instance, string statusId, int numStacks)
         {
             try
             {
-                string unitName = "Unit";
-                string effectName = "Effect";
-                int stacks = 1;
+                if (!MonsterTrainAccessibility.AccessibilitySettings.AnnounceStatusEffects.Value)
+                    return;
 
-                // Extract actual values via reflection
-                try
-                {
-                    var getDataMethod = __instance.GetType().GetMethod("GetCharacterDataRead");
-                    if (getDataMethod != null)
-                    {
-                        var data = getDataMethod.Invoke(__instance, null);
-                        var getNameMethod = data?.GetType().GetMethod("GetNameKey");
-                        if (getNameMethod != null)
-                        {
-                            unitName = getNameMethod.Invoke(data, null) as string ?? "Unit";
-                        }
-                    }
+                if (string.IsNullOrEmpty(statusId) || numStacks <= 0)
+                    return;
 
-                    // Get effect info
-                    var statusIdField = statusEffect.GetType().GetField("statusId");
-                    var countField = statusEffect.GetType().GetField("count");
+                // Get unit name
+                string unitName = GetUnitName(__instance);
 
-                    if (statusIdField != null)
-                    {
-                        effectName = statusIdField.GetValue(statusEffect) as string ?? "Effect";
-                    }
-                    if (countField != null)
-                    {
-                        stacks = (int)countField.GetValue(statusEffect);
-                    }
-                }
-                catch { }
+                // Create a key to detect duplicate announcements
+                string effectKey = $"{unitName}_{statusId}_{numStacks}";
+                float currentTime = UnityEngine.Time.unscaledTime;
 
-                MonsterTrainAccessibility.BattleHandler?.OnStatusEffectApplied(unitName, effectName, stacks);
+                // Avoid duplicate announcements within 0.5 seconds
+                if (effectKey == _lastAnnouncedEffect && currentTime - _lastAnnouncedTime < 0.5f)
+                    return;
+
+                _lastAnnouncedEffect = effectKey;
+                _lastAnnouncedTime = currentTime;
+
+                // Make the status ID more readable (e.g., "armor" instead of "Armor_StatusId")
+                string effectName = CleanStatusName(statusId);
+
+                MonsterTrainAccessibility.BattleHandler?.OnStatusEffectApplied(unitName, effectName, numStacks);
             }
             catch (Exception ex)
             {
                 MonsterTrainAccessibility.LogError($"Error in status effect patch: {ex.Message}");
             }
+        }
+
+        private static string GetUnitName(object characterState)
+        {
+            try
+            {
+                var type = characterState.GetType();
+
+                // Try GetName method first
+                var getNameMethod = type.GetMethod("GetName");
+                if (getNameMethod != null)
+                {
+                    var name = getNameMethod.Invoke(characterState, null) as string;
+                    if (!string.IsNullOrEmpty(name))
+                        return name;
+                }
+
+                // Try GetCharacterDataRead
+                var getDataMethod = type.GetMethod("GetCharacterDataRead");
+                if (getDataMethod != null)
+                {
+                    var data = getDataMethod.Invoke(characterState, null);
+                    if (data != null)
+                    {
+                        var dataGetNameMethod = data.GetType().GetMethod("GetName");
+                        if (dataGetNameMethod != null)
+                        {
+                            var name = dataGetNameMethod.Invoke(data, null) as string;
+                            if (!string.IsNullOrEmpty(name))
+                                return name;
+                        }
+                    }
+                }
+            }
+            catch { }
+            return "Unit";
+        }
+
+        private static string CleanStatusName(string statusId)
+        {
+            if (string.IsNullOrEmpty(statusId))
+                return "effect";
+
+            // Remove common suffixes
+            string name = statusId
+                .Replace("_StatusId", "")
+                .Replace("StatusId", "")
+                .Replace("_", " ");
+
+            // Add space before capital letters (camelCase to words)
+            name = System.Text.RegularExpressions.Regex.Replace(name, "([a-z])([A-Z])", "$1 $2");
+
+            return name.ToLower().Trim();
         }
     }
 
@@ -353,6 +422,292 @@ namespace MonsterTrainAccessibility.Patches
             catch (Exception ex)
             {
                 MonsterTrainAccessibility.LogError($"Error in battle end patch: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Detect when a unit is spawned (added to the game board)
+    /// </summary>
+    public static class UnitSpawnPatch
+    {
+        public static void TryPatch(Harmony harmony)
+        {
+            try
+            {
+                // Try MonsterManager.AddCharacter for player units
+                var monsterManagerType = AccessTools.TypeByName("MonsterManager");
+                if (monsterManagerType != null)
+                {
+                    var method = AccessTools.Method(monsterManagerType, "AddCharacter");
+                    if (method != null)
+                    {
+                        var postfix = new HarmonyMethod(typeof(UnitSpawnPatch).GetMethod(nameof(PostfixMonster)));
+                        harmony.Patch(method, postfix: postfix);
+                        MonsterTrainAccessibility.LogInfo("Patched MonsterManager.AddCharacter");
+                    }
+                }
+
+                // Try HeroManager.AddCharacter for enemies
+                var heroManagerType = AccessTools.TypeByName("HeroManager");
+                if (heroManagerType != null)
+                {
+                    var method = AccessTools.Method(heroManagerType, "AddCharacter");
+                    if (method != null)
+                    {
+                        var postfix = new HarmonyMethod(typeof(UnitSpawnPatch).GetMethod(nameof(PostfixHero)));
+                        harmony.Patch(method, postfix: postfix);
+                        MonsterTrainAccessibility.LogInfo("Patched HeroManager.AddCharacter");
+                    }
+                }
+
+                // Also try CharacterState.Setup as fallback
+                var characterStateType = AccessTools.TypeByName("CharacterState");
+                if (characterStateType != null)
+                {
+                    var method = AccessTools.Method(characterStateType, "Setup");
+                    if (method != null)
+                    {
+                        var postfix = new HarmonyMethod(typeof(UnitSpawnPatch).GetMethod(nameof(PostfixCharacterSetup)));
+                        harmony.Patch(method, postfix: postfix);
+                        MonsterTrainAccessibility.LogInfo("Patched CharacterState.Setup");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Failed to patch unit spawn: {ex.Message}");
+            }
+        }
+
+        public static void PostfixMonster(object __instance, object character)
+        {
+            try
+            {
+                if (character == null) return;
+
+                string name = GetUnitName(character);
+                int roomIndex = GetRoomIndex(character);
+
+                MonsterTrainAccessibility.LogInfo($"Monster spawned: {name} on floor {roomIndex}");
+                MonsterTrainAccessibility.BattleHandler?.OnUnitSpawned(name, false, roomIndex);
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in monster spawn patch: {ex.Message}");
+            }
+        }
+
+        public static void PostfixHero(object __instance, object character)
+        {
+            try
+            {
+                if (character == null) return;
+
+                string name = GetUnitName(character);
+                int roomIndex = GetRoomIndex(character);
+
+                MonsterTrainAccessibility.LogInfo($"Enemy spawned: {name} on floor {roomIndex}");
+                MonsterTrainAccessibility.BattleHandler?.OnUnitSpawned(name, true, roomIndex);
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in hero spawn patch: {ex.Message}");
+            }
+        }
+
+        public static void PostfixCharacterSetup(object __instance)
+        {
+            try
+            {
+                // This is a fallback - only log for debugging
+                string name = GetUnitName(__instance);
+                bool isEnemy = IsEnemyUnit(__instance);
+                MonsterTrainAccessibility.LogInfo($"CharacterState.Setup called: {name}, isEnemy={isEnemy}");
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in character setup patch: {ex.Message}");
+            }
+        }
+
+        private static string GetUnitName(object characterState)
+        {
+            try
+            {
+                var type = characterState.GetType();
+
+                // Try GetName first
+                var getNameMethod = type.GetMethod("GetName");
+                if (getNameMethod != null)
+                {
+                    var name = getNameMethod.Invoke(characterState, null) as string;
+                    if (!string.IsNullOrEmpty(name))
+                        return name;
+                }
+
+                // Try GetCharacterData
+                var getDataMethod = type.GetMethod("GetCharacterData") ?? type.GetMethod("GetCharacterDataRead");
+                if (getDataMethod != null)
+                {
+                    var data = getDataMethod.Invoke(characterState, null);
+                    if (data != null)
+                    {
+                        var dataGetNameMethod = data.GetType().GetMethod("GetName");
+                        if (dataGetNameMethod != null)
+                        {
+                            var name = dataGetNameMethod.Invoke(data, null) as string;
+                            if (!string.IsNullOrEmpty(name))
+                                return name;
+                        }
+                    }
+                }
+            }
+            catch { }
+            return "Unit";
+        }
+
+        private static int GetRoomIndex(object characterState)
+        {
+            try
+            {
+                var type = characterState.GetType();
+                var getRoomMethod = type.GetMethod("GetCurrentRoomIndex");
+                if (getRoomMethod != null)
+                {
+                    var result = getRoomMethod.Invoke(characterState, null);
+                    if (result is int index)
+                        return index;
+                }
+            }
+            catch { }
+            return -1;
+        }
+
+        private static bool IsEnemyUnit(object characterState)
+        {
+            try
+            {
+                var type = characterState.GetType();
+                var getTeamMethod = type.GetMethod("GetTeamType");
+                if (getTeamMethod != null)
+                {
+                    var team = getTeamMethod.Invoke(characterState, null);
+                    // In Monster Train, "Heroes" are the enemies
+                    return team?.ToString() == "Heroes";
+                }
+            }
+            catch { }
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Detect when enemies ascend floors
+    /// </summary>
+    public static class EnemyAscendPatch
+    {
+        public static void TryPatch(Harmony harmony)
+        {
+            try
+            {
+                // Try to find the ascend method on CombatManager or HeroManager
+                var combatType = AccessTools.TypeByName("CombatManager");
+                if (combatType != null)
+                {
+                    // Try various method names that might handle ascension
+                    var method = AccessTools.Method(combatType, "AscendEnemies") ??
+                                 AccessTools.Method(combatType, "MoveEnemies") ??
+                                 AccessTools.Method(combatType, "ProcessAscend");
+
+                    if (method != null)
+                    {
+                        var postfix = new HarmonyMethod(typeof(EnemyAscendPatch).GetMethod(nameof(Postfix)));
+                        harmony.Patch(method, postfix: postfix);
+                        MonsterTrainAccessibility.LogInfo($"Patched ascend method: {method.Name}");
+                    }
+                    else
+                    {
+                        MonsterTrainAccessibility.LogWarning("Could not find ascend method to patch");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Failed to patch enemy ascend: {ex.Message}");
+            }
+        }
+
+        public static void Postfix()
+        {
+            try
+            {
+                MonsterTrainAccessibility.BattleHandler?.OnEnemiesAscended();
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in ascend patch: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Detect pyre damage
+    /// </summary>
+    public static class PyreDamagePatch
+    {
+        public static void TryPatch(Harmony harmony)
+        {
+            try
+            {
+                // Try to find the pyre/tower damage method
+                var saveManagerType = AccessTools.TypeByName("SaveManager");
+                if (saveManagerType != null)
+                {
+                    var method = AccessTools.Method(saveManagerType, "SetTowerHP") ??
+                                 AccessTools.Method(saveManagerType, "DamageTower") ??
+                                 AccessTools.Method(saveManagerType, "ModifyTowerHP");
+
+                    if (method != null)
+                    {
+                        var postfix = new HarmonyMethod(typeof(PyreDamagePatch).GetMethod(nameof(Postfix)));
+                        harmony.Patch(method, postfix: postfix);
+                        MonsterTrainAccessibility.LogInfo($"Patched pyre damage: {method.Name}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Failed to patch pyre damage: {ex.Message}");
+            }
+        }
+
+        private static int _lastPyreHP = -1;
+
+        public static void Postfix(object __instance)
+        {
+            try
+            {
+                // Get current pyre HP
+                var type = __instance.GetType();
+                var getHPMethod = type.GetMethod("GetTowerHP");
+                if (getHPMethod != null)
+                {
+                    var result = getHPMethod.Invoke(__instance, null);
+                    if (result is int currentHP)
+                    {
+                        if (_lastPyreHP > 0 && currentHP < _lastPyreHP)
+                        {
+                            int damage = _lastPyreHP - currentHP;
+                            MonsterTrainAccessibility.BattleHandler?.OnPyreDamaged(damage, currentHP);
+                        }
+                        _lastPyreHP = currentHP;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in pyre damage patch: {ex.Message}");
             }
         }
     }
