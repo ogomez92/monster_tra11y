@@ -232,7 +232,7 @@ namespace MonsterTrainAccessibility.Battle
             _onCancel = null;
             _targets.Clear();
 
-            MonsterTrainAccessibility.ScreenReader?.Speak($"Targeting {targetName}", true);
+            MonsterTrainAccessibility.ScreenReader?.Speak($"Targeting {targetName}", false);
             MonsterTrainAccessibility.LogInfo($"Unit targeting confirmed: index {index}");
 
             callback?.Invoke(index);
@@ -251,7 +251,7 @@ namespace MonsterTrainAccessibility.Battle
             _onCancel = null;
             _targets.Clear();
 
-            MonsterTrainAccessibility.ScreenReader?.Speak("Spell cancelled", true);
+            MonsterTrainAccessibility.ScreenReader?.Speak("Spell cancelled", false);
             MonsterTrainAccessibility.LogInfo("Unit targeting cancelled");
 
             callback?.Invoke();
@@ -268,7 +268,7 @@ namespace MonsterTrainAccessibility.Battle
             {
                 message += $"Current: {_targets[SelectedIndex]}";
             }
-            MonsterTrainAccessibility.ScreenReader?.Speak(message, true);
+            MonsterTrainAccessibility.ScreenReader?.Speak(message, false);
         }
 
         /// <summary>
@@ -279,7 +279,7 @@ namespace MonsterTrainAccessibility.Battle
             if (_targets.Count > 0 && SelectedIndex < _targets.Count)
             {
                 string message = $"Target {SelectedIndex + 1} of {_targets.Count}: {_targets[SelectedIndex]}";
-                MonsterTrainAccessibility.ScreenReader?.Speak(message, true);
+                MonsterTrainAccessibility.ScreenReader?.Speak(message, false);
             }
         }
     }

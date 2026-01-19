@@ -86,7 +86,7 @@ namespace MonsterTrainAccessibility.Screens
                         {
                             announcement = announcement.Substring(0, 500) + "...";
                         }
-                        MonsterTrainAccessibility.ScreenReader?.Speak(announcement, true);
+                        MonsterTrainAccessibility.ScreenReader?.Speak(announcement, false);
                     }
                 }
 
@@ -566,80 +566,45 @@ namespace MonsterTrainAccessibility.Screens
                      goName.Contains("cancel") || goName.Contains("confirm"));
 
                 // Also check if any parent is a Dialog
-                if (!isDialogButton)
-                {
-                    // Walk up and see if we're inside a Dialog
-                    Transform current = go.transform.parent;
-                    int depth = 0;
-                    while (current != null && depth < 6)
-                    {
-                        foreach (var comp in current.GetComponents<Component>())
-                        {
-                            if (comp != null && comp.GetType().Name == "Dialog")
-                            {
-                                isDialogButton = true;
-                                break;
-                            }
-                        }
-                        if (isDialogButton) break;
-                        current = current.parent;
-                        depth++;
-                    }
-                }
-
-                if (!isDialogButton)
-                    return null;
-
-                // Find the Dialog component in parent hierarchy
-                Transform parent = go.transform.parent;
+                Transform dialogParent = null;
                 Component dialogComponent = null;
-                int searchDepth = 0;
 
-                while (parent != null && dialogComponent == null && searchDepth < 8)
+                // Walk up and see if we're inside a Dialog
+                Transform current = go.transform.parent;
+                int depth = 0;
+                while (current != null && depth < 8)
                 {
-                    foreach (var comp in parent.GetComponents<Component>())
+                    foreach (var comp in current.GetComponents<Component>())
                     {
                         if (comp != null && comp.GetType().Name == "Dialog")
                         {
+                            isDialogButton = true;
+                            dialogParent = current;
                             dialogComponent = comp;
                             break;
                         }
                     }
-                    parent = parent.parent;
-                    searchDepth++;
+                    if (dialogComponent != null) break;
+                    current = current.parent;
+                    depth++;
                 }
 
-                if (dialogComponent == null)
+                if (!isDialogButton || dialogComponent == null || dialogParent == null)
                     return null;
 
-                // Get the contentLabel field from the Dialog component
-                var dialogType = dialogComponent.GetType();
-                var contentLabelField = dialogType.GetField("contentLabel", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-
-                if (contentLabelField == null)
+                // Check if this dialog is actually active/visible
+                if (!dialogParent.gameObject.activeInHierarchy)
                 {
-                    MonsterTrainAccessibility.LogInfo("Dialog contentLabel field not found");
+                    MonsterTrainAccessibility.LogInfo($"Dialog {dialogParent.name} is not active, skipping");
                     return null;
                 }
 
-                var contentLabel = contentLabelField.GetValue(dialogComponent);
-                if (contentLabel == null)
-                {
-                    MonsterTrainAccessibility.LogInfo("Dialog contentLabel is null");
-                    return null;
-                }
-
-                // contentLabel is a TMP_Text, get its text
-                string dialogText = null;
-                var textProp = contentLabel.GetType().GetProperty("text", BindingFlags.Public | BindingFlags.Instance);
-                if (textProp != null)
-                {
-                    dialogText = textProp.GetValue(contentLabel) as string;
-                }
+                // Get the dialog text directly from the contentLabel field - this is the actual displayed text
+                string dialogText = GetDialogContentFromComponent(dialogComponent);
 
                 if (string.IsNullOrEmpty(dialogText))
                 {
-                    MonsterTrainAccessibility.LogInfo("Dialog contentLabel text is empty");
+                    MonsterTrainAccessibility.LogInfo("Could not find dialog content text from contentLabel");
                     return null;
                 }
 
@@ -671,6 +636,55 @@ namespace MonsterTrainAccessibility.Screens
             catch (Exception ex)
             {
                 MonsterTrainAccessibility.LogError($"Error getting dialog button text: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Get the dialog content text directly from the Dialog component's contentLabel field.
+        /// </summary>
+        private string GetDialogContentFromComponent(Component dialogComponent)
+        {
+            try
+            {
+                var dialogType = dialogComponent.GetType();
+
+                // Get the contentLabel field - this is a TMP_Text that shows the dialog question
+                var contentLabelField = dialogType.GetField("contentLabel", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (contentLabelField == null)
+                {
+                    MonsterTrainAccessibility.LogInfo("Dialog contentLabel field not found");
+                    return null;
+                }
+
+                var contentLabel = contentLabelField.GetValue(dialogComponent);
+                if (contentLabel == null)
+                {
+                    MonsterTrainAccessibility.LogInfo("Dialog contentLabel is null");
+                    return null;
+                }
+
+                // contentLabel is a TMP_Text component - get the GameObject and read its text directly
+                var contentLabelComponent = contentLabel as Component;
+                if (contentLabelComponent != null)
+                {
+                    string text = GetTMPTextDirect(contentLabelComponent.gameObject);
+                    MonsterTrainAccessibility.LogInfo($"Dialog contentLabel text: '{text}'");
+                    return text;
+                }
+
+                // Fallback: try to get text property directly
+                var textProp = contentLabel.GetType().GetProperty("text", BindingFlags.Public | BindingFlags.Instance);
+                if (textProp != null)
+                {
+                    string text = textProp.GetValue(contentLabel) as string;
+                    MonsterTrainAccessibility.LogInfo($"Dialog contentLabel text (via property): '{text}'");
+                    return text;
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting dialog content from component: {ex.Message}");
             }
             return null;
         }
@@ -936,7 +950,14 @@ namespace MonsterTrainAccessibility.Screens
                 return text;
             }
 
-            // 2. Check for toggle/checkbox components first
+            // 2. Check for settings screen elements (dropdowns, sliders, toggles with SettingsEntry parent)
+            text = GetSettingsElementText(go);
+            if (!string.IsNullOrEmpty(text))
+            {
+                return text;
+            }
+
+            // 2.5. Check for toggle/checkbox components
             text = GetToggleText(go);
             if (!string.IsNullOrEmpty(text))
             {
@@ -5095,6 +5116,274 @@ namespace MonsterTrainAccessibility.Screens
         }
 
         /// <summary>
+        /// Get text for settings screen elements (dropdowns, sliders, toggles)
+        /// These have a parent with SettingsEntry component containing the label
+        /// </summary>
+        private string GetSettingsElementText(GameObject go)
+        {
+            try
+            {
+                // Find SettingsEntry component in parent hierarchy
+                string settingLabel = null;
+                Transform current = go.transform;
+
+                for (int i = 0; i < 3 && current.parent != null; i++)
+                {
+                    Transform parent = current.parent;
+
+                    // Check if parent has SettingsEntry component
+                    foreach (var component in parent.GetComponents<Component>())
+                    {
+                        if (component == null) continue;
+                        if (component.GetType().Name == "SettingsEntry")
+                        {
+                            // Found it - get the label from parent's name
+                            settingLabel = CleanSettingsLabel(parent.name);
+                            break;
+                        }
+                    }
+
+                    if (settingLabel != null) break;
+                    current = parent;
+                }
+
+                if (string.IsNullOrEmpty(settingLabel))
+                    return null;
+
+                // Now get the current value based on the control type
+                string value = null;
+
+                // Check for dropdown (GameUISelectableDropdown)
+                foreach (var component in go.GetComponents<Component>())
+                {
+                    if (component == null) continue;
+                    var type = component.GetType();
+                    string typeName = type.Name;
+
+                    if (typeName.Contains("Dropdown"))
+                    {
+                        value = GetDropdownValue(component);
+                        break;
+                    }
+                    else if (typeName.Contains("Slider"))
+                    {
+                        value = GetSliderValue(go);
+                        break;
+                    }
+                    else if (typeName.Contains("Toggle"))
+                    {
+                        value = GetToggleValue(go);
+                        break;
+                    }
+                }
+
+                // If we couldn't get a specific value, try to get text from children
+                if (string.IsNullOrEmpty(value))
+                {
+                    value = GetTMPText(go);
+                    if (!string.IsNullOrEmpty(value))
+                    {
+                        value = BattleAccessibility.StripRichTextTags(value.Trim());
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(value))
+                {
+                    return $"{settingLabel}: {value}";
+                }
+
+                return settingLabel;
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting settings element text: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Clean up settings label names (e.g., "ResolutionDropdown" -> "Resolution")
+        /// </summary>
+        private string CleanSettingsLabel(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return null;
+
+            // Remove common suffixes
+            name = name.Replace("Dropdown", "");
+            name = name.Replace("dropdown", "");
+            name = name.Replace("Toggle", "");
+            name = name.Replace("toggle", "");
+            name = name.Replace("Slider", "");
+            name = name.Replace("slider", "");
+            name = name.Replace("Control", "");
+            name = name.Replace("control", "");
+            name = name.Replace("Option", "");
+            name = name.Replace("option", "");
+            name = name.Replace("Setting", "");
+            name = name.Replace("setting", "");
+            name = name.Replace("Entry", "");
+            name = name.Replace("entry", "");
+            name = name.Replace("input", "");
+            name = name.Replace("Input", "");
+
+            // Add spaces before capital letters
+            name = System.Text.RegularExpressions.Regex.Replace(name, "([a-z])([A-Z])", "$1 $2");
+
+            // Handle specific labels
+            name = name.Replace("BG", "Background");
+            name = name.Replace("SFX", "Sound Effects");
+            name = name.Replace("VSync", "V-Sync");
+            name = name.Replace("Vsync", "V-Sync");
+            name = name.Replace("UI", "Interface");
+
+            return name.Trim();
+        }
+
+        /// <summary>
+        /// Get the current value from a dropdown component
+        /// </summary>
+        private string GetDropdownValue(Component dropdown)
+        {
+            try
+            {
+                var type = dropdown.GetType();
+
+                // Try to get the current selected text
+                var getCurrentTextMethod = type.GetMethod("GetCurrentText") ??
+                                           type.GetMethod("GetText") ??
+                                           type.GetMethod("GetSelectedText");
+                if (getCurrentTextMethod != null)
+                {
+                    var result = getCurrentTextMethod.Invoke(dropdown, null);
+                    if (result != null)
+                        return result.ToString();
+                }
+
+                // Try currentText or text property
+                var textProp = type.GetProperty("currentText") ??
+                               type.GetProperty("text") ??
+                               type.GetProperty("captionText");
+                if (textProp != null)
+                {
+                    var result = textProp.GetValue(dropdown);
+                    if (result != null)
+                    {
+                        // It might be a TMP_Text component
+                        var textComponent = result as Component;
+                        if (textComponent != null)
+                        {
+                            var tmpText = GetTMPTextDirect(textComponent.gameObject);
+                            if (!string.IsNullOrEmpty(tmpText))
+                                return tmpText;
+                        }
+                        return result.ToString();
+                    }
+                }
+
+                // Try to find the label/caption child
+                var dropdownGO = dropdown.gameObject;
+                foreach (Transform child in dropdownGO.transform)
+                {
+                    string childName = child.name.ToLower();
+                    if (childName.Contains("label") || childName.Contains("caption") || childName.Contains("text"))
+                    {
+                        string text = GetTMPTextDirect(child.gameObject);
+                        if (!string.IsNullOrEmpty(text))
+                            return text.Trim();
+                    }
+                }
+
+                // Last resort - get any TMP text in children
+                string anyText = GetTMPText(dropdownGO);
+                if (!string.IsNullOrEmpty(anyText))
+                    return anyText.Trim();
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting dropdown value: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Get the current value from a slider
+        /// </summary>
+        private string GetSliderValue(GameObject go)
+        {
+            try
+            {
+                var slider = go.GetComponent<Slider>();
+                if (slider != null)
+                {
+                    // Return as percentage
+                    int percent = Mathf.RoundToInt(slider.normalizedValue * 100);
+                    return $"{percent}%";
+                }
+
+                // Try reflection for custom slider types
+                foreach (var component in go.GetComponents<Component>())
+                {
+                    if (component == null) continue;
+                    var type = component.GetType();
+
+                    var valueProp = type.GetProperty("value") ?? type.GetProperty("normalizedValue");
+                    if (valueProp != null)
+                    {
+                        var val = valueProp.GetValue(component);
+                        if (val is float f)
+                        {
+                            int percent = Mathf.RoundToInt(f * 100);
+                            return $"{percent}%";
+                        }
+                    }
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        /// <summary>
+        /// Get the current value from a toggle (on/off)
+        /// </summary>
+        private string GetToggleValue(GameObject go)
+        {
+            try
+            {
+                var toggle = go.GetComponent<Toggle>();
+                if (toggle != null)
+                {
+                    return toggle.isOn ? "on" : "off";
+                }
+
+                // Try reflection for custom toggle types
+                foreach (var component in go.GetComponents<Component>())
+                {
+                    if (component == null) continue;
+                    var type = component.GetType();
+
+                    var isOnProp = type.GetProperty("isOn") ?? type.GetProperty("IsOn");
+                    if (isOnProp != null)
+                    {
+                        var val = isOnProp.GetValue(component);
+                        if (val is bool b)
+                            return b ? "on" : "off";
+                    }
+
+                    // Check underlying Unity Toggle if it's a wrapper
+                    var toggleField = type.GetField("toggle", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                    if (toggleField != null)
+                    {
+                        var innerToggle = toggleField.GetValue(component) as Toggle;
+                        if (innerToggle != null)
+                            return innerToggle.isOn ? "on" : "off";
+                    }
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        /// <summary>
         /// Get text for toggle/checkbox controls with their label
         /// </summary>
         private string GetToggleText(GameObject go)
@@ -7884,7 +8173,17 @@ namespace MonsterTrainAccessibility.Screens
         {
             string directText = GetDirectText(go);
 
-            // If text is very short (1-4 chars) or empty, look for context
+            // If text is very short (1-2 chars), it's likely an icon character - use cleaned name instead
+            if (!string.IsNullOrEmpty(directText) && directText.Length <= 2)
+            {
+                string cleanedName = CleanGameObjectName(go.name);
+                if (!string.IsNullOrEmpty(cleanedName) && cleanedName.Length > 2)
+                {
+                    return cleanedName;
+                }
+            }
+
+            // If text is short (3-4 chars) or empty, look for context
             if (string.IsNullOrEmpty(directText) || directText.Length <= 4)
             {
                 // Check parent for label
@@ -7969,7 +8268,11 @@ namespace MonsterTrainAccessibility.Screens
                             string lower = cleaned.ToLower();
                             if (!lower.Contains("container") && !lower.Contains("panel") &&
                                 !lower.Contains("holder") && !lower.Contains("group") &&
-                                !lower.Contains("content") && !lower.Contains("root"))
+                                !lower.Contains("content") && !lower.Contains("root") &&
+                                !lower.Contains("options") && !lower.Contains("input area") &&
+                                !lower.Contains("input") && !lower.Contains("area") &&
+                                !lower.Contains("section") && !lower.Contains("buttons") &&
+                                !lower.Contains("layout") && !lower.Contains("wrapper"))
                             {
                                 return cleaned;
                             }
@@ -8952,19 +9255,19 @@ namespace MonsterTrainAccessibility.Screens
 
                 if (string.IsNullOrEmpty(allText))
                 {
-                    MonsterTrainAccessibility.ScreenReader?.Speak("No text found on screen", true);
+                    MonsterTrainAccessibility.ScreenReader?.Speak("No text found on screen", false);
                 }
                 else
                 {
                     // Clean up - remove duplicate empty lines
                     allText = System.Text.RegularExpressions.Regex.Replace(allText, @"(\r?\n){3,}", "\n\n");
-                    MonsterTrainAccessibility.ScreenReader?.Speak(allText, true);
+                    MonsterTrainAccessibility.ScreenReader?.Speak(allText, false);
                 }
             }
             catch (Exception ex)
             {
                 MonsterTrainAccessibility.LogError($"Error reading screen text: {ex.Message}");
-                MonsterTrainAccessibility.ScreenReader?.Speak("Could not read screen text", true);
+                MonsterTrainAccessibility.ScreenReader?.Speak("Could not read screen text", false);
             }
         }
 
@@ -9168,18 +9471,18 @@ namespace MonsterTrainAccessibility.Screens
                 if (!string.IsNullOrEmpty(announcement))
                 {
                     MonsterTrainAccessibility.LogInfo($"Game over announcement: {announcement}");
-                    MonsterTrainAccessibility.ScreenReader?.Speak(announcement, true);
+                    MonsterTrainAccessibility.ScreenReader?.Speak(announcement, false);
                 }
                 else
                 {
                     // Fallback: just announce we're on the game over screen
-                    MonsterTrainAccessibility.ScreenReader?.Speak("Run complete. Press T to read stats.", true);
+                    MonsterTrainAccessibility.ScreenReader?.Speak("Run complete. Press T to read stats.", false);
                 }
             }
             catch (Exception ex)
             {
                 MonsterTrainAccessibility.LogError($"Error reading game over screen: {ex.Message}");
-                MonsterTrainAccessibility.ScreenReader?.Speak("Run complete.", true);
+                MonsterTrainAccessibility.ScreenReader?.Speak("Run complete.", false);
             }
         }
 
@@ -9329,16 +9632,16 @@ namespace MonsterTrainAccessibility.Screens
                 string text = GetTextFromGameObject(EventSystem.current.currentSelectedGameObject);
                 if (!string.IsNullOrEmpty(text))
                 {
-                    MonsterTrainAccessibility.ScreenReader?.Speak(text, true);
+                    MonsterTrainAccessibility.ScreenReader?.Speak(text, false);
                 }
                 else
                 {
-                    MonsterTrainAccessibility.ScreenReader?.Speak("Unknown item", true);
+                    MonsterTrainAccessibility.ScreenReader?.Speak("Unknown item", false);
                 }
             }
             else
             {
-                MonsterTrainAccessibility.ScreenReader?.Speak("Nothing selected", true);
+                MonsterTrainAccessibility.ScreenReader?.Speak("Nothing selected", false);
             }
         }
 

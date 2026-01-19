@@ -147,7 +147,7 @@ namespace MonsterTrainAccessibility.Screens
         private void SelectNode(MapNodeInfo node)
         {
             MonsterTrainAccessibility.LogInfo($"Selected map node: {node.Type}");
-            MonsterTrainAccessibility.ScreenReader?.Speak($"Selected {node.Type}", true);
+            MonsterTrainAccessibility.ScreenReader?.Speak($"Selected {node.Type}", false);
 
             // Actual node selection would be handled by game API
         }
@@ -155,7 +155,7 @@ namespace MonsterTrainAccessibility.Screens
         private void BuyItem(ShopItemInfo item, ShopInfo shop)
         {
             MonsterTrainAccessibility.LogInfo($"Buying: {item.Name}");
-            MonsterTrainAccessibility.ScreenReader?.Speak($"Purchased {item.Name} for {item.Cost} gold", true);
+            MonsterTrainAccessibility.ScreenReader?.Speak($"Purchased {item.Name} for {item.Cost} gold", false);
 
             // Update gold display
             shop.PlayerGold -= item.Cost;
@@ -165,21 +165,21 @@ namespace MonsterTrainAccessibility.Screens
 
         private void LeaveShop()
         {
-            MonsterTrainAccessibility.ScreenReader?.Speak("Leaving shop", true);
+            MonsterTrainAccessibility.ScreenReader?.Speak("Leaving shop", false);
             MonsterTrainAccessibility.FocusManager.GoBack();
         }
 
         private void SelectEventChoice(EventChoiceInfo choice)
         {
             MonsterTrainAccessibility.LogInfo($"Selected event choice: {choice.Name}");
-            MonsterTrainAccessibility.ScreenReader?.Speak($"Selected: {choice.Name}", true);
+            MonsterTrainAccessibility.ScreenReader?.Speak($"Selected: {choice.Name}", false);
 
             // Actual choice selection would be handled by game API
         }
 
         private void StartBossBattle()
         {
-            MonsterTrainAccessibility.ScreenReader?.Speak("Starting boss battle", true);
+            MonsterTrainAccessibility.ScreenReader?.Speak("Starting boss battle", false);
             // Actual battle start would be handled by game API
         }
 
@@ -190,7 +190,7 @@ namespace MonsterTrainAccessibility.Screens
         private void OnMapBack()
         {
             // At map, might open pause menu or similar
-            MonsterTrainAccessibility.ScreenReader?.Speak("Press Escape to open menu", true);
+            MonsterTrainAccessibility.ScreenReader?.Speak("Press Escape to open menu", false);
         }
 
         private void OnShopBack()
@@ -200,12 +200,12 @@ namespace MonsterTrainAccessibility.Screens
 
         private void OnEventBack()
         {
-            MonsterTrainAccessibility.ScreenReader?.Speak("You must choose an option", true);
+            MonsterTrainAccessibility.ScreenReader?.Speak("You must choose an option", false);
         }
 
         private void OnBossBack()
         {
-            MonsterTrainAccessibility.ScreenReader?.Speak("You must face the boss", true);
+            MonsterTrainAccessibility.ScreenReader?.Speak("You must face the boss", false);
         }
 
         #endregion

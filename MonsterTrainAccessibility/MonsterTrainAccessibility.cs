@@ -101,6 +101,7 @@ namespace MonsterTrainAccessibility
             MerchantScreenPatch.TryPatch(_harmony);
             EnhancerSelectionScreenPatch.TryPatch(_harmony);
             GameOverScreenPatch.TryPatch(_harmony);
+            SettingsScreenPatch.TryPatch(_harmony);
             ScreenManagerPatch.TryPatch(_harmony);
 
             // Combat event patches

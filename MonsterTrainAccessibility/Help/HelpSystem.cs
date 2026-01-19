@@ -44,12 +44,12 @@ namespace MonsterTrainAccessibility.Help
             {
                 string helpText = activeContext.GetHelpText();
                 MonsterTrainAccessibility.LogInfo($"Showing help for context: {activeContext.ContextId}");
-                MonsterTrainAccessibility.ScreenReader?.Speak($"{activeContext.ContextName} help. {helpText}", true);
+                MonsterTrainAccessibility.ScreenReader?.Speak($"{activeContext.ContextName} help. {helpText}", false);
             }
             else
             {
                 // Fallback if no context is active
-                MonsterTrainAccessibility.ScreenReader?.Speak(GetFallbackHelp(), true);
+                MonsterTrainAccessibility.ScreenReader?.Speak(GetFallbackHelp(), false);
             }
         }
 

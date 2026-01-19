@@ -232,7 +232,7 @@ namespace MonsterTrainAccessibility.Core
             InterruptOnFocusChange = config.Bind(
                 "Announcements",
                 "InterruptOnFocusChange",
-                true,
+                false,
                 "Stop current speech when focus changes to a new item"
             );
         }
@@ -251,7 +251,7 @@ namespace MonsterTrainAccessibility.Core
                 _ => Core.VerbosityLevel.Normal
             };
 
-            MonsterTrainAccessibility.ScreenReader?.Speak($"Verbosity: {VerbosityLevel.Value}", true);
+            MonsterTrainAccessibility.ScreenReader?.Speak($"Verbosity: {VerbosityLevel.Value}", false);
         }
     }
 

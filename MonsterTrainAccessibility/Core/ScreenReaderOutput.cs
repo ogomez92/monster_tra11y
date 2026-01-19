@@ -45,12 +45,12 @@ namespace MonsterTrainAccessibility.Core
                         MonsterTrainAccessibility.LogInfo($"Screen reader detected: {_detectedScreenReader}");
 
                         // Announce successful load
-                        Speak($"Monster Train Accessibility loaded. Using {_detectedScreenReader}.", true);
+                        Speak($"Monster Train Accessibility loaded. Using {_detectedScreenReader}.", false);
                     }
                     else
                     {
                         MonsterTrainAccessibility.LogInfo("No screen reader detected, using SAPI fallback");
-                        Speak("Monster Train Accessibility loaded. Using Windows speech.", true);
+                        Speak("Monster Train Accessibility loaded. Using Windows speech.", false);
                     }
 
                     // Log capabilities
@@ -191,20 +191,19 @@ namespace MonsterTrainAccessibility.Core
         }
 
         /// <summary>
-        /// Announce a screen transition (interrupts current speech)
+        /// Announce a screen transition (queued, non-interrupting)
         /// </summary>
         public void AnnounceScreen(string screenName)
         {
-            Speak(screenName, true);
+            Speak(screenName, false);
         }
 
         /// <summary>
-        /// Announce the currently focused item (interrupts current speech)
+        /// Announce the currently focused item (queued, non-interrupting)
         /// </summary>
         public void AnnounceFocus(string itemDescription)
         {
-            bool shouldInterrupt = MonsterTrainAccessibility.AccessibilitySettings.InterruptOnFocusChange.Value;
-            Speak(itemDescription, shouldInterrupt);
+            Speak(itemDescription, false);
         }
 
         /// <summary>

@@ -182,7 +182,7 @@ namespace MonsterTrainAccessibility.Battle
             _onConfirm = null;
             _onCancel = null;
 
-            MonsterTrainAccessibility.ScreenReader?.Speak($"Playing on floor {floor}", true);
+            MonsterTrainAccessibility.ScreenReader?.Speak($"Playing on floor {floor}", false);
             MonsterTrainAccessibility.LogInfo($"Floor targeting confirmed: floor {floor}");
 
             callback?.Invoke(floor);
@@ -200,7 +200,7 @@ namespace MonsterTrainAccessibility.Battle
             _onConfirm = null;
             _onCancel = null;
 
-            MonsterTrainAccessibility.ScreenReader?.Speak("Card cancelled", true);
+            MonsterTrainAccessibility.ScreenReader?.Speak("Card cancelled", false);
             MonsterTrainAccessibility.LogInfo("Floor targeting cancelled");
 
             callback?.Invoke();
@@ -213,7 +213,7 @@ namespace MonsterTrainAccessibility.Battle
         {
             string message = "Select floor. Use 1, 2, or 3 to select floor. Enter to confirm, Escape to cancel. ";
             message += GetFloorSummary(SelectedFloor);
-            MonsterTrainAccessibility.ScreenReader?.Speak(message, true);
+            MonsterTrainAccessibility.ScreenReader?.Speak(message, false);
         }
 
         /// <summary>
@@ -222,7 +222,7 @@ namespace MonsterTrainAccessibility.Battle
         private void AnnounceFloorSelection()
         {
             string message = $"Floor {SelectedFloor}. {GetFloorSummary(SelectedFloor)}";
-            MonsterTrainAccessibility.ScreenReader?.Speak(message, true);
+            MonsterTrainAccessibility.ScreenReader?.Speak(message, false);
         }
 
         /// <summary>

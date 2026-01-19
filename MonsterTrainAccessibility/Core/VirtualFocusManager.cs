@@ -230,11 +230,11 @@ namespace MonsterTrainAccessibility.Core
             if (CurrentFocus != null)
             {
                 string description = CurrentFocus.GetAccessibleDescription();
-                MonsterTrainAccessibility.ScreenReader?.Speak(description, true);
+                MonsterTrainAccessibility.ScreenReader?.Speak(description, false);
             }
             else if (CurrentContext != null)
             {
-                MonsterTrainAccessibility.ScreenReader?.Speak($"{CurrentContext.ContextName}. No items.", true);
+                MonsterTrainAccessibility.ScreenReader?.Speak($"{CurrentContext.ContextName}. No items.", false);
             }
         }
 
@@ -246,7 +246,7 @@ namespace MonsterTrainAccessibility.Core
             if (CurrentFocus != null)
             {
                 string description = CurrentFocus.GetDetailedDescription();
-                MonsterTrainAccessibility.ScreenReader?.Speak(description, true);
+                MonsterTrainAccessibility.ScreenReader?.Speak(description, false);
             }
         }
 
@@ -258,7 +258,7 @@ namespace MonsterTrainAccessibility.Core
             if (CurrentContext != null)
             {
                 string summary = CurrentContext.GetSummary();
-                MonsterTrainAccessibility.ScreenReader?.Speak(summary, true);
+                MonsterTrainAccessibility.ScreenReader?.Speak(summary, false);
             }
         }
 

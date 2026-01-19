@@ -27,6 +27,7 @@ All game data access uses **runtime reflection** since there's no public API. Ga
 ### Core Components (MonsterTrainAccessibility/Core/)
 
 - **ScreenReaderOutput**: Wrapper for Tolk library - handles speech output, braille, and screen reader detection. All accessibility output goes through this.
+  - **IMPORTANT: Never use `interrupt = true`** - it cuts off previous announcements. Always use `Speak(text, false)` or just `Speak(text)`.
 - **InputInterceptor**: Unity MonoBehaviour that handles accessibility hotkeys (F1, C, T, H, L, N, R, V, 1-9). Navigation is handled by the game's native EventSystem.
 - **AccessibilityConfig**: BepInEx configuration - verbosity levels, keybindings, announcement settings.
 
@@ -99,10 +100,36 @@ Note: F and E are avoided because they conflict with the game's native shortcuts
 
 Manual patches (no `[HarmonyPatch]` attributes - use `TryPatch()` methods):
 - **ScreenTransitionPatches**: Hooks screen changes to announce transitions
+  - `MainMenuScreenPatch`, `BattleIntroScreenPatch`, `CombatStartPatch`
+  - `CardDraftScreenPatch`, `ClassSelectionScreenPatch`, `MapScreenPatch`
+  - `MerchantScreenPatch`, `EnhancerSelectionScreenPatch`, `GameOverScreenPatch`
+  - `SettingsScreenPatch`: Announces "Settings. Press Tab to switch between tabs."
+  - `ScreenManagerPatch`: Generic screen transition detection
 - **CombatEventPatches**: Turn changes, damage, deaths, status effects
 - **CardEventPatches**: Draw, play, discard events
 
 Patches use runtime reflection to find game methods - see `PATCH_TARGETS.md` for verified targets.
+
+### Text Extraction (MenuAccessibility.cs)
+
+The `GetTextFromGameObject()` method tries multiple extractors in order:
+1. Dialog buttons, CardUI, shop items, battle intro, map nodes
+2. Toggles, logbook items, clan selection, champion choices
+3. Localized tooltip buttons, branch choices
+4. **`GetTextWithContext()`** - handles short button labels
+
+**`GetTextWithContext()` logic:**
+- If text is 1-2 chars (likely icon), uses cleaned GameObject name instead
+- If text is 3-4 chars or empty, looks for context from hierarchy
+- Falls back to direct text
+
+**`GetContextLabelFromHierarchy()` excluded container names:**
+These parent names are skipped when looking for context labels:
+- container, panel, holder, group, content, root
+- options, input area, input, area
+- section, buttons, layout, wrapper
+
+To fix "ParentName: X" announcements, add the parent name pattern to this exclusion list.
 
 ### Key Integration Points
 
@@ -119,8 +146,10 @@ The csproj uses `$(MonsterTrainPath)` which defaults to Steam's common location.
 
 No automated tests. Test by:
 1. Building and launching Monster Train
-2. Check `BepInEx/LogOutput.log` for errors
+2. Check log for errors: `C:\Program Files (x86)\Steam\steamapps\common\Monster Train\BepInEx\LogOutput.log`
 3. Verify screen reader announcements with NVDA running
+
+The log shows component hierarchies when UI elements are focused - useful for debugging text extraction issues.
 
 ## Key Game Types
 

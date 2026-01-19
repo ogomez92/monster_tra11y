@@ -218,7 +218,7 @@ namespace MonsterTrainAccessibility.Screens
         public void OnTurnStarted(int ember, int maxEmber, int cardsDrawn)
         {
             var output = MonsterTrainAccessibility.ScreenReader;
-            output?.Speak("Your turn", true);
+            output?.Speak("Your turn", false);
 
             // Read actual ember from game
             int actualEmber = GetCurrentEnergy();
@@ -238,7 +238,7 @@ namespace MonsterTrainAccessibility.Screens
         /// </summary>
         public void OnTurnEnded()
         {
-            MonsterTrainAccessibility.ScreenReader?.Speak("End turn. Combat phase.", true);
+            MonsterTrainAccessibility.ScreenReader?.Speak("End turn. Combat phase.", false);
         }
 
         /// <summary>
@@ -344,7 +344,7 @@ namespace MonsterTrainAccessibility.Screens
         public void OnBattleWon()
         {
             IsInBattle = false;
-            MonsterTrainAccessibility.ScreenReader?.Speak("Victory! Battle won.", true);
+            MonsterTrainAccessibility.ScreenReader?.Speak("Victory! Battle won.", false);
         }
 
         /// <summary>
@@ -353,7 +353,7 @@ namespace MonsterTrainAccessibility.Screens
         public void OnBattleLost()
         {
             IsInBattle = false;
-            MonsterTrainAccessibility.ScreenReader?.Speak("Defeat. The pyre has been destroyed.", true);
+            MonsterTrainAccessibility.ScreenReader?.Speak("Defeat. The pyre has been destroyed.", false);
         }
 
         #endregion
@@ -370,7 +370,7 @@ namespace MonsterTrainAccessibility.Screens
                 var hand = GetHandCards();
                 if (hand == null || hand.Count == 0)
                 {
-                    MonsterTrainAccessibility.ScreenReader?.Speak("Hand is empty", true);
+                    MonsterTrainAccessibility.ScreenReader?.Speak("Hand is empty", false);
                     return;
                 }
 
@@ -420,12 +420,12 @@ namespace MonsterTrainAccessibility.Screens
                     }
                 }
 
-                MonsterTrainAccessibility.ScreenReader?.Speak(sb.ToString(), true);
+                MonsterTrainAccessibility.ScreenReader?.Speak(sb.ToString(), false);
             }
             catch (Exception ex)
             {
                 MonsterTrainAccessibility.LogError($"Error announcing hand: {ex.Message}");
-                MonsterTrainAccessibility.ScreenReader?.Speak("Could not read hand", true);
+                MonsterTrainAccessibility.ScreenReader?.Speak("Could not read hand", false);
             }
         }
 
@@ -722,11 +722,11 @@ namespace MonsterTrainAccessibility.Screens
                     sb.Append($" Keywords: {keywords}");
                 }
 
-                MonsterTrainAccessibility.ScreenReader?.Speak(sb.ToString(), true);
+                MonsterTrainAccessibility.ScreenReader?.Speak(sb.ToString(), false);
             }
             else
             {
-                MonsterTrainAccessibility.ScreenReader?.Speak($"No card at position {index + 1}", true);
+                MonsterTrainAccessibility.ScreenReader?.Speak($"No card at position {index + 1}", false);
             }
         }
 
@@ -818,7 +818,7 @@ namespace MonsterTrainAccessibility.Screens
             try
             {
                 var output = MonsterTrainAccessibility.ScreenReader;
-                output?.Speak("Floor status:", true);
+                output?.Speak("Floor status:", false);
 
                 // Monster Train has 4 rooms (3 floors + pyre room)
                 for (int i = 3; i >= 0; i--)
@@ -861,7 +861,7 @@ namespace MonsterTrainAccessibility.Screens
             catch (Exception ex)
             {
                 MonsterTrainAccessibility.LogError($"Error announcing floors: {ex.Message}");
-                MonsterTrainAccessibility.ScreenReader?.Speak("Could not read floors", true);
+                MonsterTrainAccessibility.ScreenReader?.Speak("Could not read floors", false);
             }
         }
 
@@ -1267,12 +1267,12 @@ namespace MonsterTrainAccessibility.Screens
                     sb.Append($"Cards in hand: {hand.Count}.");
                 }
 
-                MonsterTrainAccessibility.ScreenReader?.Speak(sb.ToString(), true);
+                MonsterTrainAccessibility.ScreenReader?.Speak(sb.ToString(), false);
             }
             catch (Exception ex)
             {
                 MonsterTrainAccessibility.LogError($"Error announcing resources: {ex.Message}");
-                MonsterTrainAccessibility.ScreenReader?.Speak("Could not read resources", true);
+                MonsterTrainAccessibility.ScreenReader?.Speak("Could not read resources", false);
             }
         }
 
@@ -1331,7 +1331,7 @@ namespace MonsterTrainAccessibility.Screens
             try
             {
                 var output = MonsterTrainAccessibility.ScreenReader;
-                output?.Speak("Enemies:", true);
+                output?.Speak("Enemies:", false);
 
                 bool hasEnemies = false;
                 int roomsFound = 0;
@@ -1385,7 +1385,7 @@ namespace MonsterTrainAccessibility.Screens
             catch (Exception ex)
             {
                 MonsterTrainAccessibility.LogError($"Error announcing enemies: {ex.Message}");
-                MonsterTrainAccessibility.ScreenReader?.Speak("Could not read enemies", true);
+                MonsterTrainAccessibility.ScreenReader?.Speak("Could not read enemies", false);
             }
         }
 
