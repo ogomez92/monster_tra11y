@@ -8,3 +8,4 @@ T:\code\mods\monstertrain\MonsterTrainAccessibility\bin\Release\MonsterTrainAcce
 T:\code\mods\monstertrain\MonsterTrainAccessibility\bin\Release\MonsterTrainAccessibility.pdb
 T:\code\mods\monstertrain\MonsterTrainAccessibility\obj\Release\MonsterTrainAccessibility.dll
 T:\code\mods\monstertrain\MonsterTrainAccessibility\obj\Release\MonsterTrainAccessibility.pdb
+T:\code\mods\monstertrain\MonsterTrainAccessibility\obj\Release\MonsterTrainAccessibility.sourcelink.json
