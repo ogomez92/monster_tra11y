@@ -565,46 +565,25 @@ namespace MonsterTrainAccessibility.Screens
                     (goName.Contains("yes") || goName.Contains("no") || goName.Contains("ok") ||
                      goName.Contains("cancel") || goName.Contains("confirm"));
 
-                // Also check if any parent is a Dialog
-                Transform dialogParent = null;
-                Component dialogComponent = null;
-
-                // Walk up and see if we're inside a Dialog
-                Transform current = go.transform.parent;
-                int depth = 0;
-                while (current != null && depth < 8)
-                {
-                    foreach (var comp in current.GetComponents<Component>())
-                    {
-                        if (comp != null && comp.GetType().Name == "Dialog")
-                        {
-                            isDialogButton = true;
-                            dialogParent = current;
-                            dialogComponent = comp;
-                            break;
-                        }
-                    }
-                    if (dialogComponent != null) break;
-                    current = current.parent;
-                    depth++;
-                }
-
-                if (!isDialogButton || dialogComponent == null || dialogParent == null)
+                if (!isDialogButton)
                     return null;
 
-                // Check if this dialog is actually active/visible
-                if (!dialogParent.gameObject.activeInHierarchy)
+                // Find the root dialog/popup container by walking up
+                Transform dialogRoot = FindDialogRoot(go.transform);
+                if (dialogRoot == null)
                 {
-                    MonsterTrainAccessibility.LogInfo($"Dialog {dialogParent.name} is not active, skipping");
+                    MonsterTrainAccessibility.LogInfo("Could not find dialog root");
                     return null;
                 }
 
-                // Get the dialog text directly from the contentLabel field - this is the actual displayed text
-                string dialogText = GetDialogContentFromComponent(dialogComponent);
+                MonsterTrainAccessibility.LogInfo($"Found dialog root: {dialogRoot.name}");
+
+                // Search for the dialog question text - look for visible TMP text that's NOT on buttons
+                string dialogText = FindVisibleDialogText(dialogRoot.gameObject, go);
 
                 if (string.IsNullOrEmpty(dialogText))
                 {
-                    MonsterTrainAccessibility.LogInfo("Could not find dialog content text from contentLabel");
+                    MonsterTrainAccessibility.LogInfo("Could not find dialog content text");
                     return null;
                 }
 
@@ -613,14 +592,13 @@ namespace MonsterTrainAccessibility.Screens
 
                 // Get the button label
                 string buttonLabel = GetDirectText(go);
-                if (string.IsNullOrEmpty(buttonLabel))
+                // If text is short (1-2 chars like icon "A"), use the cleaned GameObject name instead
+                if (string.IsNullOrEmpty(buttonLabel) || buttonLabel.Length <= 2)
                 {
-                    // Try getting from name
                     buttonLabel = CleanGameObjectName(go.name);
                 }
 
                 // Check if this is the same dialog we already announced
-                // If so, only read the button label, not the full dialog text
                 if (_lastAnnouncedDialogText == dialogText)
                 {
                     MonsterTrainAccessibility.LogInfo($"Dialog button (same dialog): '{buttonLabel}'");
@@ -641,52 +619,149 @@ namespace MonsterTrainAccessibility.Screens
         }
 
         /// <summary>
-        /// Get the dialog content text directly from the Dialog component's contentLabel field.
+        /// Find the root container of a dialog by walking up from a button.
+        /// Searches for the nearest ancestor that contains the dialog question text.
         /// </summary>
-        private string GetDialogContentFromComponent(Component dialogComponent)
+        private Transform FindDialogRoot(Transform buttonTransform)
         {
+            // Find Dialog component and read from data.content
+            Transform searchParent = buttonTransform;
+            while (searchParent != null)
+            {
+                foreach (var comp in searchParent.GetComponents<Component>())
+                {
+                    if (comp != null && comp.GetType().Name == "Dialog")
+                    {
+                        // Found Dialog - store it and return this transform
+                        _lastDialogComponent = comp;
+                        return searchParent;
+                    }
+                }
+                searchParent = searchParent.parent;
+            }
+
+            // Fallback: return the button's grandparent
+            return buttonTransform.parent?.parent;
+        }
+
+        // Cache the last Dialog component found
+        private Component _lastDialogComponent = null;
+
+        /// <summary>
+        /// Get the dialog content text from Dialog.data.content field.
+        /// </summary>
+        private string GetDialogDataContent(Component dialogComponent)
+        {
+            if (dialogComponent == null)
+                return null;
+
             try
             {
-                var dialogType = dialogComponent.GetType();
-
-                // Get the contentLabel field - this is a TMP_Text that shows the dialog question
-                var contentLabelField = dialogType.GetField("contentLabel", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                if (contentLabelField == null)
-                {
-                    MonsterTrainAccessibility.LogInfo("Dialog contentLabel field not found");
+                var dataField = dialogComponent.GetType().GetField("data", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (dataField == null)
                     return null;
-                }
 
-                var contentLabel = contentLabelField.GetValue(dialogComponent);
-                if (contentLabel == null)
-                {
-                    MonsterTrainAccessibility.LogInfo("Dialog contentLabel is null");
+                var data = dataField.GetValue(dialogComponent);
+                if (data == null)
                     return null;
-                }
 
-                // contentLabel is a TMP_Text component - get the GameObject and read its text directly
-                var contentLabelComponent = contentLabel as Component;
-                if (contentLabelComponent != null)
+                var contentField = data.GetType().GetField("content", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (contentField != null)
                 {
-                    string text = GetTMPTextDirect(contentLabelComponent.gameObject);
-                    MonsterTrainAccessibility.LogInfo($"Dialog contentLabel text: '{text}'");
-                    return text;
-                }
-
-                // Fallback: try to get text property directly
-                var textProp = contentLabel.GetType().GetProperty("text", BindingFlags.Public | BindingFlags.Instance);
-                if (textProp != null)
-                {
-                    string text = textProp.GetValue(contentLabel) as string;
-                    MonsterTrainAccessibility.LogInfo($"Dialog contentLabel text (via property): '{text}'");
-                    return text;
+                    var content = contentField.GetValue(data);
+                    if (content != null)
+                    {
+                        return content.ToString();
+                    }
                 }
             }
             catch (Exception ex)
             {
-                MonsterTrainAccessibility.LogError($"Error getting dialog content from component: {ex.Message}");
+                MonsterTrainAccessibility.LogError($"Error getting dialog data content: {ex.Message}");
             }
             return null;
+        }
+
+        /// <summary>
+        /// Find visible dialog text - first try Dialog.data.content, then search children.
+        /// </summary>
+        private string FindVisibleDialogText(GameObject dialogRoot, GameObject excludeButton)
+        {
+            // First, try to get text from Dialog.data.content (the actual current dialog content)
+            if (_lastDialogComponent != null)
+            {
+                string dataContent = GetDialogDataContent(_lastDialogComponent);
+                if (!string.IsNullOrEmpty(dataContent))
+                {
+                    MonsterTrainAccessibility.LogInfo($"Got dialog text from data.content: '{dataContent}'");
+                    return dataContent;
+                }
+            }
+
+            // Fallback: search TMP text in children
+            try
+            {
+                string bestText = null;
+                int bestLength = 0;
+
+                var allTransforms = dialogRoot.GetComponentsInChildren<Transform>(false);
+
+                foreach (var child in allTransforms)
+                {
+                    if (!child.gameObject.activeInHierarchy)
+                        continue;
+
+                    if (IsInsideButton(child, dialogRoot.transform))
+                        continue;
+
+                    string text = GetTMPTextDirect(child.gameObject);
+                    if (string.IsNullOrEmpty(text))
+                        continue;
+
+                    text = text.Trim();
+                    if (text.Length < 10)
+                        continue;
+
+                    string lower = text.ToLower();
+                    if (lower == "yes" || lower == "no" || lower == "ok" || lower == "cancel")
+                        continue;
+
+                    bool hasQuestion = text.Contains("?");
+                    int score = text.Length + (hasQuestion ? 1000 : 0);
+
+                    if (score > bestLength)
+                    {
+                        bestText = text;
+                        bestLength = score;
+                    }
+                }
+
+                return bestText;
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error finding visible dialog text: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Check if a transform is inside a button element.
+        /// </summary>
+        private bool IsInsideButton(Transform t, Transform root)
+        {
+            Transform current = t;
+            while (current != null && current != root)
+            {
+                string name = current.name.ToLower();
+                if (name.Contains("button") || name.Contains("yes") || name.Contains("no") ||
+                    name.Contains("ok") || name.Contains("cancel") || name.Contains("confirm"))
+                {
+                    return true;
+                }
+                current = current.parent;
+            }
+            return false;
         }
 
         /// <summary>

@@ -31,7 +31,6 @@ namespace MonsterTrainAccessibility.Screens
         private System.Reflection.MethodInfo _getMaxTowerHPMethod;
         private System.Reflection.MethodInfo _getEnergyMethod;
         private System.Reflection.MethodInfo _getRoomMethod;
-        private System.Reflection.MethodInfo _addCharactersMethod;
         private System.Reflection.MethodInfo _getHPMethod;
         private System.Reflection.MethodInfo _getAttackDamageMethod;
         private System.Reflection.MethodInfo _getTeamTypeMethod;
