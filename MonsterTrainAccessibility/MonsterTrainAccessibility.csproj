@@ -11,12 +11,14 @@
     <MonsterTrainPath Condition="'$(MONSTER_TRAIN_PATH)' != ''">$(MONSTER_TRAIN_PATH)</MonsterTrainPath>
     <MonsterTrainPath Condition="'$(MonsterTrainPath)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Monster Train</MonsterTrainPath>
 
-    <!-- Output settings -->
+    <!-- Output settings - build directly to release folder -->
+    <OutputPath>..\release\BepInEx\plugins\</OutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
     <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
-  <!-- Copy to game plugins folder after build -->
+  <!-- Also copy to game plugins folder after build -->
   <Target Name="CopyToPlugins" AfterTargets="Build">
     <Copy SourceFiles="$(OutputPath)$(AssemblyName).dll" DestinationFiles="$(MonsterTrainPath)\BepInEx\plugins\$(AssemblyName).dll" />
   </Target>

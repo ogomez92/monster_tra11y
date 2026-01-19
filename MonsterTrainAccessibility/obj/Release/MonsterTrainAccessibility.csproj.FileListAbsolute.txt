@@ -9,3 +9,6 @@ T:\code\mods\monstertrain\MonsterTrainAccessibility\bin\Release\MonsterTrainAcce
 T:\code\mods\monstertrain\MonsterTrainAccessibility\obj\Release\MonsterTrainAccessibility.dll
 T:\code\mods\monstertrain\MonsterTrainAccessibility\obj\Release\MonsterTrainAccessibility.pdb
 T:\code\mods\monstertrain\MonsterTrainAccessibility\obj\Release\MonsterTrainAccessibility.sourcelink.json
+T:\code\mods\monstertrain\release\BepInEx\plugins\MonsterTrainAccessibility.deps.json
+T:\code\mods\monstertrain\release\BepInEx\plugins\MonsterTrainAccessibility.dll
+T:\code\mods\monstertrain\release\BepInEx\plugins\MonsterTrainAccessibility.pdb
