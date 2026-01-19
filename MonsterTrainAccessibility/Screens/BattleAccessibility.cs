@@ -30,6 +30,7 @@ namespace MonsterTrainAccessibility.Screens
         private System.Reflection.MethodInfo _getTowerHPMethod;
         private System.Reflection.MethodInfo _getMaxTowerHPMethod;
         private System.Reflection.MethodInfo _getEnergyMethod;
+        private System.Reflection.MethodInfo _getGoldMethod;
         private System.Reflection.MethodInfo _getRoomMethod;
         private System.Reflection.MethodInfo _getHPMethod;
         private System.Reflection.MethodInfo _getAttackDamageMethod;
@@ -115,6 +116,7 @@ namespace MonsterTrainAccessibility.Screens
                     var saveManagerType = _saveManager.GetType();
                     _getTowerHPMethod = saveManagerType.GetMethod("GetTowerHP", Type.EmptyTypes);
                     _getMaxTowerHPMethod = saveManagerType.GetMethod("GetMaxTowerHP", Type.EmptyTypes);
+                    _getGoldMethod = saveManagerType.GetMethod("GetGold", Type.EmptyTypes);
                 }
 
                 if (_playerManager != null)
@@ -819,13 +821,17 @@ namespace MonsterTrainAccessibility.Screens
                 var output = MonsterTrainAccessibility.ScreenReader;
                 output?.Speak("Floor status:", false);
 
-                // Monster Train has 4 rooms (3 floors + pyre room)
-                for (int i = 3; i >= 0; i--)
+                // Monster Train has 3 playable floors + pyre room
+                // Room indices: 0=top floor, 1=middle, 2=bottom, 3=pyre room
+                // User floors: 1=bottom, 2=middle, 3=top
+                // Iterate user floors from bottom (1) to top (3)
+                for (int userFloor = 1; userFloor <= 3; userFloor++)
                 {
-                    var room = GetRoom(i);
+                    int roomIndex = 3 - userFloor; // Convert user floor to room index
+                    var room = GetRoom(roomIndex);
                     if (room != null)
                     {
-                        string floorName = i == 0 ? "Pyre" : $"Floor {i}";
+                        string floorName = $"Floor {userFloor}";
                         var units = GetUnitsInRoom(room);
 
                         if (units.Count == 0)
@@ -896,15 +902,17 @@ namespace MonsterTrainAccessibility.Screens
 
         /// <summary>
         /// Get a text summary of what's on a specific floor (for floor targeting).
-        /// Floor numbers are 1-3 where 1 is bottom (pyre room is floor 0 internally).
+        /// Floor numbers are 1-3 where 1 is bottom, 3 is top (closest to pyre).
         /// </summary>
         public string GetFloorSummary(int floorNumber)
         {
             try
             {
                 // Convert user-facing floor number (1-3) to internal room index
-                // In Monster Train: room 0 is pyre, rooms 1-3 are floors 1-3
-                int roomIndex = floorNumber;
+                // Monster Train room indices: 0=top floor, 1=middle, 2=bottom, 3=pyre room
+                // User floor numbers: 1=bottom, 2=middle, 3=top
+                // So: userFloor 1 -> room 2, userFloor 2 -> room 1, userFloor 3 -> room 0
+                int roomIndex = 3 - floorNumber;
 
                 var room = GetRoom(roomIndex);
                 if (room == null)
@@ -966,10 +974,12 @@ namespace MonsterTrainAccessibility.Screens
             var enemies = new List<string>();
             try
             {
-                // Check all 3 floors
+                // Check all 3 floors (user floors 1-3)
+                // Room indices: 0=top floor, 1=middle, 2=bottom
                 for (int floorNumber = 1; floorNumber <= 3; floorNumber++)
                 {
-                    var room = GetRoom(floorNumber);
+                    int roomIndex = 3 - floorNumber; // Convert user floor to room index
+                    var room = GetRoom(roomIndex);
                     if (room == null) continue;
 
                     var units = GetUnitsInRoom(room);
@@ -1001,10 +1011,12 @@ namespace MonsterTrainAccessibility.Screens
             var friendlies = new List<string>();
             try
             {
-                // Check all 3 floors
+                // Check all 3 floors (user floors 1-3)
+                // Room indices: 0=top floor, 1=middle, 2=bottom
                 for (int floorNumber = 1; floorNumber <= 3; floorNumber++)
                 {
-                    var room = GetRoom(floorNumber);
+                    int roomIndex = 3 - floorNumber; // Convert user floor to room index
+                    var room = GetRoom(roomIndex);
                     if (room == null) continue;
 
                     var units = GetUnitsInRoom(room);
@@ -1046,37 +1058,106 @@ namespace MonsterTrainAccessibility.Screens
                 var roomType = room.GetType();
 
                 // First try AddCharactersToList method - the primary way to get characters from a room
-                // This method takes a List<CharacterState> parameter and populates it
+                // This method signature is: AddCharactersToList(List<CharacterState>, Team.Type, bool)
+                // We need to call it for BOTH team types to get all units
                 var addCharsMethods = roomType.GetMethods().Where(m => m.Name == "AddCharactersToList").ToArray();
+
+                // Find the Team.Type enum at runtime
+                Type teamTypeEnum = null;
+                foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    teamTypeEnum = assembly.GetType("Team+Type") ?? assembly.GetType("Team`Type");
+                    if (teamTypeEnum != null) break;
+
+                    // Try to find nested type
+                    var teamType = assembly.GetType("Team");
+                    if (teamType != null)
+                    {
+                        teamTypeEnum = teamType.GetNestedType("Type");
+                        if (teamTypeEnum != null) break;
+                    }
+                }
+
                 foreach (var addCharsMethod in addCharsMethods)
                 {
                     var parameters = addCharsMethod.GetParameters();
-                    if (parameters.Length >= 1)
+                    // Look for the overload with List<T>, Team.Type, bool
+                    if (parameters.Length >= 2)
                     {
                         var listType = parameters[0].ParameterType;
-                        // Check if it's a List type
+                        var secondParamType = parameters[1].ParameterType;
+
+                        // Check if it's a List type and the second param is an enum (Team.Type)
+                        if (listType.IsGenericType && listType.GetGenericTypeDefinition() == typeof(List<>) && secondParamType.IsEnum)
+                        {
+                            try
+                            {
+                                // Get all enum values for Team.Type (Monsters=0, Heroes=1)
+                                var enumValues = Enum.GetValues(secondParamType);
+
+                                foreach (var teamValue in enumValues)
+                                {
+                                    // Create a new instance of the typed list for each call
+                                    var charList = Activator.CreateInstance(listType);
+
+                                    // Build the argument array
+                                    var args = new object[parameters.Length];
+                                    args[0] = charList;
+                                    args[1] = teamValue; // Use the actual team type enum value
+
+                                    // Fill remaining params with defaults
+                                    for (int i = 2; i < parameters.Length; i++)
+                                    {
+                                        args[i] = parameters[i].ParameterType.IsValueType
+                                            ? Activator.CreateInstance(parameters[i].ParameterType)
+                                            : null;
+                                    }
+
+                                    // Call the method
+                                    addCharsMethod.Invoke(room, args);
+
+                                    // Extract results from the typed list
+                                    if (charList is System.Collections.IEnumerable enumerable)
+                                    {
+                                        foreach (var c in enumerable)
+                                        {
+                                            if (c != null && !units.Contains(c))
+                                            {
+                                                units.Add(c);
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (units.Count > 0)
+                                {
+                                    MonsterTrainAccessibility.LogInfo($"GetUnitsInRoom found {units.Count} units via AddCharactersToList (both teams)");
+                                    return units;
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                MonsterTrainAccessibility.LogInfo($"AddCharactersToList with team types failed: {ex.Message}");
+                            }
+                        }
+                        // Also handle the WeakRefList overload if present
+                        else if (listType.Name.Contains("WeakRefList") && secondParamType.IsEnum)
+                        {
+                            // Skip WeakRefList - prefer List<T> overload
+                            continue;
+                        }
+                    }
+                    // Fallback for single-param overloads (if any)
+                    else if (parameters.Length == 1)
+                    {
+                        var listType = parameters[0].ParameterType;
                         if (listType.IsGenericType && listType.GetGenericTypeDefinition() == typeof(List<>))
                         {
                             try
                             {
-                                // Create a new instance of the typed list
                                 var charList = Activator.CreateInstance(listType);
+                                addCharsMethod.Invoke(room, new object[] { charList });
 
-                                // Build the argument array (some overloads may have additional params)
-                                var args = new object[parameters.Length];
-                                args[0] = charList;
-                                // Fill additional params with defaults if any
-                                for (int i = 1; i < parameters.Length; i++)
-                                {
-                                    args[i] = parameters[i].ParameterType.IsValueType
-                                        ? Activator.CreateInstance(parameters[i].ParameterType)
-                                        : null;
-                                }
-
-                                // Call the method
-                                addCharsMethod.Invoke(room, args);
-
-                                // Extract results from the typed list
                                 if (charList is System.Collections.IEnumerable enumerable)
                                 {
                                     foreach (var c in enumerable)
@@ -1085,14 +1166,14 @@ namespace MonsterTrainAccessibility.Screens
                                     }
                                     if (units.Count > 0)
                                     {
-                                        MonsterTrainAccessibility.LogInfo($"GetUnitsInRoom found {units.Count} units via AddCharactersToList");
+                                        MonsterTrainAccessibility.LogInfo($"GetUnitsInRoom found {units.Count} units via AddCharactersToList (single param)");
                                         return units;
                                     }
                                 }
                             }
                             catch (Exception ex)
                             {
-                                MonsterTrainAccessibility.LogInfo($"AddCharactersToList failed: {ex.Message}");
+                                MonsterTrainAccessibility.LogInfo($"AddCharactersToList single-param failed: {ex.Message}");
                             }
                         }
                     }
@@ -1253,6 +1334,12 @@ namespace MonsterTrainAccessibility.Screens
                     sb.Append($"Ember: {energy}. ");
                 }
 
+                int gold = GetGold();
+                if (gold >= 0)
+                {
+                    sb.Append($"Gold: {gold}. ");
+                }
+
                 int pyreHP = GetPyreHealth();
                 int maxPyreHP = GetMaxPyreHealth();
                 if (pyreHP >= 0)
@@ -1318,73 +1405,120 @@ namespace MonsterTrainAccessibility.Screens
             return -1;
         }
 
+        private int GetGold()
+        {
+            if (_saveManager == null || _getGoldMethod == null)
+            {
+                FindManagers();
+            }
+
+            try
+            {
+                var result = _getGoldMethod?.Invoke(_saveManager, null);
+                if (result is int gold) return gold;
+            }
+            catch { }
+            return -1;
+        }
+
         #endregion
 
         #region Enemy Reading
 
         /// <summary>
-        /// Announce enemies and their intents
+        /// Announce all units (player monsters and enemies) on each floor
         /// </summary>
         public void AnnounceEnemies()
         {
             try
             {
                 var output = MonsterTrainAccessibility.ScreenReader;
-                output?.Speak("Enemies:", false);
+                output?.Speak("Units on train:", false);
 
-                bool hasEnemies = false;
+                bool hasAnyUnits = false;
                 int roomsFound = 0;
                 int totalUnits = 0;
 
-                // Iterate floors from top (3) to bottom (1), then pyre room (0)
-                for (int i = 3; i >= 0; i--)
+                // Iterate user floors from bottom (1) to top (3), then pyre room
+                // Room indices: 0=top floor, 1=middle, 2=bottom, 3=pyre room
+                // User floors: 1=bottom, 2=middle, 3=top
+                int[] userFloors = { 1, 2, 3 };
+
+                foreach (int userFloor in userFloors)
                 {
-                    var room = GetRoom(i);
+                    int roomIndex = 3 - userFloor; // Convert user floor to room index
+                    var room = GetRoom(roomIndex);
                     if (room == null)
                     {
-                        MonsterTrainAccessibility.LogInfo($"Room {i} is null");
+                        MonsterTrainAccessibility.LogInfo($"Room {roomIndex} (floor {userFloor}) is null");
                         continue;
                     }
                     roomsFound++;
 
                     var units = GetUnitsInRoom(room);
                     totalUnits += units.Count;
-                    MonsterTrainAccessibility.LogInfo($"Room {i} has {units.Count} units");
+                    MonsterTrainAccessibility.LogInfo($"Room {roomIndex} (floor {userFloor}) has {units.Count} units");
 
-                    string floorName = i == 0 ? "Pyre room" : $"Floor {i}";
+                    string floorName = $"Floor {userFloor}";
+                    var playerDescriptions = new List<string>();
                     var enemyDescriptions = new List<string>();
 
                     foreach (var unit in units)
                     {
                         bool isEnemy = IsEnemyUnit(unit);
-                        if (!isEnemy) continue;
+                        string unitDesc = GetDetailedEnemyDescription(unit);
 
-                        hasEnemies = true;
-                        string enemyDesc = GetDetailedEnemyDescription(unit);
-                        enemyDescriptions.Add(enemyDesc);
+                        if (isEnemy)
+                        {
+                            enemyDescriptions.Add(unitDesc);
+                        }
+                        else
+                        {
+                            playerDescriptions.Add(unitDesc);
+                        }
                     }
 
-                    if (enemyDescriptions.Count > 0)
+                    // Announce floor if it has any units
+                    if (playerDescriptions.Count > 0 || enemyDescriptions.Count > 0)
                     {
+                        hasAnyUnits = true;
                         output?.Queue($"{floorName}:");
+
+                        // Announce player units first
+                        foreach (var desc in playerDescriptions)
+                        {
+                            output?.Queue($"  Your unit: {desc}");
+                        }
+
+                        // Then announce enemies
                         foreach (var desc in enemyDescriptions)
                         {
-                            output?.Queue(desc);
+                            output?.Queue($"  Enemy: {desc}");
                         }
                     }
                 }
 
-                MonsterTrainAccessibility.LogInfo($"AnnounceEnemies: found {roomsFound} rooms, {totalUnits} total units, hasEnemies: {hasEnemies}");
-
-                if (!hasEnemies)
+                // Also check pyre room (room index 3)
+                var pyreRoom = GetRoom(3);
+                if (pyreRoom != null)
                 {
-                    output?.Queue("No enemies on the train");
+                    roomsFound++;
+                    var pyreUnits = GetUnitsInRoom(pyreRoom);
+                    totalUnits += pyreUnits.Count;
+                    // Pyre room units would be announced here if needed, but typically empty
+                }
+
+                MonsterTrainAccessibility.LogInfo($"AnnounceEnemies: found {roomsFound} rooms, {totalUnits} total units, hasAnyUnits: {hasAnyUnits}");
+
+                if (!hasAnyUnits)
+                {
+                    output?.Queue("No units on the train");
                 }
             }
             catch (Exception ex)
             {
-                MonsterTrainAccessibility.LogError($"Error announcing enemies: {ex.Message}");
-                MonsterTrainAccessibility.ScreenReader?.Speak("Could not read enemies", false);
+                MonsterTrainAccessibility.LogError($"Error announcing units: {ex.Message}");
+                MonsterTrainAccessibility.ScreenReader?.Speak("Could not read units", false);
             }
         }
 
@@ -1881,15 +2015,16 @@ namespace MonsterTrainAccessibility.Screens
         }
 
         /// <summary>
-        /// Announce unit death
+        /// Announce unit death with floor info
         /// </summary>
-        public void OnUnitDied(string unitName, bool isEnemy)
+        public void OnUnitDied(string unitName, bool isEnemy, int userFloor = -1)
         {
             if (!MonsterTrainAccessibility.AccessibilitySettings.AnnounceDeaths.Value)
                 return;
 
             string prefix = isEnemy ? "Enemy" : "Your";
-            MonsterTrainAccessibility.ScreenReader?.Queue($"{prefix} {unitName} died");
+            string floorInfo = userFloor > 0 ? $" on floor {userFloor}" : "";
+            MonsterTrainAccessibility.ScreenReader?.Queue($"{prefix} {unitName} died{floorInfo}");
         }
 
         /// <summary>
@@ -1947,6 +2082,35 @@ namespace MonsterTrainAccessibility.Screens
                 return;
 
             MonsterTrainAccessibility.ScreenReader?.Queue($"Pyre takes {damage} damage! {remainingHP} health remaining");
+        }
+
+        /// <summary>
+        /// Announce enemy dialogue/chatter (speech bubbles)
+        /// </summary>
+        public void OnEnemyDialogue(string text)
+        {
+            if (!IsInBattle)
+                return;
+
+            if (!MonsterTrainAccessibility.AccessibilitySettings.AnnounceDialogue.Value)
+                return;
+
+            if (!string.IsNullOrEmpty(text))
+            {
+                MonsterTrainAccessibility.ScreenReader?.Queue($"Enemy says: {text}");
+            }
+        }
+
+        /// <summary>
+        /// Announce when combat resolution phase starts (units attacking each other)
+        /// </summary>
+        public void OnCombatResolutionStarted()
+        {
+            if (!IsInBattle)
+                return;
+
+            // Only announce if there are units to fight
+            MonsterTrainAccessibility.ScreenReader?.Queue("Combat!");
         }
 
         #endregion

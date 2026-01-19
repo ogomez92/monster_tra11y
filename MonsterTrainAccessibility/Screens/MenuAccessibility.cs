@@ -5465,6 +5465,13 @@ namespace MonsterTrainAccessibility.Screens
         {
             try
             {
+                // First check if this is the Trial toggle on BattleIntroScreen
+                string trialText = GetTrialToggleText(go);
+                if (!string.IsNullOrEmpty(trialText))
+                {
+                    return trialText;
+                }
+
                 // Check for Unity UI Toggle component first
                 var unityToggle = go.GetComponent<Toggle>();
                 if (unityToggle != null)
@@ -5523,6 +5530,238 @@ namespace MonsterTrainAccessibility.Screens
                 MonsterTrainAccessibility.LogError($"Error getting toggle text: {ex.Message}");
             }
             return null;
+        }
+
+        /// <summary>
+        /// Special handling for the Trial toggle on BattleIntroScreen
+        /// Returns full trial info: name, description, reward, and toggle state
+        /// </summary>
+        private string GetTrialToggleText(GameObject go)
+        {
+            try
+            {
+                // Check if this might be a trial toggle by looking at hierarchy
+                bool isBattleIntroToggle = false;
+                Component battleIntroScreen = null;
+                Transform current = go.transform;
+
+                while (current != null)
+                {
+                    foreach (var component in current.GetComponents<Component>())
+                    {
+                        if (component == null) continue;
+                        if (component.GetType().Name == "BattleIntroScreen")
+                        {
+                            battleIntroScreen = component;
+                            isBattleIntroToggle = true;
+                            break;
+                        }
+                    }
+                    if (isBattleIntroToggle) break;
+                    current = current.parent;
+                }
+
+                if (!isBattleIntroToggle || battleIntroScreen == null)
+                    return null;
+
+                // Get the BattleIntroScreen's trial data
+                var screenType = battleIntroScreen.GetType();
+
+                // Get trialEnabled field
+                var trialEnabledField = screenType.GetField("trialEnabled", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+                bool trialEnabled = false;
+                if (trialEnabledField != null)
+                {
+                    var val = trialEnabledField.GetValue(battleIntroScreen);
+                    if (val is bool b) trialEnabled = b;
+                }
+
+                // Get trialData field
+                var trialDataField = screenType.GetField("trialData", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+                object trialData = trialDataField?.GetValue(battleIntroScreen);
+
+                if (trialData == null)
+                    return null;
+
+                // Extract trial information
+                var trialType = trialData.GetType();
+                string ruleName = null;
+                string ruleDescription = null;
+                string rewardName = null;
+
+                // The rule comes from the 'sin' field (SinsData), which is a RelicData subclass
+                var sinField = trialType.GetField("sin", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public);
+                if (sinField != null)
+                {
+                    var sinData = sinField.GetValue(trialData);
+                    if (sinData != null)
+                    {
+                        var sinType = sinData.GetType();
+
+                        // Get the rule name from sin
+                        var getNameMethod = sinType.GetMethod("GetName");
+                        if (getNameMethod != null)
+                        {
+                            ruleName = getNameMethod.Invoke(sinData, null) as string;
+                        }
+
+                        // Get the rule description - try GetDescriptionKey() and localize
+                        var getDescKeyMethod = sinType.GetMethod("GetDescriptionKey");
+                        if (getDescKeyMethod != null && getDescKeyMethod.GetParameters().Length == 0)
+                        {
+                            var descKey = getDescKeyMethod.Invoke(sinData, null) as string;
+                            if (!string.IsNullOrEmpty(descKey))
+                            {
+                                ruleDescription = LocalizeKey(descKey);
+                            }
+                        }
+                    }
+                }
+
+                // Get reward info from the 'reward' field
+                var rewardField = trialType.GetField("reward", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public);
+                if (rewardField != null)
+                {
+                    var rewardData = rewardField.GetValue(trialData);
+                    if (rewardData != null)
+                    {
+                        rewardName = GetRewardName(rewardData);
+                    }
+                }
+
+                // Build the announcement
+                var sb = new StringBuilder();
+                sb.Append("Trial toggle: ");
+                sb.Append(trialEnabled ? "ON" : "OFF");
+                sb.Append(". ");
+
+                if (trialEnabled)
+                {
+                    if (!string.IsNullOrEmpty(ruleName))
+                    {
+                        sb.Append("Additional rule: ");
+                        sb.Append(ruleName);
+                        sb.Append(". ");
+                    }
+
+                    if (!string.IsNullOrEmpty(ruleDescription))
+                    {
+                        sb.Append(BattleAccessibility.StripRichTextTags(ruleDescription));
+                        sb.Append(" ");
+                    }
+
+                    if (!string.IsNullOrEmpty(rewardName))
+                    {
+                        sb.Append("You will gain additional reward: ");
+                        sb.Append(rewardName);
+                        sb.Append(". ");
+                    }
+                }
+                else
+                {
+                    if (!string.IsNullOrEmpty(ruleName))
+                    {
+                        sb.Append("If enabled, additional rule: ");
+                        sb.Append(ruleName);
+                        sb.Append(". ");
+                    }
+
+                    if (!string.IsNullOrEmpty(ruleDescription))
+                    {
+                        sb.Append(BattleAccessibility.StripRichTextTags(ruleDescription));
+                        sb.Append(" ");
+                    }
+
+                    if (!string.IsNullOrEmpty(rewardName))
+                    {
+                        sb.Append("Enable to gain additional reward: ");
+                        sb.Append(rewardName);
+                        sb.Append(". ");
+                    }
+                }
+
+                sb.Append("Press Enter to toggle.");
+
+                return sb.ToString();
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting trial toggle text: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Extract the name from a RewardData object
+        /// </summary>
+        private string GetRewardName(object rewardData)
+        {
+            if (rewardData == null) return null;
+
+            try
+            {
+                var rewardType = rewardData.GetType();
+
+                // Try GetTitle method first (if it exists)
+                var getTitleMethod = rewardType.GetMethod("GetTitle");
+                if (getTitleMethod != null)
+                {
+                    var title = getTitleMethod.Invoke(rewardData, null) as string;
+                    // Only use if it looks like a real name (not a key)
+                    if (!string.IsNullOrEmpty(title) && !title.Contains("_") && !title.Contains("-"))
+                        return title;
+                }
+
+                // Try to get the title key and localize it
+                var titleKeyField = rewardType.GetField("_rewardTitleKey", BindingFlags.NonPublic | BindingFlags.Instance);
+                if (titleKeyField != null)
+                {
+                    var titleKey = titleKeyField.GetValue(rewardData) as string;
+                    if (!string.IsNullOrEmpty(titleKey))
+                    {
+                        // Try to localize the key
+                        string localized = LocalizeKey(titleKey);
+                        // Only use if localization succeeded (not same as key and looks like real text)
+                        if (!string.IsNullOrEmpty(localized) && localized != titleKey && !localized.Contains("-"))
+                            return localized;
+                    }
+                }
+
+                // Fall back to type name - this is the most reliable approach
+                return GetRewardTypeDisplayName(rewardType);
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting reward name: {ex.Message}");
+                return "Reward";
+            }
+        }
+
+        /// <summary>
+        /// Get a human-readable display name from the reward type
+        /// </summary>
+        private string GetRewardTypeDisplayName(Type rewardType)
+        {
+            string typeName = rewardType.Name;
+            if (typeName.EndsWith("RewardData"))
+                typeName = typeName.Substring(0, typeName.Length - "RewardData".Length);
+
+            // Convert type name to readable format
+            switch (typeName)
+            {
+                case "RelicPool": return "Random Artifact";
+                case "Relic": return "Artifact";
+                case "CardPool": return "Random Card";
+                case "Card": return "Card";
+                case "Gold": return "Gold";
+                case "Health": return "Pyre Health";
+                case "Crystal": return "Crystal";
+                case "EnhancerPool": return "Random Upgrade";
+                case "Enhancer": return "Upgrade";
+                case "Draft": return "Card Draft";
+                case "RelicDraft": return "Artifact Choice";
+                default: return typeName;
+            }
         }
 
         /// <summary>

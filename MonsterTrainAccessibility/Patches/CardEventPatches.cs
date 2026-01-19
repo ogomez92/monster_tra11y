@@ -74,6 +74,13 @@ namespace MonsterTrainAccessibility.Patches
                         var postfix = new HarmonyMethod(typeof(CardPlayedPatch).GetMethod(nameof(Postfix)));
                         harmony.Patch(method, postfix: postfix);
                         MonsterTrainAccessibility.LogInfo("Patched CardManager.PlayCard");
+
+                        // Log the method parameters to understand SelectionError
+                        var parameters = method.GetParameters();
+                        foreach (var param in parameters)
+                        {
+                            MonsterTrainAccessibility.LogInfo($"  PlayCard param: {param.Name} ({param.ParameterType.Name})");
+                        }
                     }
                 }
             }
@@ -84,7 +91,8 @@ namespace MonsterTrainAccessibility.Patches
         }
 
         // The method takes cardIndex, not a card object. We just get notified a card was played.
-        public static void Postfix(int cardIndex, bool __result)
+        // lastSelectionError is an out parameter that tells us why a card couldn't be played
+        public static void Postfix(int cardIndex, bool __result, object ___lastSelectionError)
         {
             try
             {
@@ -93,10 +101,78 @@ namespace MonsterTrainAccessibility.Patches
                 {
                     MonsterTrainAccessibility.BattleHandler?.OnCardPlayed(cardIndex);
                 }
+                else
+                {
+                    // Card play failed - announce why
+                    string reason = GetSelectionErrorReason(___lastSelectionError);
+                    if (!string.IsNullOrEmpty(reason))
+                    {
+                        MonsterTrainAccessibility.ScreenReader?.Speak($"Cannot play: {reason}", false);
+                    }
+                    else
+                    {
+                        MonsterTrainAccessibility.ScreenReader?.Speak("Cannot play card", false);
+                    }
+                }
             }
             catch (Exception ex)
             {
                 MonsterTrainAccessibility.LogError($"Error in play card patch: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Convert SelectionError enum to human-readable reason
+        /// </summary>
+        private static string GetSelectionErrorReason(object selectionError)
+        {
+            if (selectionError == null) return null;
+
+            try
+            {
+                string errorName = selectionError.ToString();
+                MonsterTrainAccessibility.LogInfo($"Card play failed with SelectionError: {errorName}");
+
+                // Map known error types to friendly messages
+                // These are guesses based on common game patterns - will need to verify actual enum values
+                switch (errorName.ToLowerInvariant())
+                {
+                    case "notenoughenergy":
+                    case "insufficientenergy":
+                    case "noenergy":
+                        return "Not enough ember";
+                    case "notarget":
+                    case "notargets":
+                    case "novalidtarget":
+                    case "novalidtargets":
+                        return "No valid targets";
+                    case "roomfull":
+                    case "floorfull":
+                    case "nocapacity":
+                        return "Floor is full";
+                    case "unplayable":
+                    case "cardunplayable":
+                        return "Card is unplayable";
+                    case "wrongphase":
+                    case "notplayerphase":
+                        return "Not your turn";
+                    case "noroom":
+                    case "noroomselected":
+                        return "Select a floor first";
+                    case "consumefailed":
+                        return "Cannot consume target";
+                    case "none":
+                    case "success":
+                        return null;
+                    default:
+                        // Return the raw error name if we don't have a friendly translation
+                        return errorName;
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting selection error reason: {ex.Message}");
+                return null;
             }
         }
     }

@@ -80,7 +80,7 @@ Context-sensitive help that announces available keys based on current game scree
 |-----|--------|
 | H | Read hand (all cards) |
 | L | Read floors (all units) - L for Levels |
-| N | Read enemies (enemy positions) - N for eNemies |
+| N | Read all units (your monsters and enemies) |
 | R | Read resources (ember, pyre, cards) |
 | 1-9 | Select card by position in hand |
 
@@ -159,4 +159,83 @@ Team.Type.Heroes    // Enemy units (confusing naming)
 CardType.Monster / CardType.Spell / CardType.Blight
 ```
 
-Localization: use `string.Localize()` extension method.
+## Localization
+
+Monster Train uses a `Localize` extension method for all text localization.
+
+**Method Location:**
+- Class: `LocalizationExtensions` (static class in `Assembly-CSharp`)
+- Method: `Localize(this string key, bool toUpper = false)`
+- Returns: Localized string
+
+**Key Format:**
+Localization keys follow this pattern:
+```
+{TypeName}_{fieldName}-{guid1}-{guid2}-v2
+```
+Example: `SinsData_descriptionKey-d23d6de33eeeeebb-5a268a87653a9064ba547b1444b4c668-v2`
+
+**How to Call via Reflection:**
+```csharp
+// Cache the method once
+private static MethodInfo _localizeMethod;
+
+// Find it in Assembly-CSharp
+foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+{
+    if (!assembly.GetName().Name.Contains("Assembly-CSharp"))
+        continue;
+
+    foreach (var type in assembly.GetTypes())
+    {
+        if (!type.IsClass || !type.IsAbstract || !type.IsSealed)
+            continue;
+
+        var method = type.GetMethod("Localize",
+            BindingFlags.Public | BindingFlags.Static);
+        if (method != null && method.ReturnType == typeof(string))
+        {
+            var parameters = method.GetParameters();
+            if (parameters.Length >= 1 && parameters[0].ParameterType == typeof(string))
+            {
+                _localizeMethod = method;
+                break;
+            }
+        }
+    }
+}
+
+// Call it (handles optional second parameter)
+var args = new object[_localizeMethod.GetParameters().Length];
+args[0] = key;
+for (int i = 1; i < args.Length; i++)
+{
+    var p = _localizeMethod.GetParameters()[i];
+    args[i] = p.HasDefaultValue ? p.DefaultValue : null;
+}
+string localized = (string)_localizeMethod.Invoke(null, args);
+```
+
+**Common Localizable Types:**
+- `CardData`: `GetName()`, `GetDescription()` - already return localized text
+- `RelicData` / `SinsData`: `GetName()` returns localized, but `GetDescriptionKey()` returns the key that needs localization
+- `RewardData`: Has `_rewardTitleKey` field - needs localization
+- `ScenarioData`: `GetBattleName()` returns localized text
+
+**Best Practice:**
+1. Try `GetName()` / `GetDescription()` methods first - they usually return localized text
+2. If those return keys (contain `-` and `_`), use `GetDescriptionKey()` and localize the result
+3. Fall back to type-name-based display names if localization fails
+
+## Floor/Room Index Mapping
+
+The game's internal room indices are **reversed** from user-facing floor numbers:
+
+```
+Room Index 0 = Floor 3 (Top)
+Room Index 1 = Floor 2 (Middle)
+Room Index 2 = Floor 1 (Bottom)
+Room Index 3 = Pyre Room
+```
+
+**Conversion formula:** `roomIndex = 3 - userFloor` (for floors 1-3)

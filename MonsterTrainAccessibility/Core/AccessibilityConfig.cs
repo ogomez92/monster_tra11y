@@ -42,6 +42,7 @@ namespace MonsterTrainAccessibility.Core
         public ConfigEntry<bool> AnnounceDamage { get; private set; }
         public ConfigEntry<bool> AnnounceDeaths { get; private set; }
         public ConfigEntry<bool> AnnounceSpawns { get; private set; }
+        public ConfigEntry<bool> AnnounceDialogue { get; private set; }
         public ConfigEntry<bool> InterruptOnFocusChange { get; private set; }
 
         public AccessibilityConfig(ConfigFile config)
@@ -227,6 +228,13 @@ namespace MonsterTrainAccessibility.Core
                 "Spawns",
                 true,
                 "Announce when enemies and units enter the battlefield"
+            );
+
+            AnnounceDialogue = config.Bind(
+                "Announcements",
+                "Dialogue",
+                true,
+                "Announce enemy speech bubbles and dialogue"
             );
 
             InterruptOnFocusChange = config.Bind(

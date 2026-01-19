@@ -114,6 +114,8 @@ namespace MonsterTrainAccessibility
             UnitSpawnPatch.TryPatch(_harmony);
             EnemyAscendPatch.TryPatch(_harmony);
             PyreDamagePatch.TryPatch(_harmony);
+            EnemyDialoguePatch.TryPatch(_harmony);
+            CombatPhasePatch.TryPatch(_harmony);
 
             // Card event patches
             CardDrawPatch.TryPatch(_harmony);
