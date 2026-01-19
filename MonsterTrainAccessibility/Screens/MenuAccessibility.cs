@@ -782,6 +782,8 @@ namespace MonsterTrainAccessibility.Screens
                     string text = GetTextFromGameObject(currentSelected);
                     if (!string.IsNullOrEmpty(text))
                     {
+                        // Clean sprite tags before announcing
+                        text = CleanSpriteTagsForSpeech(text);
                         MonsterTrainAccessibility.ScreenReader?.AnnounceFocus(text);
                     }
 
@@ -908,6 +910,20 @@ namespace MonsterTrainAccessibility.Screens
 
             // 1. Check for Fight button on BattleIntro screen - get battle name
             text = GetBattleIntroText(go);
+            if (!string.IsNullOrEmpty(text))
+            {
+                return text;
+            }
+
+            // 1.5. Check for RunOpeningScreen (Boss Battles screen at start of run)
+            text = GetRunOpeningScreenText(go);
+            if (!string.IsNullOrEmpty(text))
+            {
+                return text;
+            }
+
+            // 1.6. Check for RelicInfoUI (artifact selection on RelicDraftScreen)
+            text = GetRelicInfoText(go);
             if (!string.IsNullOrEmpty(text))
             {
                 return text;
@@ -2309,7 +2325,20 @@ namespace MonsterTrainAccessibility.Screens
                 }
 
                 if (mapNodeData == null)
+                {
+                    // MapNodeUI found but no mapNodeData - try tooltip fallback
+                    MonsterTrainAccessibility.LogInfo($"MapNodeUI found but mapNodeData is null, trying tooltip fallback");
+                    string tooltipText = GetTooltipTextWithBody(go);
+                    MonsterTrainAccessibility.LogInfo($"Tooltip fallback result: '{tooltipText ?? "null"}'");
+                    if (!string.IsNullOrEmpty(tooltipText) && !tooltipText.Contains("Enemy_Tooltip"))
+                    {
+                        // Clean sprite tags from tooltip
+                        return CleanSpriteTagsForSpeech(tooltipText);
+                    }
+                    // Log available fields for debugging
+                    LogMapNodeUIFields(mapNodeComponent);
                     return null;
+                }
 
                 var nodeDataType = mapNodeData.GetType();
                 string nodeName = nodeDataType.Name;
@@ -2996,6 +3025,330 @@ namespace MonsterTrainAccessibility.Screens
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Get text for RunOpeningScreen (Boss Battles screen shown at start of run)
+        /// </summary>
+        private string GetRunOpeningScreenText(GameObject go)
+        {
+            try
+            {
+                // Look for RunOpeningScreen component in parents
+                Component runOpeningScreen = null;
+                Transform current = go.transform;
+
+                while (current != null)
+                {
+                    foreach (var component in current.GetComponents<Component>())
+                    {
+                        if (component == null) continue;
+                        string typeName = component.GetType().Name;
+                        if (typeName == "RunOpeningScreen")
+                        {
+                            runOpeningScreen = component;
+                            break;
+                        }
+                    }
+                    if (runOpeningScreen != null) break;
+                    current = current.parent;
+                }
+
+                if (runOpeningScreen == null)
+                    return null;
+
+                var screenType = runOpeningScreen.GetType();
+                MonsterTrainAccessibility.LogInfo($"Found RunOpeningScreen, logging fields...");
+                LogScreenFields(screenType, runOpeningScreen);
+
+                // Build the boss battles text by finding all TMP text elements in the screen
+                var sb = new StringBuilder();
+                sb.Append("Run Opening: ");
+
+                // Find the RunOpeningScreen GameObject and get all text from its children
+                var screenGo = (runOpeningScreen as MonoBehaviour)?.gameObject;
+                if (screenGo != null)
+                {
+                    var texts = GetAllTextFromChildren(screenGo);
+                    if (texts != null && texts.Count > 0)
+                    {
+                        // Filter out empty strings and button text like "OK"
+                        var meaningfulTexts = texts.Where(t =>
+                            !string.IsNullOrWhiteSpace(t) &&
+                            t.Length > 2 &&
+                            !t.Equals("OK", StringComparison.OrdinalIgnoreCase) &&
+                            !t.Equals("Confirm", StringComparison.OrdinalIgnoreCase)
+                        ).ToList();
+
+                        if (meaningfulTexts.Count > 0)
+                        {
+                            sb.Append(string.Join(". ", meaningfulTexts));
+                            return sb.ToString();
+                        }
+                    }
+                }
+
+                // Fallback - just indicate we're on the run opening screen
+                string buttonText = GetDirectText(go);
+                if (!string.IsNullOrEmpty(buttonText))
+                {
+                    return $"Run Opening Screen: {buttonText}";
+                }
+
+                return "Run Opening Screen";
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting run opening screen text: {ex.Message}");
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Get text for RelicInfoUI (artifact selection on RelicDraftScreen)
+        /// </summary>
+        private string GetRelicInfoText(GameObject go)
+        {
+            try
+            {
+                // Check if this has a RelicInfoUI component
+                Component relicInfoUI = null;
+                foreach (var component in go.GetComponents<Component>())
+                {
+                    if (component == null) continue;
+                    if (component.GetType().Name == "RelicInfoUI")
+                    {
+                        relicInfoUI = component;
+                        break;
+                    }
+                }
+
+                if (relicInfoUI == null)
+                    return null;
+
+                var relicType = relicInfoUI.GetType();
+                MonsterTrainAccessibility.LogInfo($"Found RelicInfoUI, extracting relic data...");
+
+                // Log all fields first to see what's available
+                var sbFields = new StringBuilder();
+                sbFields.AppendLine($"=== Fields on RelicInfoUI ===");
+                foreach (var field in relicType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
+                {
+                    try
+                    {
+                        var value = field.GetValue(relicInfoUI);
+                        string valueStr = value?.ToString() ?? "null";
+                        if (valueStr.Length > 80) valueStr = valueStr.Substring(0, 80) + "...";
+                        sbFields.AppendLine($"  {field.FieldType.Name} {field.Name} = {valueStr}");
+                    }
+                    catch { }
+                }
+                MonsterTrainAccessibility.LogInfo(sbFields.ToString());
+
+                // Try to get RelicData from the backing field (C# auto-property)
+                string relicName = null;
+                string relicDescription = null;
+
+                // Access <relicData>k__BackingField - the backing field for the relicData property
+                var backingField = relicType.GetField("<relicData>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance);
+                if (backingField != null)
+                {
+                    var relicData = backingField.GetValue(relicInfoUI);
+                    if (relicData != null)
+                    {
+                        var dataType = relicData.GetType();
+                        MonsterTrainAccessibility.LogInfo($"Found RelicData: {dataType.Name}");
+
+                        // Log available methods to find description
+                        var methods = dataType.GetMethods(BindingFlags.Public | BindingFlags.Instance);
+                        var descMethods = methods.Where(m => m.Name.ToLower().Contains("desc") || m.Name.ToLower().Contains("effect") || m.Name.ToLower().Contains("text")).ToList();
+                        MonsterTrainAccessibility.LogInfo($"Potential description methods: {string.Join(", ", descMethods.Select(m => m.Name))}");
+
+                        // Try GetName()
+                        var getNameMethod = dataType.GetMethod("GetName", BindingFlags.Public | BindingFlags.Instance);
+                        if (getNameMethod != null && getNameMethod.GetParameters().Length == 0)
+                        {
+                            relicName = getNameMethod.Invoke(relicData, null) as string;
+                            MonsterTrainAccessibility.LogInfo($"GetName() returned: '{relicName}'");
+                        }
+
+                        // Try various description method names
+                        string[] descMethodNames = { "GetDescription", "GetEffectText", "GetDescriptionText", "GetRelicEffectText", "GetEffectDescription" };
+                        foreach (var methodName in descMethodNames)
+                        {
+                            var method = dataType.GetMethod(methodName, BindingFlags.Public | BindingFlags.Instance);
+                            if (method != null && method.GetParameters().Length == 0)
+                            {
+                                relicDescription = method.Invoke(relicData, null) as string;
+                                if (!string.IsNullOrEmpty(relicDescription))
+                                {
+                                    MonsterTrainAccessibility.LogInfo($"{methodName}() returned: '{relicDescription}'");
+                                    break;
+                                }
+                            }
+                        }
+
+                        // If still no description, try GetDescriptionKey and localize
+                        if (string.IsNullOrEmpty(relicDescription))
+                        {
+                            var descKeyMethod = dataType.GetMethod("GetDescriptionKey", BindingFlags.Public | BindingFlags.Instance);
+                            if (descKeyMethod != null && descKeyMethod.GetParameters().Length == 0)
+                            {
+                                var key = descKeyMethod.Invoke(relicData, null) as string;
+                                if (!string.IsNullOrEmpty(key))
+                                {
+                                    relicDescription = LocalizeString(key);
+                                    MonsterTrainAccessibility.LogInfo($"GetDescriptionKey() -> Localized: '{relicDescription}'");
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // If description looks like a localization key, try getting it from RelicState instead
+                if (!string.IsNullOrEmpty(relicDescription) && relicDescription.Contains("_descriptionKey"))
+                {
+                    MonsterTrainAccessibility.LogInfo("Description is a loc key, trying RelicState...");
+                    relicDescription = null; // Clear it, will try relicState
+                }
+
+                // Try relicState for description if we don't have one yet
+                if (string.IsNullOrEmpty(relicDescription))
+                {
+                    var relicStateField = relicType.GetField("relicState", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                    if (relicStateField != null)
+                    {
+                        var relicState = relicStateField.GetValue(relicInfoUI);
+                        if (relicState != null)
+                        {
+                            var stateType = relicState.GetType();
+
+                            // Log available methods on RelicState
+                            var stateMethods = stateType.GetMethods(BindingFlags.Public | BindingFlags.Instance);
+                            var descStateMethods = stateMethods.Where(m => m.Name.ToLower().Contains("desc") || m.Name.ToLower().Contains("effect") || m.Name.ToLower().Contains("text")).ToList();
+                            MonsterTrainAccessibility.LogInfo($"RelicState methods: {string.Join(", ", descStateMethods.Select(m => m.Name))}");
+
+                            // Try GetDescription on RelicState
+                            foreach (var methodName in new[] { "GetDescription", "GetEffectText", "GetDescriptionText" })
+                            {
+                                var method = stateType.GetMethod(methodName, BindingFlags.Public | BindingFlags.Instance);
+                                if (method != null)
+                                {
+                                    var parameters = method.GetParameters();
+                                    var paramCount = parameters.Length;
+                                    MonsterTrainAccessibility.LogInfo($"Found {methodName} with {paramCount} params");
+
+                                    try
+                                    {
+                                        if (paramCount == 0)
+                                        {
+                                            relicDescription = method.Invoke(relicState, null) as string;
+                                        }
+                                        else if (paramCount == 1)
+                                        {
+                                            // Try calling with null or default value
+                                            var paramType = parameters[0].ParameterType;
+                                            MonsterTrainAccessibility.LogInfo($"  Param type: {paramType.Name}");
+
+                                            object arg = null;
+                                            if (paramType.IsValueType)
+                                            {
+                                                arg = Activator.CreateInstance(paramType);
+                                            }
+                                            relicDescription = method.Invoke(relicState, new[] { arg }) as string;
+                                        }
+
+                                        MonsterTrainAccessibility.LogInfo($"RelicState.{methodName}() returned: '{relicDescription ?? "null"}'");
+                                        if (!string.IsNullOrEmpty(relicDescription) && !relicDescription.Contains("_descriptionKey"))
+                                        {
+                                            break;
+                                        }
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        MonsterTrainAccessibility.LogError($"Error calling {methodName}: {ex.Message}");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Build result
+                if (!string.IsNullOrEmpty(relicName))
+                {
+                    var sb = new StringBuilder();
+                    sb.Append("Artifact: ");
+                    sb.Append(relicName);
+
+                    if (!string.IsNullOrEmpty(relicDescription) && !relicDescription.Contains("_descriptionKey"))
+                    {
+                        // Clean up sprite tags like <sprite name=Gold> -> "gold"
+                        string cleanDesc = CleanSpriteTagsForSpeech(relicDescription);
+                        sb.Append(". ");
+                        sb.Append(cleanDesc);
+                    }
+
+                    string result = sb.ToString();
+                    MonsterTrainAccessibility.LogInfo($"Relic text: {result}");
+                    return result;
+                }
+
+                MonsterTrainAccessibility.LogInfo("Could not extract relic info");
+                return null;
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting relic info text: {ex.Message}");
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Clean sprite tags like <sprite name=Gold> and convert to readable text like "gold"
+        /// Also strips other rich text tags.
+        /// </summary>
+        private string CleanSpriteTagsForSpeech(string text)
+        {
+            if (string.IsNullOrEmpty(text))
+                return text;
+
+            // Log original text for debugging
+            bool hadSprite = text.Contains("sprite");
+            if (hadSprite)
+            {
+                MonsterTrainAccessibility.LogInfo($"CleanSpriteTagsForSpeech input: '{text}'");
+            }
+
+            // Convert sprite tags to readable text
+            // Handles: <sprite name=Gold>, <sprite name="Gold">, <sprite name='Gold'>, <sprite="Gold">
+            text = System.Text.RegularExpressions.Regex.Replace(
+                text,
+                @"<sprite\s+name\s*=\s*[""']?([^""'>\s]+)[""']?\s*/?>",
+                match => " " + match.Groups[1].Value.ToLower() + " ",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            // Also handle <sprite=X> or <sprite="X"> format
+            text = System.Text.RegularExpressions.Regex.Replace(
+                text,
+                @"<sprite\s*=\s*[""']?([^""'>\s]+)[""']?\s*/?>",
+                match => " " + match.Groups[1].Value.ToLower() + " ",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            // Strip any remaining rich text tags
+            text = System.Text.RegularExpressions.Regex.Replace(text, @"<[^>]+>", "");
+
+            // Clean up double spaces
+            text = System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ");
+
+            string result = text.Trim();
+            if (hadSprite)
+            {
+                MonsterTrainAccessibility.LogInfo($"CleanSpriteTagsForSpeech output: '{result}'");
+            }
+            return result;
         }
 
         /// <summary>
@@ -4178,6 +4531,37 @@ namespace MonsterTrainAccessibility.Screens
                 MonsterTrainAccessibility.LogInfo(sb.ToString());
             }
             catch { }
+        }
+
+        /// <summary>
+        /// Log all fields on a MapNodeUI component for debugging
+        /// </summary>
+        private void LogMapNodeUIFields(Component mapNodeComponent)
+        {
+            try
+            {
+                var type = mapNodeComponent.GetType();
+                var sb = new StringBuilder();
+                sb.AppendLine($"=== Fields on {type.Name} ===");
+
+                foreach (var field in type.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
+                {
+                    try
+                    {
+                        var value = field.GetValue(mapNodeComponent);
+                        string valueStr = value?.ToString() ?? "null";
+                        if (valueStr.Length > 80) valueStr = valueStr.Substring(0, 80) + "...";
+                        sb.AppendLine($"  {field.FieldType.Name} {field.Name} = {valueStr}");
+                    }
+                    catch { }
+                }
+
+                MonsterTrainAccessibility.LogInfo(sb.ToString());
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error logging MapNodeUI fields: {ex.Message}");
+            }
         }
 
         /// <summary>
