@@ -683,6 +683,29 @@ namespace MonsterTrainAccessibility.Screens
         }
 
         /// <summary>
+        /// Check if text appears to be placeholder/debug text that shouldn't be read.
+        /// </summary>
+        private bool IsPlaceholderText(string text)
+        {
+            if (string.IsNullOrEmpty(text))
+                return false;
+
+            string lower = text.ToLower();
+
+            // Check for common placeholder patterns
+            if (lower.Contains("placeholder"))
+                return true;
+            if (lower.Contains("(should"))  // Developer comments like "(should layer below cards)"
+                return true;
+            if (lower.Contains("todo"))
+                return true;
+            if (lower.Contains("fixme"))
+                return true;
+
+            return false;
+        }
+
+        /// <summary>
         /// Find visible dialog text - first try Dialog.data.content, then search children.
         /// </summary>
         private string FindVisibleDialogText(GameObject dialogRoot, GameObject excludeButton)
@@ -691,7 +714,7 @@ namespace MonsterTrainAccessibility.Screens
             if (_lastDialogComponent != null)
             {
                 string dataContent = GetDialogDataContent(_lastDialogComponent);
-                if (!string.IsNullOrEmpty(dataContent))
+                if (!string.IsNullOrEmpty(dataContent) && !IsPlaceholderText(dataContent))
                 {
                     MonsterTrainAccessibility.LogInfo($"Got dialog text from data.content: '{dataContent}'");
                     return dataContent;
@@ -976,6 +999,13 @@ namespace MonsterTrainAccessibility.Screens
                 }
             }
 
+            // Check for RunOpeningScreen (Boss Battles screen at start of run) - before dialog check
+            text = GetRunOpeningScreenText(go);
+            if (!string.IsNullOrEmpty(text))
+            {
+                return text;
+            }
+
             // Check for dialog buttons (Yes/No buttons inside Dialog popups)
             text = GetDialogButtonText(go);
             if (!string.IsNullOrEmpty(text))
@@ -999,13 +1029,6 @@ namespace MonsterTrainAccessibility.Screens
 
             // 1. Check for Fight button on BattleIntro screen - get battle name
             text = GetBattleIntroText(go);
-            if (!string.IsNullOrEmpty(text))
-            {
-                return text;
-            }
-
-            // 1.5. Check for RunOpeningScreen (Boss Battles screen at start of run)
-            text = GetRunOpeningScreenText(go);
             if (!string.IsNullOrEmpty(text))
             {
                 return text;
@@ -1101,6 +1124,12 @@ namespace MonsterTrainAccessibility.Screens
                     string typeName = component.GetType().Name;
                     if (typeName == "ClassSelectionIcon" || typeName == "ChampionChoiceButton")
                         return null;
+
+                    // Handle StoryChoiceItem (random event choices)
+                    if (typeName == "StoryChoiceItem")
+                    {
+                        return GetStoryChoiceText(go, component);
+                    }
                 }
 
                 // Check if this is a branch choice element or map navigation arrow
@@ -1172,6 +1201,90 @@ namespace MonsterTrainAccessibility.Screens
                 MonsterTrainAccessibility.LogError($"Error getting branch choice text: {ex.Message}");
             }
             return null;
+        }
+
+        /// <summary>
+        /// Get text from StoryChoiceItem (random event choices like "The Doors. (Get Trap Chute.)")
+        /// </summary>
+        private string GetStoryChoiceText(GameObject go, Component storyChoiceComponent)
+        {
+            try
+            {
+                var texts = new List<string>();
+
+                // Look for TMP text components in children
+                foreach (var component in go.GetComponentsInChildren<Component>(true))
+                {
+                    if (component == null) continue;
+                    string typeName = component.GetType().Name;
+                    if (typeName.Contains("TMP_Text") || typeName.Contains("TextMeshPro"))
+                    {
+                        if (!component.gameObject.activeInHierarchy) continue;
+                        var textProp = component.GetType().GetProperty("text");
+                        if (textProp != null)
+                        {
+                            string text = textProp.GetValue(component) as string;
+                            text = text?.Trim();
+                            if (!string.IsNullOrEmpty(text) && !IsPlaceholderText(text))
+                            {
+                                texts.Add(text);
+                            }
+                        }
+                    }
+                }
+
+                if (texts.Count > 0)
+                {
+                    string result = string.Join(" ", texts);
+                    MonsterTrainAccessibility.LogInfo($"StoryChoiceItem text: {result}");
+                    return result;
+                }
+
+                // Try reflection to get choice data from the component
+                var componentType = storyChoiceComponent.GetType();
+
+                // Try to get title/name
+                var getTitleMethod = componentType.GetMethod("GetTitle") ??
+                                     componentType.GetMethod("GetName") ??
+                                     componentType.GetMethod("GetChoiceTitle");
+                if (getTitleMethod != null)
+                {
+                    var title = getTitleMethod.Invoke(storyChoiceComponent, null) as string;
+                    if (!string.IsNullOrEmpty(title))
+                    {
+                        texts.Add(title);
+                    }
+                }
+
+                // Try to get description
+                var getDescMethod = componentType.GetMethod("GetDescription") ??
+                                    componentType.GetMethod("GetResultDescription");
+                if (getDescMethod != null)
+                {
+                    var desc = getDescMethod.Invoke(storyChoiceComponent, null) as string;
+                    if (!string.IsNullOrEmpty(desc))
+                    {
+                        texts.Add($"({desc})");
+                    }
+                }
+
+                if (texts.Count > 0)
+                {
+                    return string.Join(" ", texts);
+                }
+
+                // Log available fields for debugging
+                var fields = componentType.GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                var fieldNames = fields.Select(f => f.Name).Take(20);
+                MonsterTrainAccessibility.LogInfo($"StoryChoiceItem fields: {string.Join(", ", fieldNames)}");
+
+                return "Event choice";
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting story choice text: {ex.Message}");
+                return "Event choice";
+            }
         }
 
         /// <summary>
@@ -1843,43 +1956,8 @@ namespace MonsterTrainAccessibility.Screens
             if (string.IsNullOrEmpty(key))
                 return key;
 
-            try
-            {
-                // Find the Localize extension method
-                var assemblies = AppDomain.CurrentDomain.GetAssemblies();
-                foreach (var assembly in assemblies)
-                {
-                    try
-                    {
-                        var types = assembly.GetTypes();
-                        foreach (var type in types)
-                        {
-                            if (type.Name.Contains("LocalizationExtension") ||
-                                type.Name.Contains("StringExtension") ||
-                                type.Name == "LocalizationUtil")
-                            {
-                                var localizeMethod = type.GetMethod("Localize",
-                                    BindingFlags.Public | BindingFlags.Static,
-                                    null, new[] { typeof(string) }, null);
-
-                                if (localizeMethod != null)
-                                {
-                                    var result = localizeMethod.Invoke(null, new object[] { key }) as string;
-                                    if (!string.IsNullOrEmpty(result) && result != key)
-                                    {
-                                        MonsterTrainAccessibility.LogInfo($"Localized '{key}' to '{result}'");
-                                        return result;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    catch { }
-                }
-            }
-            catch { }
-
-            return key;
+            // Use the shared TryLocalize method which caches the localization method
+            return TryLocalize(key) ?? key;
         }
 
         /// <summary>
@@ -2095,6 +2173,10 @@ namespace MonsterTrainAccessibility.Screens
             return null;
         }
 
+        // Cached localization method
+        private static MethodInfo _cachedLocalizeMethod = null;
+        private static bool _localizeMethodSearched = false;
+
         /// <summary>
         /// Try to localize a string (if it's a localization key)
         /// </summary>
@@ -2106,42 +2188,79 @@ namespace MonsterTrainAccessibility.Screens
             try
             {
                 // Check if it looks like a localization key (typically contains _ or is UPPERCASE)
-                if (text.Contains("_") || text == text.ToUpperInvariant())
-                {
-                    // Try calling the Localize extension method
-                    var localizeMethod = typeof(string).GetMethod("Localize", Type.EmptyTypes);
-                    if (localizeMethod == null)
-                    {
-                        // Try to find it as an extension method
-                        var extensionTypes = AppDomain.CurrentDomain.GetAssemblies()
-                            .SelectMany(a => {
-                                try { return a.GetTypes(); }
-                                catch { return new Type[0]; }
-                            })
-                            .Where(t => t.Name.Contains("Localization") || t.Name.Contains("StringExtension"))
-                            .Take(5);
+                if (!text.Contains("_") && text != text.ToUpperInvariant())
+                    return text;
 
-                        foreach (var extType in extensionTypes)
-                        {
-                            var extMethod = extType.GetMethod("Localize",
-                                BindingFlags.Public | BindingFlags.Static,
-                                null, new[] { typeof(string) }, null);
-                            if (extMethod != null)
-                            {
-                                var localized = extMethod.Invoke(null, new object[] { text }) as string;
-                                if (!string.IsNullOrEmpty(localized) && localized != text)
-                                {
-                                    MonsterTrainAccessibility.LogInfo($"Localized '{text}' to '{localized}'");
-                                    return localized;
-                                }
-                            }
-                        }
+                // Find and cache the Localize method once
+                if (!_localizeMethodSearched)
+                {
+                    _localizeMethodSearched = true;
+                    FindLocalizeMethod();
+                }
+
+                if (_cachedLocalizeMethod != null)
+                {
+                    // Build args array with default values for optional params
+                    var parameters = _cachedLocalizeMethod.GetParameters();
+                    var args = new object[parameters.Length];
+                    args[0] = text;
+                    for (int i = 1; i < parameters.Length; i++)
+                    {
+                        args[i] = parameters[i].HasDefaultValue ? parameters[i].DefaultValue : null;
+                    }
+
+                    var localized = _cachedLocalizeMethod.Invoke(null, args) as string;
+                    if (!string.IsNullOrEmpty(localized) && localized != text)
+                    {
+                        return localized;
                     }
                 }
             }
             catch { }
 
             return text;
+        }
+
+        private void FindLocalizeMethod()
+        {
+            try
+            {
+                // Search in Assembly-CSharp for static extension classes
+                foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    var asmName = assembly.GetName().Name;
+                    if (!asmName.Contains("Assembly-CSharp") && !asmName.Contains("Trainworks"))
+                        continue;
+
+                    try
+                    {
+                        foreach (var type in assembly.GetTypes())
+                        {
+                            // Extension classes are static (abstract + sealed)
+                            if (!type.IsClass)
+                                continue;
+
+                            var method = type.GetMethod("Localize", BindingFlags.Public | BindingFlags.Static);
+                            if (method != null && method.ReturnType == typeof(string))
+                            {
+                                var parameters = method.GetParameters();
+                                if (parameters.Length >= 1 && parameters[0].ParameterType == typeof(string))
+                                {
+                                    _cachedLocalizeMethod = method;
+                                    MonsterTrainAccessibility.LogInfo($"Found Localize method in {type.FullName}");
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                    catch { }
+                }
+                MonsterTrainAccessibility.LogWarning("Could not find Localize method");
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error finding Localize method: {ex.Message}");
+            }
         }
 
         /// <summary>
@@ -2963,18 +3082,32 @@ namespace MonsterTrainAccessibility.Screens
                                     var tooltip = tooltipsList[0];
                                     var tooltipType = tooltip.GetType();
 
-                                    // Get title
+                                    // Get title and localize if it's a key
                                     var titleField = tooltipType.GetField("title", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
                                     if (titleField != null)
                                     {
-                                        title = titleField.GetValue(tooltip) as string;
+                                        string rawTitle = titleField.GetValue(tooltip) as string;
+                                        if (!string.IsNullOrEmpty(rawTitle))
+                                        {
+                                            // Try to localize - if it looks like a key
+                                            title = TryLocalize(rawTitle);
+                                            if (string.IsNullOrEmpty(title))
+                                                title = rawTitle;
+                                        }
                                     }
 
-                                    // Get body
+                                    // Get body and localize if it's a key
                                     var bodyField = tooltipType.GetField("body", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
                                     if (bodyField != null)
                                     {
-                                        body = bodyField.GetValue(tooltip) as string;
+                                        string rawBody = bodyField.GetValue(tooltip) as string;
+                                        if (!string.IsNullOrEmpty(rawBody))
+                                        {
+                                            // Try to localize - if it looks like a key
+                                            body = TryLocalize(rawBody);
+                                            if (string.IsNullOrEmpty(body))
+                                                body = rawBody;
+                                        }
                                     }
 
                                     return;
@@ -3154,49 +3287,265 @@ namespace MonsterTrainAccessibility.Screens
                     return null;
 
                 var screenType = runOpeningScreen.GetType();
-                MonsterTrainAccessibility.LogInfo($"Found RunOpeningScreen, logging fields...");
-                LogScreenFields(screenType, runOpeningScreen);
+                MonsterTrainAccessibility.LogInfo($"Found RunOpeningScreen component");
 
-                // Build the boss battles text by finding all TMP text elements in the screen
+                // Build the boss battles text from bossDetailsUIs
                 var sb = new StringBuilder();
-                sb.Append("Run Opening: ");
+                sb.Append("Boss Battles. ");
 
-                // Find the RunOpeningScreen GameObject and get all text from its children
+                // Get bossDetailsUIs field - List<BossDetailsUI>
+                var bossDetailsField = screenType.GetField("bossDetailsUIs", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                MonsterTrainAccessibility.LogInfo($"bossDetailsField found: {bossDetailsField != null}");
+                if (bossDetailsField != null)
+                {
+                    var bossDetailsList = bossDetailsField.GetValue(runOpeningScreen) as System.Collections.IList;
+                    MonsterTrainAccessibility.LogInfo($"bossDetailsList count: {bossDetailsList?.Count ?? 0}");
+                    if (bossDetailsList != null && bossDetailsList.Count > 0)
+                    {
+                        for (int i = 0; i < bossDetailsList.Count; i++)
+                        {
+                            var bossDetailsUI = bossDetailsList[i];
+                            if (bossDetailsUI == null) continue;
+
+                            MonsterTrainAccessibility.LogInfo($"Processing BossDetailsUI[{i}], type: {bossDetailsUI.GetType().Name}");
+
+                            // Log all fields of BossDetailsUI
+                            var uiType = bossDetailsUI.GetType();
+                            MonsterTrainAccessibility.LogInfo($"BossDetailsUI fields:");
+                            foreach (var field in uiType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
+                            {
+                                try
+                                {
+                                    var val = field.GetValue(bossDetailsUI);
+                                    MonsterTrainAccessibility.LogInfo($"  {field.Name} = {val?.GetType().Name ?? "null"}");
+                                }
+                                catch { }
+                            }
+
+                            string bossInfo = GetBossDetailsUIText(bossDetailsUI);
+                            MonsterTrainAccessibility.LogInfo($"BossDetailsUI[{i}] text: '{bossInfo}'");
+                            if (!string.IsNullOrEmpty(bossInfo))
+                            {
+                                sb.Append(bossInfo);
+                                if (i < bossDetailsList.Count - 1)
+                                    sb.Append(". ");
+                            }
+                        }
+
+                        string result = sb.ToString().Trim();
+                        MonsterTrainAccessibility.LogInfo($"Final boss battles text: '{result}'");
+                        if (result.Length > 15) // More than just "Boss Battles. "
+                        {
+                            // Add button hint
+                            sb.Append(". Press Enter to confirm.");
+                            return sb.ToString();
+                        }
+                    }
+                }
+
+                // Fallback - try to get text from children
                 var screenGo = (runOpeningScreen as MonoBehaviour)?.gameObject;
                 if (screenGo != null)
                 {
                     var texts = GetAllTextFromChildren(screenGo);
                     if (texts != null && texts.Count > 0)
                     {
-                        // Filter out empty strings and button text like "OK"
                         var meaningfulTexts = texts.Where(t =>
                             !string.IsNullOrWhiteSpace(t) &&
                             t.Length > 2 &&
                             !t.Equals("OK", StringComparison.OrdinalIgnoreCase) &&
-                            !t.Equals("Confirm", StringComparison.OrdinalIgnoreCase)
+                            !t.Equals("Confirm", StringComparison.OrdinalIgnoreCase) &&
+                            !t.ToLower().Contains("placeholder")
                         ).ToList();
 
                         if (meaningfulTexts.Count > 0)
                         {
-                            sb.Append(string.Join(". ", meaningfulTexts));
-                            return sb.ToString();
+                            return "Boss Battles. " + string.Join(". ", meaningfulTexts) + ". Press Enter to confirm.";
                         }
                     }
                 }
 
-                // Fallback - just indicate we're on the run opening screen
-                string buttonText = GetDirectText(go);
-                if (!string.IsNullOrEmpty(buttonText))
-                {
-                    return $"Run Opening Screen: {buttonText}";
-                }
-
-                return "Run Opening Screen";
+                return "Boss Battles. Press Enter to confirm.";
             }
             catch (Exception ex)
             {
                 MonsterTrainAccessibility.LogError($"Error getting run opening screen text: {ex.Message}");
             }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Extract text from a BossDetailsUI component
+        /// </summary>
+        private string GetBossDetailsUIText(object bossDetailsUI)
+        {
+            if (bossDetailsUI == null) return null;
+
+            try
+            {
+                var uiType = bossDetailsUI.GetType();
+                var sb = new StringBuilder();
+
+                // Get the title (Ring X: or Final Boss:) from titleLabel
+                var titleField = uiType.GetField("titleLabel", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (titleField != null)
+                {
+                    var labelObj = titleField.GetValue(bossDetailsUI);
+                    if (labelObj != null)
+                    {
+                        string titleText = GetTMPTextFromObject(labelObj);
+                        if (!string.IsNullOrEmpty(titleText) && !titleText.ToLower().Contains("placeholder"))
+                        {
+                            sb.Append(titleText);
+                        }
+                    }
+                }
+
+                // Get the boss name from tooltipProvider
+                var tooltipField = uiType.GetField("tooltipProvider", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (tooltipField != null)
+                {
+                    var tooltipProvider = tooltipField.GetValue(bossDetailsUI);
+                    if (tooltipProvider != null)
+                    {
+                        string bossName = GetBossNameFromTooltip(tooltipProvider);
+                        MonsterTrainAccessibility.LogInfo($"Boss name from tooltip: '{bossName}'");
+                        if (!string.IsNullOrEmpty(bossName) && !bossName.ToLower().Contains("placeholder"))
+                        {
+                            if (sb.Length > 0) sb.Append(" ");
+                            sb.Append(bossName);
+                        }
+                    }
+                }
+
+                string result = sb.ToString();
+                MonsterTrainAccessibility.LogInfo($"BossDetailsUI final text: '{result}'");
+                return !string.IsNullOrEmpty(result) ? result : null;
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting boss details UI text: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Extract boss name from TooltipProviderComponent
+        /// </summary>
+        private string GetBossNameFromTooltip(object tooltipProvider)
+        {
+            if (tooltipProvider == null) return null;
+
+            try
+            {
+                var tooltipType = tooltipProvider.GetType();
+
+                // Log all fields to see what's available
+                MonsterTrainAccessibility.LogInfo($"TooltipProvider type: {tooltipType.Name}");
+                foreach (var field in tooltipType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
+                {
+                    try
+                    {
+                        var val = field.GetValue(tooltipProvider);
+                        string valStr = val?.ToString() ?? "null";
+                        if (valStr.Length > 100) valStr = valStr.Substring(0, 100) + "...";
+                        MonsterTrainAccessibility.LogInfo($"  Tooltip.{field.Name} = {valStr}");
+                    }
+                    catch { }
+                }
+
+                // Try common tooltip title field names
+                string[] titleFieldNames = { "tooltipTitleKey", "_tooltipTitleKey", "titleKey", "title", "tooltipTitle" };
+                foreach (var fieldName in titleFieldNames)
+                {
+                    var field = tooltipType.GetField(fieldName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                    if (field != null)
+                    {
+                        var val = field.GetValue(tooltipProvider);
+                        if (val is string key && !string.IsNullOrEmpty(key))
+                        {
+                            // Try to localize the key
+                            string localized = TryLocalize(key);
+                            if (!string.IsNullOrEmpty(localized) && !localized.Contains("_") && !localized.Contains("-"))
+                            {
+                                return localized;
+                            }
+                            // If localization fails, return the key if it looks like a name
+                            if (!key.Contains("_") && !key.Contains("-"))
+                            {
+                                return key;
+                            }
+                        }
+                    }
+                }
+
+                // Try to get tooltips list/array
+                var tooltipsField = tooltipType.GetField("_tooltips", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance) ??
+                                   tooltipType.GetField("tooltips", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (tooltipsField != null)
+                {
+                    var tooltips = tooltipsField.GetValue(tooltipProvider);
+                    if (tooltips is System.Collections.IList list && list.Count > 0)
+                    {
+                        var firstTooltip = list[0];
+                        if (firstTooltip != null)
+                        {
+                            // Try to get title from the tooltip data
+                            var ttType = firstTooltip.GetType();
+                            var ttTitleField = ttType.GetField("title", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance) ??
+                                              ttType.GetField("titleKey", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                            if (ttTitleField != null)
+                            {
+                                var title = ttTitleField.GetValue(firstTooltip) as string;
+                                if (!string.IsNullOrEmpty(title))
+                                {
+                                    string localized = TryLocalize(title);
+                                    return !string.IsNullOrEmpty(localized) ? localized : title;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting boss name from tooltip: {ex.Message}");
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Get text from a TMP label object
+        /// </summary>
+        private string GetTMPTextFromObject(object labelObj)
+        {
+            if (labelObj == null) return null;
+
+            try
+            {
+                var labelType = labelObj.GetType();
+
+                // Try text property
+                var textProp = labelType.GetProperty("text");
+                if (textProp != null)
+                {
+                    var text = textProp.GetValue(labelObj) as string;
+                    if (!string.IsNullOrEmpty(text))
+                        return BattleAccessibility.StripRichTextTags(text);
+                }
+
+                // Try GetText method
+                var getTextMethod = labelType.GetMethod("GetText", Type.EmptyTypes);
+                if (getTextMethod != null)
+                {
+                    var text = getTextMethod.Invoke(labelObj, null) as string;
+                    if (!string.IsNullOrEmpty(text))
+                        return BattleAccessibility.StripRichTextTags(text);
+                }
+            }
+            catch { }
 
             return null;
         }
@@ -3384,6 +3733,16 @@ namespace MonsterTrainAccessibility.Screens
                         string cleanDesc = CleanSpriteTagsForSpeech(relicDescription);
                         sb.Append(". ");
                         sb.Append(cleanDesc);
+
+                        // Extract and append keyword explanations
+                        var keywords = new List<string>();
+                        ExtractKeywordsFromDescription(relicDescription, keywords);
+                        if (keywords.Count > 0)
+                        {
+                            sb.Append(" Keywords: ");
+                            sb.Append(string.Join(". ", keywords));
+                            sb.Append(".");
+                        }
                     }
 
                     string result = sb.ToString();
@@ -8413,38 +8772,94 @@ namespace MonsterTrainAccessibility.Screens
             // Known keywords to look for (case-insensitive)
             var knownKeywords = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
-                { "Armor", "Armor: Reduces damage taken by the armor amount" },
-                { "Rage", "Rage: Increases attack damage by the rage amount" },
-                { "Regen", "Regen: Restores health each turn equal to regen amount" },
-                { "Frostbite", "Frostbite: Deals damage at end of turn, then decreases by 1" },
-                { "Sap", "Sap: Reduces attack by the sap amount" },
-                { "Dazed", "Dazed: Unit cannot attack this turn" },
-                { "Rooted", "Rooted: Unit cannot move to another floor" },
-                { "Quick", "Quick: Attacks before other units" },
-                { "Multistrike", "Multistrike: Attacks multiple times" },
-                { "Sweep", "Sweep: Attacks all enemies on floor" },
-                { "Trample", "Trample: Excess damage hits the next enemy" },
-                { "Lifesteal", "Lifesteal: Heals for damage dealt" },
-                { "Spikes", "Spikes: Deals damage to attackers" },
-                { "Damage Shield", "Damage Shield: Blocks damage from next attack" },
-                { "Stealth", "Stealth: Cannot be targeted until it attacks" },
-                { "Burnout", "Burnout: Dies at end of turn" },
-                { "Endless", "Endless: Returns to hand when killed" },
-                { "Fragile", "Fragile: Dies when damaged" },
+                // Trigger abilities
+                { "Slay", "Slay: Triggers after dealing a killing blow" },
+                { "Revenge", "Revenge: Triggers when this unit takes damage" },
+                { "Strike", "Strike: Triggers when this unit attacks" },
+                { "Extinguish", "Extinguish: Triggers when this unit dies" },
+                { "Summon", "Summon: Triggers when this unit is played" },
+                { "Incant", "Incant: Triggers when you play a spell on this floor" },
+                { "Resolve", "Resolve: Triggers after combat" },
+                { "Rally", "Rally: Triggers when you play a non-Morsel unit on this floor" },
+                { "Harvest", "Harvest: Triggers when any unit on this floor dies" },
+                { "Gorge", "Gorge: Triggers when this unit eats a Morsel" },
+                { "Inspire", "Inspire: Triggers when gaining Echo on this floor" },
+                { "Rejuvenate", "Rejuvenate: Triggers when healed, even at full health" },
+                { "Action", "Action: Triggers at start of this unit's turn" },
+                { "Hatch", "Hatch: Unit dies and triggers hatching ability" },
+                { "Hunger", "Hunger: Triggers when an Eaten unit is summoned" },
+                { "Armored", "Armored: Triggers when Armor is added" },
+                // Buffs
+                { "Armor", "Armor: Blocks damage before health, each point blocks one damage" },
+                { "Rage", "Rage: +2 Attack per stack, decreases every turn" },
+                { "Regen", "Regen: Restores 1 health per stack at end of turn" },
+                { "Damage Shield", "Damage Shield: Nullifies the next source of damage" },
+                { "Lifesteal", "Lifesteal: Heals for damage dealt when attacking" },
+                { "Spikes", "Spikes: Attackers take 1 damage per stack" },
+                { "Stealth", "Stealth: Not targeted in combat, loses 1 stack per turn" },
+                { "Spell Shield", "Spell Shield: Absorbs the next damage spell" },
+                { "Spellshield", "Spellshield: Absorbs the next damage spell" },
+                { "Soul", "Soul: Powers Devourer of Death's Extinguish ability" },
+                // Debuffs
+                { "Frostbite", "Frostbite: Takes 1 damage per stack at end of turn" },
+                { "Sap", "Sap: -2 Attack per stack, decreases every turn" },
+                { "Dazed", "Dazed: Cannot attack or use Action/Resolve abilities" },
+                { "Rooted", "Rooted: Prevents the next floor movement" },
+                { "Emberdrain", "Emberdrain: Lose Ember at turn start, decreases each turn" },
                 { "Heartless", "Heartless: Cannot be healed" },
-                { "Immobile", "Immobile: Cannot be moved" },
-                { "Permafrost", "Permafrost: Card remains in hand between turns" },
-                { "Frozen", "Frozen: Cannot be played until unfrozen" },
-                { "Consume", "Consume: Removed from deck after playing" },
+                { "Melee Weakness", "Melee Weakness: Takes extra damage from next melee attack" },
+                { "Spell Weakness", "Spell Weakness: Takes extra damage from next spell" },
+                { "Reap", "Reap: Takes 1 damage per stack of Echo after combat" },
+                // Unit effects
+                { "Quick", "Quick: Attacks before enemy units" },
+                { "Multistrike", "Multistrike: Attacks an additional time each turn" },
+                { "Sweep", "Sweep: Attacks all enemy units" },
+                { "Trample", "Trample: Excess damage hits the next enemy" },
+                { "Burnout", "Burnout: Dies when counter reaches 0" },
+                { "Endless", "Endless: Returns card to top of draw pile when killed" },
+                { "Fragile", "Fragile: Dies if it loses any health" },
+                { "Immobile", "Immobile: Cannot move between floors" },
+                { "Inert", "Inert: Cannot attack unless it has Fuel" },
+                { "Fuel", "Fuel: Allows Inert units to attack, loses 1 per turn" },
+                { "Phased", "Phased: Cannot attack or be damaged/targeted" },
+                { "Relentless", "Relentless: Attacks until floor cleared, then ascends" },
+                { "Haste", "Haste: Moves directly from first to third floor" },
+                { "Cardless", "Cardless: Not from a card, won't go to Consume pile" },
+                { "Buffet", "Buffet: Can be eaten multiple times" },
+                { "Shell", "Shell: Consumes Echo to remove stacks, triggers Hatch when depleted" },
+                { "Silence", "Silence: Disables triggered abilities" },
+                { "Silenced", "Silenced: Triggered abilities are disabled" },
+                { "Purify", "Purify: Removes all debuffs at end of turn" },
+                { "Enchant", "Enchant: Other friendly units on floor gain a bonus" },
+                { "Shard", "Shard: Powers Solgard the Martyr's abilities" },
+                { "Eaten", "Eaten: Will be eaten by front unit after combat" },
+                // Card effects
+                { "Consume", "Consume: Can only be played once per battle" },
+                { "Frozen", "Frozen: Not discarded at end of turn" },
+                { "Permafrost", "Permafrost: Gains Frozen when drawn" },
+                { "Purge", "Purge: Removed from deck for the rest of the run" },
+                { "Intrinsic", "Intrinsic: Starts in your opening hand" },
                 { "Holdover", "Holdover: Returns to hand at end of turn" },
-                { "Purge", "Purge: Removed from deck permanently" },
-                { "Intrinsic", "Intrinsic: Always drawn on first turn" },
-                { "Etch", "Etch: Permanently upgrade this card" },
-                { "Emberdrain", "Emberdrain: Reduces ember at start of turn" },
-                { "Spell Weakness", "Spell Weakness: Takes extra damage from spells" },
-                { "Melee Weakness", "Melee Weakness: Takes extra damage from attacks" },
-                { "Spellshield", "Spellshield: Blocks damage from spells" },
-                { "Phased", "Phased: Cannot be targeted" }
+                { "Etch", "Etch: Permanently upgrade this card when consumed" },
+                { "Offering", "Offering: Played automatically if discarded" },
+                { "Reserve", "Reserve: Triggers if card remains in hand at end of turn" },
+                { "Pyrebound", "Pyrebound: Only playable in Pyre Room or floor below" },
+                { "Piercing", "Piercing: Damage ignores Armor and shields" },
+                { "Magic Power", "Magic Power: Boosts spell damage and healing" },
+                { "Attuned", "Attuned: Multiplies Magic Power effects by 5" },
+                { "Infused", "Infused: Floor gains 1 Echo when played" },
+                { "Extract", "Extract: Removes charged echoes when played" },
+                { "Spellchain", "Spellchain: Creates a copy with +1 cost and Purge" },
+                { "X Cost", "X Cost: Spends all remaining Ember, effect scales with amount" },
+                { "Unplayable", "Unplayable: This card cannot be played" },
+                // Unit actions
+                { "Ascend", "Ascend: Move up a floor to the back" },
+                { "Descend", "Descend: Move down a floor to the back" },
+                { "Reform", "Reform: Return a defeated friendly unit to hand" },
+                { "Sacrifice", "Sacrifice: Kill a friendly unit to play this card" },
+                { "Cultivate", "Cultivate: Increase stats of lowest health friendly unit" },
+                // Enemy effects
+                { "Recover", "Recover: Restores health to friendly units after combat" }
             };
 
             foreach (var keyword in knownKeywords)

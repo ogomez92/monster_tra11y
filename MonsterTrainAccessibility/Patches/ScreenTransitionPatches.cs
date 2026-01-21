@@ -203,6 +203,12 @@ namespace MonsterTrainAccessibility.Patches
                                 if (!string.IsNullOrEmpty(descKey))
                                 {
                                     ruleDescription = TryLocalizeKey(descKey);
+
+                                    // Resolve placeholders like {[effect0.status0.power]}
+                                    if (!string.IsNullOrEmpty(ruleDescription) && ruleDescription.Contains("{["))
+                                    {
+                                        ruleDescription = ResolveEffectPlaceholders(ruleDescription, sinData, sinType);
+                                    }
                                 }
                             }
                         }
@@ -268,7 +274,7 @@ namespace MonsterTrainAccessibility.Patches
                     sb.Append("Press F to toggle trial. ");
                 }
 
-                sb.Append("Press Enter to fight.");
+                sb.Append("Press Enter to fight. Press F1 for help.");
 
                 MonsterTrainAccessibility.ScreenReader?.Speak(sb.ToString(), false);
             }
@@ -533,6 +539,99 @@ namespace MonsterTrainAccessibility.Patches
         }
 
         /// <summary>
+        /// Resolve placeholders like {[effect0.status0.power]} in localized text
+        /// </summary>
+        private static string ResolveEffectPlaceholders(string text, object relicData, Type relicType)
+        {
+            if (string.IsNullOrEmpty(text) || relicData == null) return text;
+
+            try
+            {
+                // Get effects from the relic data (SinsData inherits from RelicData)
+                var getEffectsMethod = relicType.GetMethod("GetEffects", Type.EmptyTypes);
+                if (getEffectsMethod == null)
+                {
+                    // Try the base RelicData type
+                    var baseType = relicType.BaseType;
+                    while (baseType != null && getEffectsMethod == null)
+                    {
+                        getEffectsMethod = baseType.GetMethod("GetEffects", Type.EmptyTypes);
+                        baseType = baseType.BaseType;
+                    }
+                }
+
+                if (getEffectsMethod != null)
+                {
+                    var effects = getEffectsMethod.Invoke(relicData, null) as System.Collections.IList;
+                    if (effects != null && effects.Count > 0)
+                    {
+                        // Look for patterns like {[effect0.status0.power]} or {[effect0.power]}
+                        var regex = new System.Text.RegularExpressions.Regex(@"\{\[effect(\d+)\.(?:status(\d+)\.)?(\w+)\]\}");
+                        text = regex.Replace(text, match =>
+                        {
+                            int effectIndex = int.Parse(match.Groups[1].Value);
+                            string property = match.Groups[3].Value;
+                            int statusIndex = match.Groups[2].Success ? int.Parse(match.Groups[2].Value) : -1;
+
+                            if (effectIndex < effects.Count)
+                            {
+                                var effect = effects[effectIndex];
+                                if (effect != null)
+                                {
+                                    var effectType = effect.GetType();
+
+                                    // If status index specified, get from paramStatusEffects array
+                                    if (statusIndex >= 0 && property.ToLower() == "power")
+                                    {
+                                        var statusEffectsField = effectType.GetField("paramStatusEffects",
+                                            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+                                        if (statusEffectsField != null)
+                                        {
+                                            var statusEffects = statusEffectsField.GetValue(effect) as Array;
+                                            if (statusEffects != null && statusIndex < statusEffects.Length)
+                                            {
+                                                var statusEffect = statusEffects.GetValue(statusIndex);
+                                                if (statusEffect != null)
+                                                {
+                                                    // StatusEffectStackData has 'count' field for the power
+                                                    var countField = statusEffect.GetType().GetField("count",
+                                                        System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                                                    if (countField != null)
+                                                    {
+                                                        var count = countField.GetValue(statusEffect);
+                                                        return count?.ToString() ?? match.Value;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    else
+                                    {
+                                        // Try to get the property directly from effect
+                                        var propField = effectType.GetField("param" + char.ToUpper(property[0]) + property.Substring(1),
+                                            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+                                        if (propField != null)
+                                        {
+                                            var value = propField.GetValue(effect);
+                                            return value?.ToString() ?? match.Value;
+                                        }
+                                    }
+                                }
+                            }
+                            return match.Value;
+                        });
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"ResolveEffectPlaceholders error: {ex.Message}");
+            }
+
+            return text;
+        }
+
+        /// <summary>
         /// Get a human-readable display name from the reward type
         /// </summary>
         private static string GetRewardTypeDisplayName(Type rewardType)
@@ -638,7 +737,7 @@ namespace MonsterTrainAccessibility.Patches
                 MonsterTrainAccessibility.LogInfo("Card draft screen detected");
 
                 // For now, announce generic draft entry
-                MonsterTrainAccessibility.ScreenReader?.AnnounceScreen("Card Draft");
+                MonsterTrainAccessibility.ScreenReader?.AnnounceScreen("Card Draft. Press F1 for help.");
             }
             catch (Exception ex)
             {
@@ -679,7 +778,7 @@ namespace MonsterTrainAccessibility.Patches
             try
             {
                 ScreenStateTracker.SetScreen(Help.GameScreen.ClanSelection);
-                MonsterTrainAccessibility.ScreenReader?.AnnounceScreen("Clan Selection");
+                MonsterTrainAccessibility.ScreenReader?.AnnounceScreen("Clan Selection. Press F1 for help.");
             }
             catch (Exception ex)
             {
@@ -726,7 +825,7 @@ namespace MonsterTrainAccessibility.Patches
             try
             {
                 ScreenStateTracker.SetScreen(Help.GameScreen.Map);
-                MonsterTrainAccessibility.ScreenReader?.AnnounceScreen("Map");
+                MonsterTrainAccessibility.ScreenReader?.AnnounceScreen("Map. Press F1 for help.");
             }
             catch (Exception ex)
             {
@@ -780,7 +879,7 @@ namespace MonsterTrainAccessibility.Patches
                 int gold = InputInterceptor.GetCurrentGold();
                 string goldText = gold >= 0 ? $"You have {gold} gold." : "";
 
-                MonsterTrainAccessibility.ScreenReader?.AnnounceScreen($"Shop. {goldText}");
+                MonsterTrainAccessibility.ScreenReader?.AnnounceScreen($"Shop. {goldText} Press F1 for help.");
             }
             catch (Exception ex)
             {

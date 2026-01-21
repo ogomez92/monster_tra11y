@@ -31,7 +31,6 @@ namespace MonsterTrainAccessibility.Help.Contexts
                    "L: Read floors (friendly and enemy units on each floor). " +
                    "N: Read all units (your monsters and enemies on each floor). " +
                    "R: Read resources (ember, pyre health, deck/discard counts). " +
-                   "1 through 9: Select card by position in hand. " +
                    "Enter: Play selected card. Some cards require floor selection. " +
                    "E: End your turn and start combat phase. " +
                    "C: Re-read current selection. " +

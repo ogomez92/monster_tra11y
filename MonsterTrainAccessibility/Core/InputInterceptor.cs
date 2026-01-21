@@ -64,21 +64,6 @@ namespace MonsterTrainAccessibility.Core
                 return;
             }
 
-            // Number keys for card selection in battle
-            var battle = MonsterTrainAccessibility.BattleHandler;
-            if (battle != null && battle.IsInBattle)
-            {
-                for (int i = 1; i <= 9; i++)
-                {
-                    if (Input.GetKeyDown(KeyCode.Alpha0 + i) || Input.GetKeyDown(KeyCode.Keypad0 + i))
-                    {
-                        battle.SelectCardByIndex(i - 1);
-                        _inputCooldown = INPUT_COOLDOWN_TIME;
-                        return;
-                    }
-                }
-            }
-
             // Information hotkeys - these don't interfere with game navigation
             if (Input.GetKeyDown(config.ReadCurrentKey.Value))
             {

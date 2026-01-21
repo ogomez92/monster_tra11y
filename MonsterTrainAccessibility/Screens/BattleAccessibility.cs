@@ -32,10 +32,12 @@ namespace MonsterTrainAccessibility.Screens
         private System.Reflection.MethodInfo _getEnergyMethod;
         private System.Reflection.MethodInfo _getGoldMethod;
         private System.Reflection.MethodInfo _getRoomMethod;
+        private System.Reflection.MethodInfo _getSelectedRoomMethod;
         private System.Reflection.MethodInfo _getHPMethod;
         private System.Reflection.MethodInfo _getAttackDamageMethod;
         private System.Reflection.MethodInfo _getTeamTypeMethod;
         private System.Reflection.MethodInfo _getCharacterNameMethod;
+        private bool _roomManagerMethodsLogged = false;
 
         public BattleAccessibility()
         {
@@ -130,6 +132,39 @@ namespace MonsterTrainAccessibility.Screens
                     var roomManagerType = _roomManager.GetType();
                     // GetRoom takes an int parameter (room index)
                     _getRoomMethod = roomManagerType.GetMethod("GetRoom", new Type[] { typeof(int) });
+
+                    // Log all RoomManager methods once to find the selected room method
+                    if (!_roomManagerMethodsLogged)
+                    {
+                        _roomManagerMethodsLogged = true;
+                        var methods = roomManagerType.GetMethods(BindingFlags.Public | BindingFlags.Instance);
+                        var relevantMethods = methods.Where(m =>
+                            m.Name.Contains("Room") || m.Name.Contains("Select") ||
+                            m.Name.Contains("Active") || m.Name.Contains("Focus") ||
+                            m.Name.Contains("Current") || m.Name.Contains("View") ||
+                            m.Name.Contains("Index") || m.Name.Contains("Floor"))
+                            .Select(m => $"{m.Name}({string.Join(", ", m.GetParameters().Select(p => p.ParameterType.Name))})");
+                        MonsterTrainAccessibility.LogInfo($"RoomManager room-related methods: {string.Join(", ", relevantMethods)}");
+
+                        // Also check properties
+                        var properties = roomManagerType.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+                        var relevantProps = properties.Where(p =>
+                            p.Name.Contains("Room") || p.Name.Contains("Select") ||
+                            p.Name.Contains("Active") || p.Name.Contains("Focus") ||
+                            p.Name.Contains("Current") || p.Name.Contains("View") ||
+                            p.Name.Contains("Index") || p.Name.Contains("Floor"))
+                            .Select(p => $"{p.Name} ({p.PropertyType.Name})");
+                        MonsterTrainAccessibility.LogInfo($"RoomManager room-related properties: {string.Join(", ", relevantProps)}");
+                    }
+
+                    // Try to find the selected room method/property
+                    _getSelectedRoomMethod = roomManagerType.GetMethod("GetSelectedRoom", Type.EmptyTypes) ??
+                                             roomManagerType.GetMethod("GetActiveRoom", Type.EmptyTypes) ??
+                                             roomManagerType.GetMethod("GetFocusedRoom", Type.EmptyTypes) ??
+                                             roomManagerType.GetMethod("GetCurrentRoom", Type.EmptyTypes) ??
+                                             roomManagerType.GetMethod("GetSelectedRoomIndex", Type.EmptyTypes) ??
+                                             roomManagerType.GetMethod("GetActiveRoomIndex", Type.EmptyTypes) ??
+                                             roomManagerType.GetMethod("GetFocusedRoomIndex", Type.EmptyTypes);
                 }
             }
             catch (Exception ex)
@@ -692,45 +727,6 @@ namespace MonsterTrainAccessibility.Screens
             }
         }
 
-        public void SelectCardByIndex(int index)
-        {
-            // This would need to interact with the game's card selection
-            // For now, just announce the card at that index
-            var hand = GetHandCards();
-            if (hand != null && index >= 0 && index < hand.Count)
-            {
-                var card = hand[index];
-                string name = GetCardTitle(card);
-                int cost = GetCardCost(card);
-                string cardType = GetCardType(card);
-                string clanName = GetCardClan(card);
-                string description = GetCardDescription(card);
-
-                string typeStr = !string.IsNullOrEmpty(cardType) ? $" ({cardType})" : "";
-                string clanStr = !string.IsNullOrEmpty(clanName) ? $", {clanName}" : "";
-                var sb = new StringBuilder();
-                sb.Append($"Card {index + 1}: {name}{typeStr}{clanStr}, {cost} ember.");
-
-                if (!string.IsNullOrEmpty(description))
-                {
-                    sb.Append($" {description}");
-                }
-
-                // Add keyword tooltips
-                string keywords = GetCardKeywords(card, description);
-                if (!string.IsNullOrEmpty(keywords))
-                {
-                    sb.Append($" Keywords: {keywords}");
-                }
-
-                MonsterTrainAccessibility.ScreenReader?.Speak(sb.ToString(), false);
-            }
-            else
-            {
-                MonsterTrainAccessibility.ScreenReader?.Speak($"No card at position {index + 1}", false);
-            }
-        }
-
         /// <summary>
         /// Extract keyword definitions from a card's description
         /// </summary>
@@ -745,38 +741,94 @@ namespace MonsterTrainAccessibility.Screens
                 // Known keywords with their definitions
                 var knownKeywords = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                 {
-                    { "Armor", "Armor: Reduces damage taken" },
-                    { "Rage", "Rage: Increases attack damage" },
-                    { "Regen", "Regen: Restores health each turn" },
-                    { "Frostbite", "Frostbite: Deals damage at end of turn" },
-                    { "Sap", "Sap: Reduces attack" },
-                    { "Dazed", "Dazed: Cannot attack this turn" },
-                    { "Rooted", "Rooted: Cannot move floors" },
-                    { "Quick", "Quick: Attacks before other units" },
-                    { "Multistrike", "Multistrike: Attacks multiple times" },
-                    { "Sweep", "Sweep: Attacks all enemies on floor" },
-                    { "Trample", "Trample: Excess damage hits next enemy" },
+                    // Trigger abilities
+                    { "Slay", "Slay: Triggers after dealing a killing blow" },
+                    { "Revenge", "Revenge: Triggers when damaged" },
+                    { "Strike", "Strike: Triggers when attacking" },
+                    { "Extinguish", "Extinguish: Triggers when dying" },
+                    { "Summon", "Summon: Triggers when played" },
+                    { "Incant", "Incant: Triggers when spell played on floor" },
+                    { "Resolve", "Resolve: Triggers after combat" },
+                    { "Rally", "Rally: Triggers when unit played on floor" },
+                    { "Harvest", "Harvest: Triggers when unit dies on floor" },
+                    { "Gorge", "Gorge: Triggers when eating a Morsel" },
+                    { "Inspire", "Inspire: Triggers when gaining Echo" },
+                    { "Rejuvenate", "Rejuvenate: Triggers when healed" },
+                    { "Action", "Action: Triggers at turn start" },
+                    { "Hatch", "Hatch: Triggers on death" },
+                    { "Hunger", "Hunger: Triggers when Eaten unit summoned" },
+                    { "Armored", "Armored: Triggers when Armor added" },
+                    // Buffs
+                    { "Armor", "Armor: Blocks damage" },
+                    { "Rage", "Rage: +2 Attack per stack" },
+                    { "Regen", "Regen: Heals each turn" },
+                    { "Damage Shield", "Damage Shield: Blocks next damage" },
                     { "Lifesteal", "Lifesteal: Heals for damage dealt" },
-                    { "Spikes", "Spikes: Deals damage to attackers" },
-                    { "Damage Shield", "Damage Shield: Blocks next attack" },
-                    { "Stealth", "Stealth: Cannot be targeted until it attacks" },
-                    { "Burnout", "Burnout: Dies at end of turn" },
-                    { "Endless", "Endless: Returns to hand when killed" },
-                    { "Fragile", "Fragile: Dies when damaged" },
+                    { "Spikes", "Spikes: Damages attackers" },
+                    { "Stealth", "Stealth: Not targeted in combat" },
+                    { "Spell Shield", "Spell Shield: Absorbs next spell" },
+                    { "Spellshield", "Spellshield: Absorbs next spell" },
+                    { "Soul", "Soul: Powers Extinguish ability" },
+                    // Debuffs
+                    { "Frostbite", "Frostbite: Damages at end of turn" },
+                    { "Sap", "Sap: -2 Attack per stack" },
+                    { "Dazed", "Dazed: Cannot attack" },
+                    { "Rooted", "Rooted: Cannot move floors" },
+                    { "Emberdrain", "Emberdrain: Lose Ember at turn start" },
                     { "Heartless", "Heartless: Cannot be healed" },
-                    { "Immobile", "Immobile: Cannot be moved" },
-                    { "Permafrost", "Permafrost: Remains in hand between turns" },
-                    { "Frozen", "Frozen: Cannot be played until unfrozen" },
-                    { "Consume", "Consume: Removed from deck after playing" },
-                    { "Holdover", "Holdover: Returns to hand at end of turn" },
-                    { "Purge", "Purge: Removed from deck permanently" },
-                    { "Intrinsic", "Intrinsic: Always drawn on first turn" },
-                    { "Etch", "Etch: Permanently upgrade this card" },
-                    { "Emberdrain", "Emberdrain: Reduces ember at start of turn" },
-                    { "Spell Weakness", "Spell Weakness: Takes extra spell damage" },
-                    { "Melee Weakness", "Melee Weakness: Takes extra attack damage" },
-                    { "Spellshield", "Spellshield: Blocks spell damage" },
-                    { "Phased", "Phased: Cannot be targeted" }
+                    { "Melee Weakness", "Melee Weakness: Extra melee damage" },
+                    { "Spell Weakness", "Spell Weakness: Extra spell damage" },
+                    { "Reap", "Reap: Damages after combat" },
+                    // Unit effects
+                    { "Quick", "Quick: Attacks first" },
+                    { "Multistrike", "Multistrike: Extra attack" },
+                    { "Sweep", "Sweep: Attacks all enemies" },
+                    { "Trample", "Trample: Excess damage continues" },
+                    { "Burnout", "Burnout: Dies when counter reaches 0" },
+                    { "Endless", "Endless: Returns to draw pile" },
+                    { "Fragile", "Fragile: Dies if damaged" },
+                    { "Immobile", "Immobile: Cannot move" },
+                    { "Inert", "Inert: Needs Fuel to attack" },
+                    { "Fuel", "Fuel: Allows Inert to attack" },
+                    { "Phased", "Phased: Cannot be targeted" },
+                    { "Relentless", "Relentless: Attacks until floor cleared" },
+                    { "Haste", "Haste: Skips to third floor" },
+                    { "Cardless", "Cardless: Not from a card" },
+                    { "Buffet", "Buffet: Can be eaten multiple times" },
+                    { "Shell", "Shell: Uses Echo, triggers Hatch" },
+                    { "Silence", "Silence: Disables triggers" },
+                    { "Silenced", "Silenced: Triggers disabled" },
+                    { "Purify", "Purify: Removes debuffs" },
+                    { "Enchant", "Enchant: Buffs floor allies" },
+                    { "Shard", "Shard: Powers Solgard" },
+                    { "Eaten", "Eaten: Will be eaten" },
+                    // Card effects
+                    { "Consume", "Consume: One use per battle" },
+                    { "Frozen", "Frozen: Not discarded" },
+                    { "Permafrost", "Permafrost: Gains Frozen" },
+                    { "Purge", "Purge: Removed from deck" },
+                    { "Intrinsic", "Intrinsic: Starts in hand" },
+                    { "Holdover", "Holdover: Returns to hand" },
+                    { "Etch", "Etch: Upgrades when consumed" },
+                    { "Offering", "Offering: Plays if discarded" },
+                    { "Reserve", "Reserve: Triggers if kept" },
+                    { "Pyrebound", "Pyrebound: Pyre room only" },
+                    { "Piercing", "Piercing: Ignores Armor" },
+                    { "Magic Power", "Magic Power: Boosts spells" },
+                    { "Attuned", "Attuned: 5x Magic Power" },
+                    { "Infused", "Infused: Adds Echo" },
+                    { "Extract", "Extract: Uses charged echoes" },
+                    { "Spellchain", "Spellchain: Creates copy" },
+                    { "X Cost", "X Cost: Uses all Ember" },
+                    { "Unplayable", "Unplayable: Cannot be played" },
+                    // Unit actions
+                    { "Ascend", "Ascend: Move up" },
+                    { "Descend", "Descend: Move down" },
+                    { "Reform", "Reform: Returns unit to hand" },
+                    { "Sacrifice", "Sacrifice: Kill unit to play" },
+                    { "Cultivate", "Cultivate: Buff weakest unit" },
+                    // Enemy effects
+                    { "Recover", "Recover: Heals after combat" }
                 };
 
                 foreach (var keyword in knownKeywords)
@@ -867,6 +919,67 @@ namespace MonsterTrainAccessibility.Screens
             {
                 MonsterTrainAccessibility.LogError($"Error announcing floors: {ex.Message}");
                 MonsterTrainAccessibility.ScreenReader?.Speak("Could not read floors", false);
+            }
+        }
+
+        /// <summary>
+        /// Get the currently selected floor from the game state.
+        /// Returns user-facing floor number (1-3, where 1 is bottom, 3 is top).
+        /// Returns -1 if unable to determine.
+        /// </summary>
+        public int GetSelectedFloor()
+        {
+            try
+            {
+                if (_roomManager == null)
+                {
+                    FindManagers();
+                }
+
+                if (_roomManager == null)
+                {
+                    MonsterTrainAccessibility.LogInfo("GetSelectedFloor: RoomManager is null");
+                    return -1;
+                }
+
+                var roomManagerType = _roomManager.GetType();
+                int roomIndex = -1;
+
+                // GetSelectedRoom() returns an int (room index) directly, not a RoomState object
+                var getSelectedRoomMethod = roomManagerType.GetMethod("GetSelectedRoom", Type.EmptyTypes);
+                if (getSelectedRoomMethod != null)
+                {
+                    var result = getSelectedRoomMethod.Invoke(_roomManager, null);
+                    if (result is int idx)
+                    {
+                        roomIndex = idx;
+                        MonsterTrainAccessibility.LogInfo($"GetSelectedFloor: GetSelectedRoom() = {roomIndex}");
+                    }
+                    else
+                    {
+                        MonsterTrainAccessibility.LogInfo($"GetSelectedFloor: GetSelectedRoom() returned {result?.GetType().Name ?? "null"}: {result}");
+                    }
+                }
+                else
+                {
+                    MonsterTrainAccessibility.LogInfo("GetSelectedFloor: GetSelectedRoom method not found");
+                }
+
+                // Convert room index to user floor
+                // Room 0 = Floor 3 (top), Room 1 = Floor 2, Room 2 = Floor 1 (bottom), Room 3 = Pyre (floor 0)
+                if (roomIndex >= 0 && roomIndex <= 3)
+                {
+                    int userFloor = 3 - roomIndex; // This gives: 0->3, 1->2, 2->1, 3->0 (pyre)
+                    MonsterTrainAccessibility.LogInfo($"GetSelectedFloor: Converting room {roomIndex} to floor {userFloor}");
+                    return userFloor;
+                }
+
+                return -1;
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"GetSelectedFloor error: {ex.Message}");
+                return -1;
             }
         }
 
@@ -2049,8 +2162,21 @@ namespace MonsterTrainAccessibility.Screens
             if (!MonsterTrainAccessibility.AccessibilitySettings.AnnounceSpawns.Value)
                 return;
 
-            // Determine floor name
-            string floorName = floorIndex == 0 ? "pyre room" : $"floor {floorIndex}";
+            // Skip invalid unit names
+            if (string.IsNullOrEmpty(unitName) || unitName == "Unit")
+                return;
+
+            // Determine floor name - handle invalid floor indices
+            string floorName;
+            if (floorIndex <= 0)
+            {
+                // Floor index 0 is pyre room, negative means unknown
+                floorName = floorIndex == 0 ? "pyre room" : "the battlefield";
+            }
+            else
+            {
+                floorName = $"floor {floorIndex}";
+            }
 
             if (isEnemy)
             {

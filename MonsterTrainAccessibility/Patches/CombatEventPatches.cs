@@ -100,6 +100,12 @@ namespace MonsterTrainAccessibility.Patches
         // Track last damage to avoid duplicate announcements
         private static float _lastDamageTime = 0f;
         private static string _lastDamageKey = "";
+        // Track HP before damage to filter out previews
+        private static Dictionary<int, int> _preHpTracker = new Dictionary<int, int>();
+
+        // Track recently damaged targets for death correlation
+        // Key = target hash, Value = time of damage announcement
+        public static Dictionary<int, float> RecentlyDamagedTargets = new Dictionary<int, float>();
 
         public static void TryPatch(Harmony harmony)
         {
@@ -122,9 +128,10 @@ namespace MonsterTrainAccessibility.Patches
                             MonsterTrainAccessibility.LogInfo($"  {p.Name}: {p.ParameterType.Name}");
                         }
 
+                        var prefix = new HarmonyMethod(typeof(DamageAppliedPatch).GetMethod(nameof(Prefix)));
                         var postfix = new HarmonyMethod(typeof(DamageAppliedPatch).GetMethod(nameof(Postfix)));
-                        harmony.Patch(method, postfix: postfix);
-                        MonsterTrainAccessibility.LogInfo($"Patched damage method: {method.Name}");
+                        harmony.Patch(method, prefix: prefix, postfix: postfix);
+                        MonsterTrainAccessibility.LogInfo($"Patched damage method: {method.Name} (with preview filter)");
                     }
                 }
             }
@@ -134,52 +141,90 @@ namespace MonsterTrainAccessibility.Patches
             }
         }
 
-        // Use positional parameters: __0 = damage (int), __1 = target (CharacterState)
-        public static void Postfix(int __0, object __1)
+        // PREFIX: Record HP before damage - __1 is the target CharacterState
+        public static void Prefix(object __1)
         {
             try
             {
-                int damage = __0;
-                object target = __1;
+                if (__1 == null) return;
+                int hash = __1.GetHashCode();
+                int hp = GetCurrentHP(__1);
+                _preHpTracker[hash] = hp;
+            }
+            catch { }
+        }
 
-                if (damage > 0 && target != null)
+        // Use positional parameters - ApplyDamageToTarget may take a struct parameter
+        public static void Postfix(object __0, object __1, object __2)
+        {
+            try
+            {
+                // Skip if we're in floor targeting mode (this is a preview, not actual damage)
+                var targeting = MonsterTrainAccessibility.FloorTargeting;
+                if (targeting != null && targeting.IsTargeting)
                 {
-                    string targetName = GetUnitName(target);
-                    bool isEnemy = IsEnemyUnit(target);
-                    int currentHP = GetCurrentHP(target);
-
-                    // Create a key to prevent duplicate announcements within a short time
-                    string damageKey = $"{targetName}_{damage}_{currentHP}";
-                    float currentTime = UnityEngine.Time.unscaledTime;
-
-                    if (damageKey != _lastDamageKey || currentTime - _lastDamageTime > 0.3f)
-                    {
-                        _lastDamageKey = damageKey;
-                        _lastDamageTime = currentTime;
-
-                        MonsterTrainAccessibility.LogInfo($"Damage: {damage} to {targetName} (enemy={isEnemy}), HP now {currentHP}");
-
-                        // Announce based on who took damage
-                        if (isEnemy)
-                        {
-                            // Enemy took damage (good for player)
-                            MonsterTrainAccessibility.ScreenReader?.Queue($"{targetName} takes {damage} damage");
-                        }
-                        else
-                        {
-                            // Friendly unit took damage
-                            MonsterTrainAccessibility.ScreenReader?.Queue($"{targetName} takes {damage} damage, {currentHP} HP remaining");
-                        }
-
-                        // Check for death
-                        if (currentHP <= 0)
-                        {
-                            int roomIndex = GetRoomIndex(target);
-                            int userFloor = RoomIndexToUserFloor(roomIndex);
-                            MonsterTrainAccessibility.BattleHandler?.OnUnitDied(targetName, isEnemy, userFloor);
-                        }
-                    }
+                    MonsterTrainAccessibility.LogInfo("DamageAppliedPatch: Skipping - floor targeting active (preview)");
+                    return;
                 }
+
+                // Try to extract damage and target from the parameters
+                int damage = 0;
+                object target = null;
+
+                // If __0 is the damage amount (int)
+                if (__0 is int dmg)
+                {
+                    damage = dmg;
+                    target = __1;
+                }
+                // If __0 is a parameters struct, try to extract from it
+                else if (__0 != null)
+                {
+                    var paramsType = __0.GetType();
+
+                    // Try to get damage from struct
+                    var damageField = paramsType.GetField("damage", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                    if (damageField != null && damageField.GetValue(__0) is int d)
+                        damage = d;
+
+                    // Try to get target from struct
+                    var targetField = paramsType.GetField("target", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                    if (targetField != null)
+                        target = targetField.GetValue(__0);
+                }
+
+                if (damage <= 0 || target == null)
+                {
+                    return;
+                }
+
+                string targetName = GetUnitName(target);
+                bool isEnemy = IsEnemyUnit(target);
+                float currentTime = UnityEngine.Time.unscaledTime;
+                int targetHash = target.GetHashCode();
+
+                // Track this damage call - duplicate filtering using delay
+                // If we see the same target+damage within 0.3s, skip (likely duplicate call)
+                string damageKey = $"{targetName}_{damage}";
+
+                if (damageKey == _lastDamageKey && currentTime - _lastDamageTime < 0.3f)
+                {
+                    return;
+                }
+
+                _lastDamageKey = damageKey;
+                _lastDamageTime = currentTime;
+
+                // Announce damage
+                MonsterTrainAccessibility.ScreenReader?.Queue($"{targetName} takes {damage} damage");
+
+                // Record this target as recently damaged for death correlation
+                RecentlyDamagedTargets[targetHash] = currentTime;
+
+                // Clean up old entries (older than 2 seconds)
+                var keysToRemove = RecentlyDamagedTargets.Where(kv => currentTime - kv.Value > 2f).Select(kv => kv.Key).ToList();
+                foreach (var key in keysToRemove)
+                    RecentlyDamagedTargets.Remove(key);
             }
             catch (Exception ex)
             {
@@ -280,6 +325,277 @@ namespace MonsterTrainAccessibility.Patches
     }
 
     /// <summary>
+    /// Detect combat damage via CharacterState.ApplyDamage
+    /// This catches melee combat damage that doesn't go through CombatManager.ApplyDamageToTarget
+    /// Signature: ApplyDamage(int damage, ApplyDamageParams damageParams)
+    /// </summary>
+    public static class CharacterDamagePatch
+    {
+        private static float _lastDamageTime = 0f;
+        private static string _lastDamageKey = "";
+
+        public static void TryPatch(Harmony harmony)
+        {
+            try
+            {
+                var characterType = AccessTools.TypeByName("CharacterState");
+                if (characterType == null) return;
+
+                // List all ApplyDamage overloads for debugging
+                var allMethods = characterType.GetMethods(BindingFlags.Public | BindingFlags.Instance)
+                    .Where(m => m.Name == "ApplyDamage")
+                    .ToList();
+
+                MonsterTrainAccessibility.LogInfo($"Found {allMethods.Count} ApplyDamage overloads:");
+                foreach (var m in allMethods)
+                {
+                    var ps = m.GetParameters();
+                    var sig = string.Join(", ", ps.Select(p => $"{p.ParameterType.Name} {p.Name}"));
+                    MonsterTrainAccessibility.LogInfo($"  ApplyDamage({sig})");
+                }
+
+                // Find the ApplyDamageParams type
+                var applyDamageParamsType = AccessTools.TypeByName("ApplyDamageParams");
+
+                // Try to find the overload that takes (int damage, ApplyDamageParams params)
+                MethodInfo method = null;
+                if (applyDamageParamsType != null)
+                {
+                    method = characterType.GetMethod("ApplyDamage",
+                        BindingFlags.Public | BindingFlags.Instance,
+                        null,
+                        new Type[] { typeof(int), applyDamageParamsType },
+                        null);
+                }
+
+                // Fallback: try to find any ApplyDamage with an int first parameter
+                if (method == null)
+                {
+                    method = allMethods.FirstOrDefault(m =>
+                    {
+                        var ps = m.GetParameters();
+                        return ps.Length >= 1 && ps[0].ParameterType == typeof(int);
+                    });
+                }
+
+                // Last fallback: use AccessTools
+                if (method == null)
+                {
+                    method = AccessTools.Method(characterType, "ApplyDamage");
+                }
+
+                if (method != null)
+                {
+                    var parameters = method.GetParameters();
+                    MonsterTrainAccessibility.LogInfo($"Patching ApplyDamage with {parameters.Length} parameters:");
+                    foreach (var p in parameters)
+                    {
+                        MonsterTrainAccessibility.LogInfo($"  {p.Name}: {p.ParameterType.Name}");
+                    }
+
+                    var prefix = new HarmonyMethod(typeof(CharacterDamagePatch).GetMethod(nameof(Prefix)));
+                    var postfix = new HarmonyMethod(typeof(CharacterDamagePatch).GetMethod(nameof(Postfix)));
+                    harmony.Patch(method, prefix: prefix, postfix: postfix);
+                    MonsterTrainAccessibility.LogInfo("Patched CharacterState.ApplyDamage for combat damage (with preview filter)");
+                }
+                else
+                {
+                    MonsterTrainAccessibility.LogWarning("Could not find suitable ApplyDamage method to patch");
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Failed to patch CharacterState.ApplyDamage: {ex.Message}");
+            }
+        }
+
+        // Track HP before damage to detect if it's a preview (preview doesn't change HP)
+        private static Dictionary<int, int> _preHpTracker = new Dictionary<int, int>();
+
+        // PREFIX: Record HP before damage is applied
+        public static void Prefix(object __instance)
+        {
+            try
+            {
+                if (__instance == null) return;
+                int hash = __instance.GetHashCode();
+                int hp = GetCurrentHP(__instance);
+                _preHpTracker[hash] = hp;
+            }
+            catch { }
+        }
+
+        // POSTFIX: Announce combat damage
+        // __instance is the CharacterState receiving damage, __0 is damage amount, __1 is ApplyDamageParams
+        public static void Postfix(object __instance, int __0, object __1)
+        {
+            try
+            {
+                // Skip if we're in floor targeting mode (this is a preview, not actual damage)
+                var targeting = MonsterTrainAccessibility.FloorTargeting;
+                if (targeting != null && targeting.IsTargeting)
+                {
+                    return;
+                }
+
+                int damage = __0;
+                object target = __instance;
+                object damageParams = __1;
+
+                MonsterTrainAccessibility.LogInfo($"CharacterDamagePatch.Postfix called: damage={damage}");
+
+                if (damage <= 0 || target == null) return;
+
+                int currentHP = GetCurrentHP(target);
+                string targetName = GetUnitName(target);
+                bool isTargetEnemy = IsEnemyUnit(target);
+
+                // Try to get attacker name from damageParams
+                string attackerName = null;
+                if (damageParams != null)
+                {
+                    attackerName = GetAttackerName(damageParams);
+                }
+
+                // Create a key to prevent duplicate announcements
+                string damageKey = $"{attackerName}_{targetName}_{damage}_{currentHP}";
+                float currentTime = UnityEngine.Time.unscaledTime;
+
+                if (damageKey != _lastDamageKey || currentTime - _lastDamageTime > 0.2f)
+                {
+                    _lastDamageKey = damageKey;
+                    _lastDamageTime = currentTime;
+
+                    MonsterTrainAccessibility.LogInfo($"Combat damage: {attackerName ?? "Unknown"} deals {damage} to {targetName} (enemy={isTargetEnemy}), HP now {currentHP}");
+
+                    // Build the announcement
+                    string announcement;
+                    if (!string.IsNullOrEmpty(attackerName) && attackerName != "Unknown")
+                    {
+                        announcement = $"{attackerName} hits {targetName} for {damage}";
+                    }
+                    else
+                    {
+                        announcement = $"{targetName} takes {damage} damage";
+                    }
+
+                    // Add HP info for friendly units
+                    if (!isTargetEnemy && currentHP > 0)
+                    {
+                        announcement += $", {currentHP} HP left";
+                    }
+
+                    MonsterTrainAccessibility.ScreenReader?.Queue(announcement);
+
+                    // Check for death
+                    if (currentHP <= 0)
+                    {
+                        int roomIndex = GetRoomIndex(target);
+                        int userFloor = RoomIndexToUserFloor(roomIndex);
+                        MonsterTrainAccessibility.BattleHandler?.OnUnitDied(targetName, isTargetEnemy, userFloor);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in CharacterState.ApplyDamage patch: {ex.Message}");
+            }
+        }
+
+        private static string GetAttackerName(object damageParams)
+        {
+            try
+            {
+                var paramsType = damageParams.GetType();
+
+                // Try to get the attacker field
+                var attackerField = paramsType.GetField("attacker", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (attackerField != null)
+                {
+                    var attacker = attackerField.GetValue(damageParams);
+                    if (attacker != null)
+                    {
+                        return GetUnitName(attacker);
+                    }
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        private static string GetUnitName(object characterState)
+        {
+            try
+            {
+                var type = characterState.GetType();
+                var getNameMethod = type.GetMethod("GetName");
+                if (getNameMethod != null)
+                {
+                    var name = getNameMethod.Invoke(characterState, null) as string;
+                    if (!string.IsNullOrEmpty(name) && !name.Contains("KEY>"))
+                        return name;
+                }
+            }
+            catch { }
+            return "Unit";
+        }
+
+        private static bool IsEnemyUnit(object characterState)
+        {
+            try
+            {
+                var getTeamMethod = characterState.GetType().GetMethod("GetTeamType");
+                if (getTeamMethod != null)
+                {
+                    var team = getTeamMethod.Invoke(characterState, null);
+                    return team?.ToString() == "Heroes";
+                }
+            }
+            catch { }
+            return false;
+        }
+
+        private static int GetCurrentHP(object characterState)
+        {
+            try
+            {
+                var getHPMethod = characterState.GetType().GetMethod("GetHP");
+                if (getHPMethod != null)
+                {
+                    var result = getHPMethod.Invoke(characterState, null);
+                    if (result is int hp)
+                        return hp;
+                }
+            }
+            catch { }
+            return -1;
+        }
+
+        private static int GetRoomIndex(object characterState)
+        {
+            try
+            {
+                var type = characterState.GetType();
+                var getRoomMethod = type.GetMethod("GetCurrentRoomIndex");
+                if (getRoomMethod != null)
+                {
+                    var result = getRoomMethod.Invoke(characterState, null);
+                    if (result is int index)
+                        return index;
+                }
+            }
+            catch { }
+            return -1;
+        }
+
+        private static int RoomIndexToUserFloor(int roomIndex)
+        {
+            if (roomIndex < 0 || roomIndex > 2) return -1;
+            return 3 - roomIndex;
+        }
+    }
+
+    /// <summary>
     /// Detect unit death - CharacterState.Die doesn't exist, so we try alternative methods
     /// Death is also detected in DamageAppliedPatch when HP <= 0
     /// </summary>
@@ -293,7 +609,8 @@ namespace MonsterTrainAccessibility.Patches
                 if (characterType != null)
                 {
                     // Try various death-related method names
-                    var deathMethods = new[] { "Die", "Kill", "OnDeath", "ProcessDeath", "HandleDeath" };
+                    // InnerCharacterDeath is the actual death method in Monster Train
+                    var deathMethods = new[] { "InnerCharacterDeath", "Die", "Kill", "OnDeath", "ProcessDeath", "HandleDeath" };
                     MethodInfo method = null;
 
                     foreach (var methodName in deathMethods)
@@ -334,17 +651,62 @@ namespace MonsterTrainAccessibility.Patches
         {
             try
             {
+                // Skip if we're in floor targeting mode (this is a preview, not actual death)
+                var targeting = MonsterTrainAccessibility.FloorTargeting;
+                if (targeting != null && targeting.IsTargeting)
+                {
+                    return;
+                }
+
+                // Only announce death if this target was recently damaged
+                // This filters out preview deaths (where InnerCharacterDeath is called during card preview)
+                int targetHash = __instance.GetHashCode();
+                float currentTime = UnityEngine.Time.unscaledTime;
+
+                if (!DamageAppliedPatch.RecentlyDamagedTargets.TryGetValue(targetHash, out float damageTime))
+                {
+                    // This target wasn't recently damaged - probably a preview
+                    return;
+                }
+
+                // Remove from tracking since we're handling the death
+                DamageAppliedPatch.RecentlyDamagedTargets.Remove(targetHash);
+
+                // Only announce if death happened within 1 second of damage
+                if (currentTime - damageTime > 1f)
+                {
+                    return;
+                }
+
                 string unitName = GetUnitName(__instance);
                 bool isEnemy = IsEnemyUnit(__instance);
                 int roomIndex = GetRoomIndex(__instance);
                 int userFloor = RoomIndexToUserFloor(roomIndex);
 
+                MonsterTrainAccessibility.LogInfo($"Unit died: {unitName} (enemy={isEnemy}) on floor {userFloor}");
                 MonsterTrainAccessibility.BattleHandler?.OnUnitDied(unitName, isEnemy, userFloor);
             }
             catch (Exception ex)
             {
                 MonsterTrainAccessibility.LogError($"Error in death patch: {ex.Message}");
             }
+        }
+
+        private static int GetCurrentHP(object characterState)
+        {
+            try
+            {
+                var type = characterState.GetType();
+                var getHPMethod = type.GetMethod("GetHP");
+                if (getHPMethod != null)
+                {
+                    var result = getHPMethod.Invoke(characterState, null);
+                    if (result is int hp)
+                        return hp;
+                }
+            }
+            catch { }
+            return -1; // Unknown HP, treat as potentially dead
         }
 
         private static string GetUnitName(object characterState)
@@ -706,6 +1068,13 @@ namespace MonsterTrainAccessibility.Patches
                 int roomIndex = GetRoomIndex(character);
                 int userFloor = RoomIndexToUserFloor(roomIndex);
 
+                // Skip if the character isn't fully initialized yet - CharacterState.Setup will handle it
+                if (string.IsNullOrEmpty(name) || name == "Unit" || roomIndex < 0)
+                {
+                    MonsterTrainAccessibility.LogInfo($"Monster spawned: {name} on room {roomIndex} (floor {userFloor}) - skipping, not fully initialized");
+                    return;
+                }
+
                 MonsterTrainAccessibility.LogInfo($"Monster spawned: {name} on room {roomIndex} (floor {userFloor})");
                 MonsterTrainAccessibility.BattleHandler?.OnUnitSpawned(name, false, userFloor);
             }
@@ -725,6 +1094,13 @@ namespace MonsterTrainAccessibility.Patches
                 string name = GetUnitName(character);
                 int roomIndex = GetRoomIndex(character);
                 int userFloor = RoomIndexToUserFloor(roomIndex);
+
+                // Skip if the character isn't fully initialized yet - CharacterState.Setup will handle it
+                if (string.IsNullOrEmpty(name) || name == "Unit" || roomIndex < 0)
+                {
+                    MonsterTrainAccessibility.LogInfo($"Enemy spawned: {name} on room {roomIndex} (floor {userFloor}) - skipping, not fully initialized");
+                    return;
+                }
 
                 MonsterTrainAccessibility.LogInfo($"Enemy spawned: {name} on room {roomIndex} (floor {userFloor})");
                 MonsterTrainAccessibility.BattleHandler?.OnUnitSpawned(name, true, userFloor);
@@ -749,60 +1125,63 @@ namespace MonsterTrainAccessibility.Patches
                     _lastClearTime = currentTime;
                 }
 
-                // Try to get name from the first parameter (usually CharacterData or setup params)
+                // Use instance hash to track duplicates - check early
+                int hash = __instance.GetHashCode();
+                if (_announcedSpawns.Contains(hash))
+                {
+                    return;
+                }
+
                 string name = null;
                 bool isEnemy = IsEnemyUnit(__instance);
-                int roomIndex = GetRoomIndex(__instance);
+                int roomIndex = -1;
 
-                // First try the first parameter (might be CharacterData)
-                if (__0 != null)
+                // After Setup completes, the instance should have the name available
+                // Try GetName on the instance first (most reliable after setup)
+                var instanceType = __instance.GetType();
+                var getNameMethod = instanceType.GetMethod("GetName");
+                if (getNameMethod != null)
+                {
+                    name = getNameMethod.Invoke(__instance, null) as string;
+                }
+
+                // If instance GetName failed, try the first parameter (CharacterData)
+                if ((string.IsNullOrEmpty(name) || name == "Unit" || name.Contains("KEY>")) && __0 != null)
                 {
                     var paramType = __0.GetType();
-
-                    // Try GetName on the parameter
-                    var getNameMethod = paramType.GetMethod("GetName");
-                    if (getNameMethod != null)
+                    var paramGetNameMethod = paramType.GetMethod("GetName");
+                    if (paramGetNameMethod != null)
                     {
-                        name = getNameMethod.Invoke(__0, null) as string;
-                    }
-
-                    // If that didn't work and it looks like a data object, try to access characterData
-                    if (string.IsNullOrEmpty(name))
-                    {
-                        var charDataField = paramType.GetField("characterData") ??
-                                           paramType.GetProperty("characterData")?.GetMethod as object;
-                        if (charDataField != null)
+                        var paramName = paramGetNameMethod.Invoke(__0, null) as string;
+                        if (!string.IsNullOrEmpty(paramName) && paramName != "Unit" && !paramName.Contains("KEY>"))
                         {
-                            // Try to read the field value
+                            name = paramName;
                         }
                     }
                 }
 
-                // Fallback to getting name from the instance
-                if (string.IsNullOrEmpty(name))
-                {
-                    name = GetUnitName(__instance);
-                }
+                // Get room index from instance
+                roomIndex = GetRoomIndex(__instance);
 
-                // Skip invalid names or duplicates
+                // Skip invalid names
                 if (string.IsNullOrEmpty(name) || name == "Unit" || name.Contains("KEY>"))
                 {
                     MonsterTrainAccessibility.LogInfo($"CharacterState.Setup: skipping invalid name '{name}'");
                     return;
                 }
 
-                // Use instance hash to track duplicates
-                int hash = __instance.GetHashCode();
-                if (_announcedSpawns.Contains(hash))
-                {
-                    return;
-                }
+                // Track this spawn
                 _announcedSpawns.Add(hash);
 
                 int userFloor = RoomIndexToUserFloor(roomIndex);
-                MonsterTrainAccessibility.LogInfo($"Unit spawned via Setup: {name}, isEnemy={isEnemy}, floor={userFloor}");
 
-                // Announce the spawn
+                // Build a proper announcement
+                string floorText = userFloor > 0 ? $"floor {userFloor}" : "the battlefield";
+                string unitType = isEnemy ? "Enemy" : "Friendly";
+
+                MonsterTrainAccessibility.LogInfo($"Unit spawned via Setup: {name}, isEnemy={isEnemy}, roomIndex={roomIndex}, floor={userFloor}");
+
+                // Announce the spawn with proper floor text
                 MonsterTrainAccessibility.BattleHandler?.OnUnitSpawned(name, isEnemy, userFloor);
             }
             catch (Exception ex)

@@ -108,6 +108,7 @@ namespace MonsterTrainAccessibility
             PlayerTurnStartPatch.TryPatch(_harmony);
             PlayerTurnEndPatch.TryPatch(_harmony);
             DamageAppliedPatch.TryPatch(_harmony);
+            CharacterDamagePatch.TryPatch(_harmony);
             UnitDeathPatch.TryPatch(_harmony);
             StatusEffectPatch.TryPatch(_harmony);
             BattleVictoryPatch.TryPatch(_harmony);

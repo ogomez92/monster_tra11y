@@ -105,17 +105,12 @@ The mod automatically reads text when:
 | L | Read all floor information (L for Levels) |
 | N | Read enemy information and intents (N for eNemies) |
 | R | Read resources (ember, pyre health) |
-| 1-9 | Select card by position in hand (1 = first card, etc.) |
-
 **Note**: F and E are avoided because they conflict with the game's native shortcuts (F = Toggle Unit Details, E = End Turn).
 
 ### Floor Targeting (when playing a card that requires floor selection)
 | Key | Action |
 |-----|--------|
-| 1 | Select Floor 1 (bottom floor) |
-| 2 | Select Floor 2 (middle floor) |
-| 3 | Select Floor 3 (top floor) |
-| Up/Down | Cycle between floors |
+| Page Up/Down | Cycle between floors |
 | Enter | Confirm and play card on selected floor |
 | Escape | Cancel card play |
 
@@ -185,12 +180,10 @@ The battle screen uses the game's native navigation. Use hotkeys for information
 - Press **F1** for context-sensitive help listing all available keys
 
 ### Playing Cards
-- Press **1-9** to quickly select a card by its position in hand
-- Alternatively, navigate to cards using the game's controls
+- Navigate to cards using the game's controls
 - Press **Enter** to play the selected card
 - When a card requires floor placement (like monster cards), floor targeting mode activates:
-  - Press **1**, **2**, or **3** to select a floor directly
-  - Or use **Up/Down arrows** to cycle through floors
+  - Use **Page Up/Down** to cycle through floors (same as game's native floor navigation)
   - The current floor's units will be announced as you select
   - Press **Enter** to confirm and play the card
   - Press **Escape** to cancel
@@ -201,10 +194,9 @@ The battle screen uses the game's native navigation. Use hotkeys for information
 2. **Start Simple**: Begin with the tutorial to learn the game flow
 3. **Read Text**: Press T to read patch notes, event descriptions, or any screen text
 4. **Use Battle Hotkeys**: H, L, N, R provide quick status updates during battle
-5. **Quick Card Selection**: Press 1-9 to instantly select cards by position instead of navigating
-6. **Check Ember**: Press R regularly to know your available resources
-7. **Enemy Intents**: Press N to hear what enemies plan to do next turn
-8. **Re-read Items**: Press C to re-read the currently focused menu item
+5. **Check Ember**: Press R regularly to know your available resources
+6. **Enemy Intents**: Press N to hear what enemies plan to do next turn
+7. **Re-read Items**: Press C to re-read the currently focused menu item
 
 ## Troubleshooting
 

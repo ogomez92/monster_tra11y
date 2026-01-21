@@ -28,7 +28,7 @@ All game data access uses **runtime reflection** since there's no public API. Ga
 
 - **ScreenReaderOutput**: Wrapper for Tolk library - handles speech output, braille, and screen reader detection. All accessibility output goes through this.
   - **IMPORTANT: Never use `interrupt = true`** - it cuts off previous announcements. Always use `Speak(text, false)` or just `Speak(text)`.
-- **InputInterceptor**: Unity MonoBehaviour that handles accessibility hotkeys (F1, C, T, H, L, N, R, V, 1-9). Navigation is handled by the game's native EventSystem.
+- **InputInterceptor**: Unity MonoBehaviour that handles accessibility hotkeys (F1, C, T, H, L, N, R, V). Navigation is handled by the game's native EventSystem.
 - **AccessibilityConfig**: BepInEx configuration - verbosity levels, keybindings, announcement settings.
 
 ### Help System (MonsterTrainAccessibility/Help/)
@@ -53,7 +53,8 @@ Context-sensitive help that announces available keys based on current game scree
 
 ### Battle Systems (MonsterTrainAccessibility/Battle/)
 
-- **FloorTargetingSystem**: Keyboard-based floor selection for playing cards. When a card requires floor placement, allows 1/2/3 keys or arrows to select floor, Enter to confirm, Escape to cancel.
+- **FloorTargetingSystem**: Keyboard-based floor selection for playing cards. When a card requires floor placement, use Page Up/Down to select floor (clamped 1-3, doesn't wrap), Enter to confirm, Escape to cancel.
+  - **IMPORTANT for Combat Patches**: Check `FloorTargetingSystem.IsTargeting` before announcing damage/deaths - the game calculates preview damage when selecting floors, and those shouldn't be announced.
 
 ### Screen Handlers (MonsterTrainAccessibility/Screens/)
 
@@ -82,17 +83,13 @@ Context-sensitive help that announces available keys based on current game scree
 | L | Read floors (all units) - L for Levels |
 | N | Read all units (your monsters and enemies) |
 | R | Read resources (ember, pyre, cards) |
-| 1-9 | Select card by position in hand |
 
 Note: F and E are avoided because they conflict with the game's native shortcuts (F = Toggle Unit Details, E = End Turn).
 
 #### Floor Targeting Keys (when playing a card)
 | Key | Action |
 |-----|--------|
-| 1 | Select floor 1 (bottom) |
-| 2 | Select floor 2 (middle) |
-| 3 | Select floor 3 (top) |
-| Up/Down | Cycle between floors |
+| Page Up/Down | Cycle between floors (same as game's native keys) |
 | Enter | Confirm floor selection |
 | Escape | Cancel card play |
 
@@ -239,3 +236,77 @@ Room Index 3 = Pyre Room
 ```
 
 **Conversion formula:** `roomIndex = 3 - userFloor` (for floors 1-3)
+
+## Keyword Dictionaries
+
+Keywords (status effects, card mechanics) need explanations for screen reader users. The mod maintains dictionaries mapping keyword names to explanations.
+
+**Keyword Dictionary Locations:**
+- `MenuAccessibility.cs`: `ExtractKeywordsFromDescription()` method (~line 8653)
+- `BattleAccessibility.cs`: `knownKeywords` dictionary (~line 746)
+
+**Current Keywords:**
+```csharp
+{ "Armor", "Armor: Reduces damage taken by the armor amount" },
+{ "Rage", "Rage: Increases attack damage by the rage amount" },
+{ "Regen", "Regen: Restores health each turn equal to regen amount" },
+{ "Frostbite", "Frostbite: Deals damage at end of turn, then decreases by 1" },
+{ "Sap", "Sap: Reduces attack by the sap amount" },
+{ "Dazed", "Dazed: Unit cannot attack this turn" },
+{ "Rooted", "Rooted: Unit cannot move to another floor" },
+{ "Quick", "Quick: Attacks before other units" },
+{ "Multistrike", "Multistrike: Attacks multiple times" },
+{ "Sweep", "Sweep: Attacks all enemies on floor" },
+{ "Trample", "Trample: Excess damage hits the next enemy" },
+{ "Lifesteal", "Lifesteal: Heals for damage dealt" },
+{ "Spikes", "Spikes: Deals damage to attackers" },
+{ "Damage Shield", "Damage Shield: Blocks damage from next attack" },
+{ "Stealth", "Stealth: Cannot be targeted until it attacks" },
+{ "Burnout", "Burnout: Dies at end of turn" },
+{ "Endless", "Endless: Returns to hand when killed" },
+{ "Fragile", "Fragile: Dies when damaged" },
+{ "Heartless", "Heartless: Cannot be healed" },
+{ "Consume", "Consume: Removed from deck after playing" },
+{ "Holdover", "Holdover: Returns to hand at end of turn" },
+{ "Purge", "Purge: Removed from deck permanently" },
+{ "Intrinsic", "Intrinsic: Always drawn on first turn" },
+{ "Spell Weakness", "Spell Weakness: Takes extra damage from spells" },
+// ... and more
+```
+
+**Adding New Keywords:**
+1. Search log for unrecognized keywords (text in `<b>tags</b>` that isn't explained)
+2. Add to BOTH dictionaries in MenuAccessibility.cs and BattleAccessibility.cs
+3. Format: `{ "KeywordName", "KeywordName: Brief explanation" }`
+
+**Where Keywords Are Used:**
+- Cards: `GetCardUIText()` calls `ExtractKeywordsFromDescription()`
+- Artifacts: `GetRelicInfoText()` calls `ExtractKeywordsFromDescription()`
+- Battle units: `BattleAccessibility` uses its own keyword dictionary
+
+## Debugging UI Text Extraction
+
+When text isn't reading correctly, the log shows helpful debug info:
+
+**Log Location:** `C:\Program Files (x86)\Steam\steamapps\common\Monster Train\BepInEx\LogOutput.log`
+
+**What to Look For:**
+1. `Components on 'GameObjectName':` - shows component hierarchy
+2. `=== Fields on TypeName ===` - lists all fields on a component
+3. `TooltipProvider type:` / `Tooltip.fieldName =` - tooltip data structure
+4. Text extraction results like `BossDetailsUI texts found: [...]`
+
+**Common Patterns:**
+- If text shows placeholder/debug content, check for `IsPlaceholderText()` filter
+- If text is missing, check if it's in a tooltip rather than direct TMP text
+- If localization keys appear instead of text, use `TryLocalize()` or `LocalizeKey()`
+
+**Adding Debug Logging:**
+```csharp
+// Log all fields on an unknown component
+foreach (var field in componentType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
+{
+    var val = field.GetValue(component);
+    MonsterTrainAccessibility.LogInfo($"  {field.Name} = {val?.GetType().Name ?? "null"}");
+}
+```

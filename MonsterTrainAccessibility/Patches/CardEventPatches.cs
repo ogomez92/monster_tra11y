@@ -91,20 +91,26 @@ namespace MonsterTrainAccessibility.Patches
         }
 
         // The method takes cardIndex, not a card object. We just get notified a card was played.
-        // lastSelectionError is an out parameter that tells us why a card couldn't be played
-        public static void Postfix(int cardIndex, bool __result, object ___lastSelectionError)
+        // Parameters: (int cardIndex, SpawnPoint dropLocation, out SelectionError lastSelectionError)
+        // __2 accesses the third parameter (out SelectionError) by position
+        public static void Postfix(bool __result, object __2)
         {
             try
             {
+                MonsterTrainAccessibility.LogInfo($"CardPlayedPatch.Postfix: result={__result}, error={__2}");
+
                 // __result indicates if the card was successfully played
                 if (__result)
                 {
-                    MonsterTrainAccessibility.BattleHandler?.OnCardPlayed(cardIndex);
+                    // Card played successfully - handled elsewhere via chatter
+                    MonsterTrainAccessibility.LogInfo("Card played successfully");
                 }
                 else
                 {
                     // Card play failed - announce why
-                    string reason = GetSelectionErrorReason(___lastSelectionError);
+                    // __2 is the SelectionError out parameter
+                    string reason = GetSelectionErrorReason(__2);
+                    MonsterTrainAccessibility.LogInfo($"Card play failed, reason: {reason}");
                     if (!string.IsNullOrEmpty(reason))
                     {
                         MonsterTrainAccessibility.ScreenReader?.Speak($"Cannot play: {reason}", false);
@@ -137,6 +143,7 @@ namespace MonsterTrainAccessibility.Patches
                 // These are guesses based on common game patterns - will need to verify actual enum values
                 switch (errorName.ToLowerInvariant())
                 {
+                    case "notenoughember":
                     case "notenoughenergy":
                     case "insufficientenergy":
                     case "noenergy":

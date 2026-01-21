@@ -19,10 +19,7 @@ namespace MonsterTrainAccessibility.Help.Contexts
         public string GetHelpText()
         {
             return "Select a floor to play the card. " +
-                   "1: Select floor 1 (bottom). " +
-                   "2: Select floor 2 (middle). " +
-                   "3: Select floor 3 (top). " +
-                   "Up and Down arrows: Cycle between floors. " +
+                   "Page Up and Page Down: Cycle between floors. " +
                    "Enter: Confirm and play card on selected floor. " +
                    "Escape: Cancel card play.";
         }
