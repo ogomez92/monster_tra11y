@@ -804,6 +804,7 @@ namespace MonsterTrainAccessibility.Screens
                     { "Eaten", "Eaten: Will be eaten" },
                     // Card effects
                     { "Consume", "Consume: One use per battle" },
+                    { "Doublestack", "Doublestack: Doubles status stacks" },
                     { "Frozen", "Frozen: Not discarded" },
                     { "Permafrost", "Permafrost: Gains Frozen" },
                     { "Purge", "Purge: Removed from deck" },
@@ -2156,15 +2157,26 @@ namespace MonsterTrainAccessibility.Screens
         /// </summary>
         public void OnUnitSpawned(string unitName, bool isEnemy, int floorIndex)
         {
+            MonsterTrainAccessibility.LogInfo($"OnUnitSpawned called: {unitName}, isEnemy={isEnemy}, floor={floorIndex}, IsInBattle={IsInBattle}");
+
             if (!IsInBattle)
+            {
+                MonsterTrainAccessibility.LogInfo("OnUnitSpawned: skipping - not in battle");
                 return;
+            }
 
             if (!MonsterTrainAccessibility.AccessibilitySettings.AnnounceSpawns.Value)
+            {
+                MonsterTrainAccessibility.LogInfo("OnUnitSpawned: skipping - AnnounceSpawns disabled");
                 return;
+            }
 
             // Skip invalid unit names
             if (string.IsNullOrEmpty(unitName) || unitName == "Unit")
+            {
+                MonsterTrainAccessibility.LogInfo($"OnUnitSpawned: skipping - invalid name '{unitName}'");
                 return;
+            }
 
             // Determine floor name - handle invalid floor indices
             string floorName;
@@ -2189,7 +2201,7 @@ namespace MonsterTrainAccessibility.Screens
         }
 
         /// <summary>
-        /// Announce enemies ascending floors
+        /// Announce enemies ascending floors (generic)
         /// </summary>
         public void OnEnemiesAscended()
         {
@@ -2197,6 +2209,18 @@ namespace MonsterTrainAccessibility.Screens
                 return;
 
             MonsterTrainAccessibility.ScreenReader?.Queue("Enemies ascend");
+        }
+
+        /// <summary>
+        /// Announce a specific enemy ascending to a floor
+        /// </summary>
+        public void OnEnemyAscended(string enemyName, int floor)
+        {
+            if (!IsInBattle)
+                return;
+
+            string floorText = floor > 0 ? $"floor {floor}" : "the pyre room";
+            MonsterTrainAccessibility.ScreenReader?.Queue($"{enemyName} ascends to {floorText}");
         }
 
         /// <summary>

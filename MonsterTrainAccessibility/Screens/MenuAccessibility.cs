@@ -3648,6 +3648,12 @@ namespace MonsterTrainAccessibility.Screens
                                 }
                             }
                         }
+
+                        // Resolve effect placeholders like {[effect0.power]} using the relic's effects
+                        if (!string.IsNullOrEmpty(relicDescription) && relicDescription.Contains("{[effect"))
+                        {
+                            relicDescription = ResolveRelicEffectPlaceholders(relicDescription, relicData, dataType);
+                        }
                     }
                 }
 
@@ -3658,8 +3664,8 @@ namespace MonsterTrainAccessibility.Screens
                     relicDescription = null; // Clear it, will try relicState
                 }
 
-                // Try relicState for description if we don't have one yet
-                if (string.IsNullOrEmpty(relicDescription))
+                // Try relicState for name and/or description if we don't have them yet
+                if (string.IsNullOrEmpty(relicName) || string.IsNullOrEmpty(relicDescription))
                 {
                     var relicStateField = relicType.GetField("relicState", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
                     if (relicStateField != null)
@@ -3671,8 +3677,43 @@ namespace MonsterTrainAccessibility.Screens
 
                             // Log available methods on RelicState
                             var stateMethods = stateType.GetMethods(BindingFlags.Public | BindingFlags.Instance);
-                            var descStateMethods = stateMethods.Where(m => m.Name.ToLower().Contains("desc") || m.Name.ToLower().Contains("effect") || m.Name.ToLower().Contains("text")).ToList();
+                            var descStateMethods = stateMethods.Where(m => m.Name.ToLower().Contains("desc") || m.Name.ToLower().Contains("effect") || m.Name.ToLower().Contains("text") || m.Name.ToLower().Contains("name")).ToList();
                             MonsterTrainAccessibility.LogInfo($"RelicState methods: {string.Join(", ", descStateMethods.Select(m => m.Name))}");
+
+                            // Try to get name from RelicState if we don't have it
+                            if (string.IsNullOrEmpty(relicName))
+                            {
+                                // Try GetName method
+                                var getNameMethod = stateType.GetMethod("GetName", BindingFlags.Public | BindingFlags.Instance);
+                                if (getNameMethod != null && getNameMethod.GetParameters().Length == 0)
+                                {
+                                    relicName = getNameMethod.Invoke(relicState, null) as string;
+                                    MonsterTrainAccessibility.LogInfo($"RelicState.GetName() returned: '{relicName}'");
+                                }
+
+                                // Try to get RelicData from RelicState and then get name
+                                if (string.IsNullOrEmpty(relicName))
+                                {
+                                    var getDataMethod = stateType.GetMethod("GetRelicData", BindingFlags.Public | BindingFlags.Instance);
+                                    if (getDataMethod == null)
+                                        getDataMethod = stateType.GetProperty("RelicData", BindingFlags.Public | BindingFlags.Instance)?.GetGetMethod();
+
+                                    if (getDataMethod != null)
+                                    {
+                                        var stateRelicData = getDataMethod.Invoke(relicState, null);
+                                        if (stateRelicData != null)
+                                        {
+                                            var dataType = stateRelicData.GetType();
+                                            var nameMethod = dataType.GetMethod("GetName", BindingFlags.Public | BindingFlags.Instance);
+                                            if (nameMethod != null && nameMethod.GetParameters().Length == 0)
+                                            {
+                                                relicName = nameMethod.Invoke(stateRelicData, null) as string;
+                                                MonsterTrainAccessibility.LogInfo($"RelicState.RelicData.GetName() returned: '{relicName}'");
+                                            }
+                                        }
+                                    }
+                                }
+                            }
 
                             // Try GetDescription on RelicState
                             foreach (var methodName in new[] { "GetDescription", "GetEffectText", "GetDescriptionText" })
@@ -3804,6 +3845,190 @@ namespace MonsterTrainAccessibility.Screens
                 MonsterTrainAccessibility.LogInfo($"CleanSpriteTagsForSpeech output: '{result}'");
             }
             return result;
+        }
+
+        /// <summary>
+        /// Check if the current UI element is in a battle intro context (NOT during actual combat)
+        /// Only add keyword explanations for battle intro enemy/boss tooltips
+        /// </summary>
+        private bool IsBattleRelatedContext(GameObject go)
+        {
+            if (go == null) return false;
+
+            // Don't add keywords during actual battle - only during battle intro
+            if (Help.ScreenStateTracker.CurrentScreen == Help.GameScreen.Battle)
+                return false;
+
+            // Only trigger for battle intro screen
+            if (Help.ScreenStateTracker.CurrentScreen != Help.GameScreen.BattleIntro)
+                return false;
+
+            string goName = go.name.ToLower();
+
+            // Check for enemy tooltip targets specifically
+            if (goName.Contains("tooltiptarget") || goName.Contains("enemy_tooltip"))
+                return true;
+
+            // Check parent hierarchy for enemy tooltip context
+            Transform current = go.transform;
+            int depth = 0;
+            while (current != null && depth < 5)
+            {
+                string parentName = current.name.ToLower();
+                if (parentName.Contains("enemy_tooltip") || parentName.Contains("tooltiptarget"))
+                    return true;
+                current = current.parent;
+                depth++;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Append keyword explanations to text containing known game keywords
+        /// </summary>
+        private string AppendKeywordExplanations(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return text;
+
+            var keywords = new List<string>();
+            ExtractKeywordsFromDescription(text, keywords);
+
+            if (keywords.Count > 0)
+            {
+                return text + " Keywords: " + string.Join(". ", keywords) + ".";
+            }
+
+            return text;
+        }
+
+        /// <summary>
+        /// Resolve placeholders like {[effect0.power]} or {[effect0.status0.power]} in relic descriptions
+        /// </summary>
+        private string ResolveRelicEffectPlaceholders(string text, object relicData, Type relicType)
+        {
+            if (string.IsNullOrEmpty(text) || relicData == null) return text;
+
+            MonsterTrainAccessibility.LogInfo($"ResolveRelicEffectPlaceholders called with text: {text}");
+
+            try
+            {
+                // Get effects from the relic data
+                var getEffectsMethod = relicType.GetMethod("GetEffects", Type.EmptyTypes);
+                if (getEffectsMethod == null)
+                {
+                    // Try base types
+                    var baseType = relicType.BaseType;
+                    while (baseType != null && getEffectsMethod == null)
+                    {
+                        getEffectsMethod = baseType.GetMethod("GetEffects", Type.EmptyTypes);
+                        baseType = baseType.BaseType;
+                    }
+                }
+
+                MonsterTrainAccessibility.LogInfo($"GetEffects method found: {getEffectsMethod != null}");
+
+                if (getEffectsMethod != null)
+                {
+                    var effects = getEffectsMethod.Invoke(relicData, null) as System.Collections.IList;
+                    MonsterTrainAccessibility.LogInfo($"Effects count: {effects?.Count ?? 0}");
+                    if (effects != null && effects.Count > 0)
+                    {
+                        // Log first effect's fields for debugging
+                        var firstEffect = effects[0];
+                        if (firstEffect != null)
+                        {
+                            var effectType = firstEffect.GetType();
+                            MonsterTrainAccessibility.LogInfo($"Effect[0] type: {effectType.Name}");
+                            foreach (var field in effectType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
+                            {
+                                if (field.Name.ToLower().Contains("param") || field.Name.ToLower().Contains("power"))
+                                {
+                                    try
+                                    {
+                                        var val = field.GetValue(firstEffect);
+                                        MonsterTrainAccessibility.LogInfo($"  {field.Name} = {val}");
+                                    }
+                                    catch { }
+                                }
+                            }
+                        }
+                        // Match patterns like {[effect0.power]} or {[effect0.status0.power]}
+                        var regex = new System.Text.RegularExpressions.Regex(@"\{\[effect(\d+)\.(?:status(\d+)\.)?(\w+)\]\}");
+                        text = regex.Replace(text, match =>
+                        {
+                            int effectIndex = int.Parse(match.Groups[1].Value);
+                            string property = match.Groups[3].Value;
+                            int statusIndex = match.Groups[2].Success ? int.Parse(match.Groups[2].Value) : -1;
+
+                            if (effectIndex < effects.Count)
+                            {
+                                var effect = effects[effectIndex];
+                                if (effect != null)
+                                {
+                                    var effectType = effect.GetType();
+
+                                    // If status index specified, get from paramStatusEffects array
+                                    if (statusIndex >= 0 && property.ToLower() == "power")
+                                    {
+                                        var statusEffectsField = effectType.GetField("paramStatusEffects",
+                                            BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public);
+                                        if (statusEffectsField != null)
+                                        {
+                                            var statusEffects = statusEffectsField.GetValue(effect) as Array;
+                                            if (statusEffects != null && statusIndex < statusEffects.Length)
+                                            {
+                                                var statusEffect = statusEffects.GetValue(statusIndex);
+                                                if (statusEffect != null)
+                                                {
+                                                    // StatusEffectStackData has 'count' field for the power
+                                                    var countField = statusEffect.GetType().GetField("count",
+                                                        BindingFlags.Public | BindingFlags.Instance);
+                                                    if (countField != null)
+                                                    {
+                                                        var count = countField.GetValue(statusEffect);
+                                                        return count?.ToString() ?? match.Value;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    else
+                                    {
+                                        // Map placeholder property names to actual field names
+                                        // "power" in placeholders maps to "paramInt" in the effect data
+                                        string fieldName;
+                                        if (property.ToLower() == "power")
+                                        {
+                                            fieldName = "paramInt";
+                                        }
+                                        else
+                                        {
+                                            fieldName = "param" + char.ToUpper(property[0]) + property.Substring(1);
+                                        }
+
+                                        var propField = effectType.GetField(fieldName,
+                                            BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public);
+                                        if (propField != null)
+                                        {
+                                            var value = propField.GetValue(effect);
+                                            MonsterTrainAccessibility.LogInfo($"Resolved {match.Value} -> {value} (field: {fieldName})");
+                                            return value?.ToString() ?? match.Value;
+                                        }
+                                    }
+                                }
+                            }
+                            return match.Value;
+                        });
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"ResolveRelicEffectPlaceholders error: {ex.Message}");
+            }
+
+            return text;
         }
 
         /// <summary>
@@ -6817,6 +7042,15 @@ namespace MonsterTrainAccessibility.Screens
                     // Add helper instruction
                     parts.Add("After selecting a card, press Enter to apply the upgrade");
 
+                    // Extract and append keyword explanations
+                    string fullText = string.Join(". ", parts);
+                    var keywords = new List<string>();
+                    ExtractKeywordsFromDescription(fullText, keywords);
+                    if (keywords.Count > 0)
+                    {
+                        parts.AddRange(keywords);
+                    }
+
                     MonsterTrainAccessibility.LogInfo($"Enhancer result: {string.Join(". ", parts)}");
                     return string.Join(". ", parts);
                 }
@@ -6951,17 +7185,45 @@ namespace MonsterTrainAccessibility.Screens
                         foreach (var trait in traits)
                         {
                             var traitType = trait.GetType();
-                            var getTraitNameMethod = traitType.GetMethod("GetName", Type.EmptyTypes)
-                                                  ?? traitType.GetMethod("GetTraitStateName", Type.EmptyTypes);
-                            if (getTraitNameMethod != null)
+
+                            // Log trait type methods once for debugging
+                            MonsterTrainAccessibility.LogInfo($"Trait type: {traitType.Name}");
+                            foreach (var m in traitType.GetMethods(BindingFlags.Public | BindingFlags.Instance))
                             {
-                                var traitName = getTraitNameMethod.Invoke(trait, null) as string;
-                                if (!string.IsNullOrEmpty(traitName))
+                                if (m.GetParameters().Length == 0 && m.ReturnType == typeof(string))
                                 {
-                                    // Format trait name
-                                    traitName = traitName.Replace("CardTraitState", "").Replace("State", "");
-                                    bonuses.Add($"Gain {traitName}");
+                                    var result = m.Invoke(trait, null) as string;
+                                    MonsterTrainAccessibility.LogInfo($"  {m.Name}() = {result}");
                                 }
+                            }
+
+                            // Try to get localized trait name first
+                            string traitName = null;
+
+                            // Try GetTraitStateName which might return localized name
+                            var getLocalizedMethod = traitType.GetMethod("GetTraitStateName", Type.EmptyTypes);
+                            if (getLocalizedMethod != null)
+                            {
+                                traitName = getLocalizedMethod.Invoke(trait, null) as string;
+                            }
+
+                            // Fallback to GetName
+                            if (string.IsNullOrEmpty(traitName))
+                            {
+                                var getNameMethod = traitType.GetMethod("GetName", Type.EmptyTypes);
+                                if (getNameMethod != null)
+                                {
+                                    traitName = getNameMethod.Invoke(trait, null) as string;
+                                }
+                            }
+
+                            if (!string.IsNullOrEmpty(traitName))
+                            {
+                                // Format trait name - strip internal prefixes
+                                traitName = traitName.Replace("CardTraitState", "").Replace("CardTrait", "").Replace("State", "");
+                                // Map internal names to display names
+                                traitName = MapTraitToDisplayName(traitName);
+                                bonuses.Add($"Gain {traitName}");
                             }
                         }
                     }
@@ -6975,6 +7237,30 @@ namespace MonsterTrainAccessibility.Screens
             catch { }
 
             return null;
+        }
+
+        /// <summary>
+        /// Map internal trait names to player-facing display names
+        /// </summary>
+        private string MapTraitToDisplayName(string internalName)
+        {
+            if (string.IsNullOrEmpty(internalName)) return internalName;
+
+            // Dictionary of internal trait names to display names
+            var traitMappings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                { "Juice", "Doublestack" },
+                { "DoubleStack", "Doublestack" },
+                // Add more mappings as discovered
+            };
+
+            if (traitMappings.TryGetValue(internalName, out string displayName))
+            {
+                return displayName;
+            }
+
+            // If no mapping, return the cleaned-up internal name
+            return internalName;
         }
 
         /// <summary>
@@ -7890,12 +8176,114 @@ namespace MonsterTrainAccessibility.Screens
                 }
 
                 // Format the card details
-                return FormatCardDetails(cardState);
+                string cardDetails = FormatCardDetails(cardState);
+
+                // Look for an upgrade path name/title above the card (e.g., "Wrathful", "Brawler")
+                // Only do this outside of battle (e.g., on Dark Forge screen)
+                if (Help.ScreenStateTracker.CurrentScreen != Help.GameScreen.Battle)
+                {
+                    string upgradePath = FindUpgradePathName(cardUIComponent);
+
+                    // Prepend upgrade path if found
+                    if (!string.IsNullOrEmpty(upgradePath) && !string.IsNullOrEmpty(cardDetails))
+                    {
+                        return upgradePath + ": " + cardDetails;
+                    }
+                }
+
+                return cardDetails;
             }
             catch (Exception ex)
             {
                 MonsterTrainAccessibility.LogError($"Error getting card UI text: {ex.Message}");
             }
+            return null;
+        }
+
+        /// <summary>
+        /// Find upgrade path name (like "Wrathful", "Brawler") for champion upgrade screens
+        /// Looks for title text elements above or near the CardUI
+        /// </summary>
+        private string FindUpgradePathName(Component cardUIComponent)
+        {
+            try
+            {
+                if (cardUIComponent == null) return null;
+
+                Transform cardTransform = cardUIComponent.transform;
+
+                // Look for a parent that might contain the title
+                // Common patterns: the card is in a container with a sibling title element
+                Transform parent = cardTransform.parent;
+                while (parent != null)
+                {
+                    // Look for TMP_Text components in siblings or parent's direct children
+                    foreach (Transform sibling in parent)
+                    {
+                        // Skip the card itself and its descendants
+                        if (sibling == cardTransform || sibling.IsChildOf(cardTransform))
+                            continue;
+
+                        // Look for text components
+                        foreach (var component in sibling.GetComponentsInChildren<Component>())
+                        {
+                            if (component == null) continue;
+                            string typeName = component.GetType().Name;
+
+                            if (typeName == "TextMeshProUGUI" || typeName == "ExtendedTextMeshProUGUI" ||
+                                typeName == "TextMeshPro" || typeName == "Text")
+                            {
+                                // Get the text property
+                                var textProp = component.GetType().GetProperty("text", BindingFlags.Public | BindingFlags.Instance);
+                                if (textProp != null)
+                                {
+                                    string text = textProp.GetValue(component) as string;
+                                    if (!string.IsNullOrEmpty(text))
+                                    {
+                                        text = text.Trim();
+                                        // Upgrade path names are typically short (1-2 words)
+                                        // and don't contain numbers, colons, or card-like content
+                                        if (text.Length > 0 && text.Length < 30 &&
+                                            !text.Contains(":") && !text.Contains(".") &&
+                                            !System.Text.RegularExpressions.Regex.IsMatch(text, @"\d") &&
+                                            !text.ToLower().Contains("champion") &&
+                                            !text.ToLower().Contains("cost") &&
+                                            !text.ToLower().Contains("ember"))
+                                        {
+                                            // Check if the text element is positioned above the card
+                                            // by comparing Y positions (higher Y = above in UI)
+                                            RectTransform textRect = component.transform as RectTransform;
+                                            RectTransform cardRect = cardTransform as RectTransform;
+
+                                            if (textRect != null && cardRect != null)
+                                            {
+                                                // If text is above the card (higher world position Y)
+                                                if (textRect.position.y > cardRect.position.y)
+                                                {
+                                                    MonsterTrainAccessibility.LogInfo($"Found upgrade path name: '{text}'");
+                                                    return text;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Move up the hierarchy
+                    parent = parent.parent;
+
+                    // Don't go too far up
+                    if (parent != null && (parent.name.Contains("Canvas") || parent.name.Contains("Screen")))
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error finding upgrade path name: {ex.Message}");
+            }
+
             return null;
         }
 
@@ -8822,7 +9210,7 @@ namespace MonsterTrainAccessibility.Screens
                 { "Inert", "Inert: Cannot attack unless it has Fuel" },
                 { "Fuel", "Fuel: Allows Inert units to attack, loses 1 per turn" },
                 { "Phased", "Phased: Cannot attack or be damaged/targeted" },
-                { "Relentless", "Relentless: Attacks until floor cleared, then ascends" },
+                { "Relentless", "Relentless: Combat continues until all enemies defeated, cannot be rooted" },
                 { "Haste", "Haste: Moves directly from first to third floor" },
                 { "Cardless", "Cardless: Not from a card, won't go to Consume pile" },
                 { "Buffet", "Buffet: Can be eaten multiple times" },
@@ -8835,6 +9223,7 @@ namespace MonsterTrainAccessibility.Screens
                 { "Eaten", "Eaten: Will be eaten by front unit after combat" },
                 // Card effects
                 { "Consume", "Consume: Can only be played once per battle" },
+                { "Doublestack", "Doublestack: Status effect stacks added by this card are doubled" },
                 { "Frozen", "Frozen: Not discarded at end of turn" },
                 { "Permafrost", "Permafrost: Gains Frozen when drawn" },
                 { "Purge", "Purge: Removed from deck for the rest of the run" },

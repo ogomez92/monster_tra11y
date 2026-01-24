@@ -415,6 +415,7 @@ namespace MonsterTrainAccessibility.Patches
             try
             {
                 var rewardType = rewardData.GetType();
+                string result = null;
 
                 // Try GetTitle method first (if it exists)
                 var getTitleMethod = rewardType.GetMethod("GetTitle");
@@ -422,31 +423,158 @@ namespace MonsterTrainAccessibility.Patches
                 {
                     var title = getTitleMethod.Invoke(rewardData, null) as string;
                     if (!string.IsNullOrEmpty(title) && !title.Contains("_") && !title.Contains("-"))
-                        return title;
+                        result = title;
                 }
 
                 // Try to get the title key and localize it using the game's Localize method
-                var titleKeyField = rewardType.GetField("_rewardTitleKey", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                if (titleKeyField != null)
+                if (result == null)
                 {
-                    var titleKey = titleKeyField.GetValue(rewardData) as string;
-                    if (!string.IsNullOrEmpty(titleKey))
+                    var titleKeyField = rewardType.GetField("_rewardTitleKey", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                    if (titleKeyField != null)
                     {
-                        // Try to find and use the Localize extension method
-                        string localized = TryLocalizeKey(titleKey);
-                        if (!string.IsNullOrEmpty(localized) && localized != titleKey && !localized.Contains("-"))
-                            return localized;
+                        var titleKey = titleKeyField.GetValue(rewardData) as string;
+                        if (!string.IsNullOrEmpty(titleKey))
+                        {
+                            // Try to find and use the Localize extension method
+                            string localized = TryLocalizeKey(titleKey);
+                            if (!string.IsNullOrEmpty(localized) && localized != titleKey && !localized.Contains("-"))
+                                result = localized;
+                        }
                     }
                 }
 
                 // Fall back to type name - this is the most reliable approach
-                return GetRewardTypeDisplayName(rewardType);
+                if (result == null)
+                {
+                    result = GetRewardTypeDisplayName(rewardType);
+                }
+
+                // Resolve {[codeint0]} placeholders in the result
+                if (!string.IsNullOrEmpty(result) && result.Contains("{[codeint"))
+                {
+                    result = ResolveCodeIntPlaceholders(result, rewardData, rewardType);
+                }
+
+                // Clean sprite tags like <sprite name="Gold"> -> "gold"
+                if (!string.IsNullOrEmpty(result) && result.Contains("sprite"))
+                {
+                    result = CleanSpriteTagsForReward(result);
+                }
+
+                return result;
             }
             catch (Exception ex)
             {
                 MonsterTrainAccessibility.LogError($"Error getting reward name: {ex.Message}");
                 return "Reward";
             }
+        }
+
+        /// <summary>
+        /// Resolve {[codeint0]} style placeholders in reward text
+        /// </summary>
+        private static string ResolveCodeIntPlaceholders(string text, object rewardData, Type rewardType)
+        {
+            if (string.IsNullOrEmpty(text) || rewardData == null) return text;
+
+            MonsterTrainAccessibility.LogInfo($"ResolveCodeIntPlaceholders called for: {text}");
+            MonsterTrainAccessibility.LogInfo($"RewardData type: {rewardType.Name}");
+
+            try
+            {
+                // Log all fields on the reward data to find the right one
+                var allFields = rewardType.GetFields(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+                foreach (var f in allFields)
+                {
+                    try
+                    {
+                        var val = f.GetValue(rewardData);
+                        string valStr = val?.ToString() ?? "null";
+                        if (val is Array arr)
+                            valStr = $"Array[{arr.Length}]: {string.Join(", ", arr.Cast<object>().Take(5))}";
+                        MonsterTrainAccessibility.LogInfo($"  Field: {f.Name} = {valStr}");
+                    }
+                    catch { }
+                }
+
+                // Look for codeInts field (array of ints for placeholder values)
+                var codeIntsField = rewardType.GetField("codeInts", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+                if (codeIntsField == null)
+                {
+                    codeIntsField = rewardType.GetField("_codeInts", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+                }
+
+                int[] codeInts = null;
+                if (codeIntsField != null)
+                {
+                    codeInts = codeIntsField.GetValue(rewardData) as int[];
+                    MonsterTrainAccessibility.LogInfo($"Found codeInts field, value: {(codeInts != null ? string.Join(", ", codeInts) : "null")}");
+                }
+
+                // For GoldRewardData and similar, use _amount field for codeint0
+                if (codeInts == null || codeInts.Length == 0)
+                {
+                    var amountField = rewardType.GetField("_amount", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+                    if (amountField != null)
+                    {
+                        var amountVal = amountField.GetValue(rewardData);
+                        if (amountVal is int amount)
+                        {
+                            codeInts = new int[] { amount };
+                            MonsterTrainAccessibility.LogInfo($"Using _amount field for codeint0: {amount}");
+                        }
+                    }
+                }
+
+                if (codeInts != null && codeInts.Length > 0)
+                {
+                    // Replace {[codeint0]}, {[codeint1]}, etc.
+                    var regex = new System.Text.RegularExpressions.Regex(@"\{\[codeint(\d+)\]\}");
+                    text = regex.Replace(text, match =>
+                    {
+                        int index = int.Parse(match.Groups[1].Value);
+                        if (index < codeInts.Length)
+                        {
+                            MonsterTrainAccessibility.LogInfo($"Resolved {match.Value} -> {codeInts[index]}");
+                            return codeInts[index].ToString();
+                        }
+                        return match.Value;
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"ResolveCodeIntPlaceholders error: {ex.Message}");
+            }
+
+            return text;
+        }
+
+        /// <summary>
+        /// Clean sprite tags like <sprite name="Gold"> to readable text like "gold"
+        /// </summary>
+        private static string CleanSpriteTagsForReward(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return text;
+
+            // Convert <sprite name="Gold"> or <sprite name=Gold> to "gold"
+            text = System.Text.RegularExpressions.Regex.Replace(
+                text,
+                @"<sprite\s+name\s*=\s*[""']?([^""'>\s]+)[""']?\s*/?>",
+                match => " " + match.Groups[1].Value.ToLower() + " ",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            // Also handle <sprite=X> format
+            text = System.Text.RegularExpressions.Regex.Replace(
+                text,
+                @"<sprite\s*=\s*[""']?([^""'>\s]+)[""']?\s*/?>",
+                match => " " + match.Groups[1].Value.ToLower() + " ",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            // Clean up double spaces and trim
+            text = System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ").Trim();
+
+            return text;
         }
 
         private static System.Reflection.MethodInfo _localizeMethod = null;
