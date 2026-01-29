@@ -74,6 +74,7 @@ Context-sensitive help that announces available keys based on current game scree
 | F1 | Context-sensitive help |
 | C | Re-read current focused item |
 | T | Read all text on screen |
+| Tab | Read train stats (pyre health, gold, deck size) |
 | V | Cycle verbosity level |
 
 #### Battle Keys

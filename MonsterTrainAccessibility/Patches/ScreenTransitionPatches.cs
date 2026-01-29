@@ -3,6 +3,7 @@ using MonsterTrainAccessibility.Core;
 using MonsterTrainAccessibility.Help;
 using System;
 using System.Linq;
+using UnityEngine;
 
 namespace MonsterTrainAccessibility.Patches
 {
@@ -1173,10 +1174,79 @@ namespace MonsterTrainAccessibility.Patches
 
                 // Also call the menu handler for additional processing
                 MonsterTrainAccessibility.MenuHandler?.OnGameOverScreenEntered(__instance);
+
+                // Fix navigation by selecting the first button after a short delay
+                if (__instance is MonoBehaviour screenBehaviour)
+                {
+                    screenBehaviour.StartCoroutine(SelectFirstButtonDelayed(__instance));
+                }
             }
             catch (Exception ex)
             {
                 MonsterTrainAccessibility.LogError($"Error in GameOverScreen patch: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Select the first selectable button on the game over screen after a delay
+        /// </summary>
+        private static System.Collections.IEnumerator SelectFirstButtonDelayed(object screen)
+        {
+            // Wait for UI to fully load
+            yield return new WaitForSecondsRealtime(0.5f);
+
+            GameObject screenGO = null;
+            UnityEngine.UI.Selectable firstSelectable = null;
+            bool success = false;
+
+            try
+            {
+                if (screen is Component comp)
+                {
+                    screenGO = comp.gameObject;
+                }
+                else if (screen is GameObject go)
+                {
+                    screenGO = go;
+                }
+
+                if (screenGO != null)
+                {
+                    // Find all selectable/button elements on the screen
+                    var allSelectables = screenGO.GetComponentsInChildren<UnityEngine.UI.Selectable>(false);
+
+                    // Filter to only active, interactable selectables
+                    foreach (var sel in allSelectables)
+                    {
+                        if (sel != null && sel.gameObject.activeInHierarchy && sel.interactable)
+                        {
+                            firstSelectable = sel;
+                            break;
+                        }
+                    }
+
+                    if (firstSelectable != null)
+                    {
+                        MonsterTrainAccessibility.LogInfo($"Selecting first button on game over screen: {firstSelectable.name}");
+                        UnityEngine.EventSystems.EventSystem.current?.SetSelectedGameObject(firstSelectable.gameObject);
+                        success = true;
+                    }
+                    else
+                    {
+                        MonsterTrainAccessibility.LogInfo("No selectable buttons found on game over screen");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error selecting first button: {ex.Message}");
+            }
+
+            // Announce navigation help if we found a button
+            if (success)
+            {
+                yield return new WaitForSecondsRealtime(0.3f);
+                MonsterTrainAccessibility.ScreenReader?.Speak("Use arrow keys to navigate, Enter to select.", false);
             }
         }
 

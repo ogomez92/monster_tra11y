@@ -105,7 +105,26 @@ namespace MonsterTrainAccessibility.Core
                 EndTurn();
                 _inputCooldown = INPUT_COOLDOWN_TIME;
             }
+            else if (Input.GetKeyDown(KeyCode.Tab))
+            {
+                // When TAB is pressed, read the train stats panel after a short delay
+                // (to allow the panel to open first)
+                StartCoroutine(ReadTrainStatsDelayed());
+                _inputCooldown = INPUT_COOLDOWN_TIME;
+            }
 
+        }
+
+        /// <summary>
+        /// Read train stats after a short delay (to allow panel to open)
+        /// </summary>
+        private System.Collections.IEnumerator ReadTrainStatsDelayed()
+        {
+            // Wait for the stats panel to open
+            yield return new WaitForSecondsRealtime(0.3f);
+
+            // Try to read the train stats panel
+            MonsterTrainAccessibility.MenuHandler?.ReadTrainStatsPanel();
         }
 
         /// <summary>

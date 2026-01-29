@@ -945,8 +945,19 @@ namespace MonsterTrainAccessibility.Screens
                     var room = GetRoom(roomIndex);
                     if (room != null)
                     {
-                        string floorName = $"Floor {userFloor}";
+                        // Get floor capacity info
+                        int usedCapacity = 0;
+                        int maxCapacity = GetFloorCapacity(room);
                         var units = GetUnitsInRoom(room);
+
+                        // Calculate used capacity from unit sizes
+                        foreach (var unit in units)
+                        {
+                            usedCapacity += GetUnitSize(unit);
+                        }
+
+                        string capacityInfo = maxCapacity > 0 ? $" ({usedCapacity}/{maxCapacity} capacity)" : "";
+                        string floorName = $"Floor {userFloor}{capacityInfo}";
 
                         if (units.Count == 0)
                         {
@@ -957,12 +968,10 @@ namespace MonsterTrainAccessibility.Screens
                             var descriptions = new List<string>();
                             foreach (var unit in units)
                             {
-                                string name = GetUnitName(unit);
-                                int hp = GetUnitHP(unit);
-                                int attack = GetUnitAttack(unit);
+                                string unitDesc = GetUnitBriefDescription(unit);
                                 bool isEnemy = IsEnemyUnit(unit);
-                                string prefix = isEnemy ? "Enemy" : "";
-                                descriptions.Add($"{prefix} {name} {attack}/{hp}");
+                                string prefix = isEnemy ? "Enemy " : "";
+                                descriptions.Add($"{prefix}{unitDesc}");
                             }
                             output?.Queue($"{floorName}: {string.Join(", ", descriptions)}");
                         }
@@ -982,6 +991,158 @@ namespace MonsterTrainAccessibility.Screens
                 MonsterTrainAccessibility.LogError($"Error announcing floors: {ex.Message}");
                 MonsterTrainAccessibility.ScreenReader?.Speak("Could not read floors", false);
             }
+        }
+
+        /// <summary>
+        /// Get a brief description of a unit including attack/health, status effects, and size
+        /// </summary>
+        private string GetUnitBriefDescription(object unit)
+        {
+            string name = GetUnitName(unit);
+            int hp = GetUnitHP(unit);
+            int attack = GetUnitAttack(unit);
+            int size = GetUnitSize(unit);
+
+            var sb = new StringBuilder();
+            sb.Append($"{name} {attack}/{hp}");
+
+            // Add all status effects
+            string statusEffects = GetUnitStatusEffects(unit);
+            if (!string.IsNullOrEmpty(statusEffects))
+            {
+                sb.Append($" ({statusEffects})");
+            }
+
+            if (size != 1) // Only mention size if it's not the default of 1
+            {
+                sb.Append($", size {size}");
+            }
+
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// Get the armor stacks on a unit
+        /// </summary>
+        private int GetUnitArmor(object characterState)
+        {
+            try
+            {
+                var type = characterState.GetType();
+
+                // Try GetStatusEffectStacks with armor status ID
+                var getStacksMethod = type.GetMethod("GetStatusEffectStacks", new[] { typeof(string) });
+                if (getStacksMethod != null)
+                {
+                    // Try different armor status IDs
+                    string[] armorIds = { "armor", "Armor", "StatusEffectArmor" };
+                    foreach (var armorId in armorIds)
+                    {
+                        try
+                        {
+                            var result = getStacksMethod.Invoke(characterState, new object[] { armorId });
+                            if (result is int stacks && stacks > 0)
+                            {
+                                return stacks;
+                            }
+                        }
+                        catch { }
+                    }
+                }
+
+                // Alternative: check the character's armor directly
+                var getArmorMethod = type.GetMethod("GetArmor", Type.EmptyTypes);
+                if (getArmorMethod != null)
+                {
+                    var result = getArmorMethod.Invoke(characterState, null);
+                    if (result is int armor && armor > 0)
+                    {
+                        return armor;
+                    }
+                }
+            }
+            catch { }
+            return 0;
+        }
+
+        /// <summary>
+        /// Get the size of a unit (how much floor capacity it uses)
+        /// </summary>
+        private int GetUnitSize(object characterState)
+        {
+            try
+            {
+                var type = characterState.GetType();
+
+                // Try GetSize method
+                var getSizeMethod = type.GetMethod("GetSize", Type.EmptyTypes);
+                if (getSizeMethod != null)
+                {
+                    var result = getSizeMethod.Invoke(characterState, null);
+                    if (result is int size)
+                    {
+                        return size;
+                    }
+                }
+
+                // Try getting from CharacterData
+                var getCharDataMethod = type.GetMethod("GetCharacterData", Type.EmptyTypes);
+                if (getCharDataMethod != null)
+                {
+                    var charData = getCharDataMethod.Invoke(characterState, null);
+                    if (charData != null)
+                    {
+                        var charDataType = charData.GetType();
+                        var dataSizeMethod = charDataType.GetMethod("GetSize", Type.EmptyTypes);
+                        if (dataSizeMethod != null)
+                        {
+                            var result = dataSizeMethod.Invoke(charData, null);
+                            if (result is int size)
+                            {
+                                return size;
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+            return 1; // Default size
+        }
+
+        /// <summary>
+        /// Get the maximum capacity of a floor/room
+        /// </summary>
+        private int GetFloorCapacity(object room)
+        {
+            try
+            {
+                var roomType = room.GetType();
+
+                // Try GetCapacity method
+                var getCapacityMethod = roomType.GetMethod("GetCapacity", Type.EmptyTypes);
+                if (getCapacityMethod != null)
+                {
+                    var result = getCapacityMethod.Invoke(room, null);
+                    if (result is int capacity)
+                    {
+                        return capacity;
+                    }
+                }
+
+                // Try capacity field
+                var capacityField = roomType.GetField("capacity", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+                                 ?? roomType.GetField("_capacity", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (capacityField != null)
+                {
+                    var result = capacityField.GetValue(room);
+                    if (result is int capacity)
+                    {
+                        return capacity;
+                    }
+                }
+            }
+            catch { }
+            return 7; // Default floor capacity in Monster Train
         }
 
         /// <summary>
@@ -1553,7 +1714,7 @@ namespace MonsterTrainAccessibility.Screens
             return -1;
         }
 
-        private int GetPyreHealth()
+        public int GetPyreHealth()
         {
             if (_saveManager == null || _getTowerHPMethod == null)
             {
@@ -1569,12 +1730,53 @@ namespace MonsterTrainAccessibility.Screens
             return -1;
         }
 
-        private int GetMaxPyreHealth()
+        public int GetMaxPyreHealth()
         {
             try
             {
                 var result = _getMaxTowerHPMethod?.Invoke(_saveManager, null);
                 if (result is int hp) return hp;
+            }
+            catch { }
+            return -1;
+        }
+
+        /// <summary>
+        /// Get the current deck size
+        /// </summary>
+        public int GetDeckSize()
+        {
+            try
+            {
+                if (_cardManager == null)
+                {
+                    FindManagers();
+                }
+
+                if (_cardManager != null)
+                {
+                    var cardManagerType = _cardManager.GetType();
+
+                    // Try GetAllCards or GetDeck method
+                    var getCardsMethod = cardManagerType.GetMethod("GetAllCards", Type.EmptyTypes)
+                                      ?? cardManagerType.GetMethod("GetDeck", Type.EmptyTypes);
+                    if (getCardsMethod != null)
+                    {
+                        var cards = getCardsMethod.Invoke(_cardManager, null);
+                        if (cards is System.Collections.ICollection collection)
+                        {
+                            return collection.Count;
+                        }
+                    }
+
+                    // Try GetDeckCount method
+                    var getCountMethod = cardManagerType.GetMethod("GetDeckCount", Type.EmptyTypes);
+                    if (getCountMethod != null)
+                    {
+                        var result = getCountMethod.Invoke(_cardManager, null);
+                        if (result is int count) return count;
+                    }
+                }
             }
             catch { }
             return -1;
@@ -1695,6 +1897,14 @@ namespace MonsterTrainAccessibility.Screens
                 MonsterTrainAccessibility.LogError($"Error announcing units: {ex.Message}");
                 MonsterTrainAccessibility.ScreenReader?.Speak("Could not read units", false);
             }
+        }
+
+        /// <summary>
+        /// Get a detailed description of any unit (public wrapper for targeting)
+        /// </summary>
+        public string GetDetailedUnitDescription(object unit)
+        {
+            return GetDetailedEnemyDescription(unit);
         }
 
         /// <summary>

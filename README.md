@@ -89,6 +89,7 @@ Once you have enabled the mod loader, do the following:
 | F1 | Context-sensitive help (shows available keys for current screen) |
 | C | Re-read current focused item |
 | T | Read all text on screen (patch notes, descriptions, etc.) |
+| Tab | Read train stats (pyre health, gold, deck size) |
 | V | Cycle verbosity level (Minimal/Normal/Verbose) |
 
 ### Automatic Text Reading
@@ -102,9 +103,10 @@ The mod automatically reads text when:
 | Key | Action |
 |-----|--------|
 | H | Read all cards in hand |
-| L | Read all floor information (L for Levels) |
+| L | Read all floor information (L for Levels) - includes unit stats, status effects, and floor capacity |
 | N | Read enemy information and intents (N for eNemies) |
 | R | Read resources (ember, pyre health) |
+| Tab | Read train stats (pyre health, gold, deck size) |
 **Note**: F and E are avoided because they conflict with the game's native shortcuts (F = Toggle Unit Details, E = End Turn).
 
 ### Floor Targeting (when playing a card that requires floor selection)
