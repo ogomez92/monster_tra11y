@@ -585,14 +585,75 @@ namespace MonsterTrainAccessibility.Screens
 
         /// <summary>
         /// Strip rich text tags from text for screen reader output.
-        /// Removes Unity rich text tags like <nobr>, <color>, <upgradeHighlight>, etc.
+        /// Converts game-specific tags to readable text and removes Unity rich text tags.
         /// </summary>
         public static string StripRichTextTags(string text)
         {
             if (string.IsNullOrEmpty(text))
                 return text;
 
-            // Use regex to strip all XML-like tags
+            // Convert sprite tags to readable text first
+            // Handles: <sprite name=Gold>, <sprite name="Gold">, etc.
+            text = System.Text.RegularExpressions.Regex.Replace(
+                text,
+                @"<sprite\s+name\s*=\s*[""']?([^""'>\s]+)[""']?\s*/?>",
+                match => " " + match.Groups[1].Value.ToLower() + " ",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            text = System.Text.RegularExpressions.Regex.Replace(
+                text,
+                @"<sprite\s*=\s*[""']?([^""'>\s]+)[""']?\s*/?>",
+                match => " " + match.Groups[1].Value.ToLower() + " ",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            // Handle <gold>X</gold> -> "X gold"
+            text = System.Text.RegularExpressions.Regex.Replace(
+                text,
+                @"<gold>([^<]*)</gold>",
+                match => match.Groups[1].Value + " gold",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            // Handle <+Xpower> or <power>X</power> formats
+            text = System.Text.RegularExpressions.Regex.Replace(
+                text,
+                @"<\+?(\d+)power>",
+                match => "+" + match.Groups[1].Value + " power",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            text = System.Text.RegularExpressions.Regex.Replace(
+                text,
+                @"<power>([^<]*)</power>",
+                match => match.Groups[1].Value + " power",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            // Handle <ember>X</ember> format
+            text = System.Text.RegularExpressions.Regex.Replace(
+                text,
+                @"<ember>([^<]*)</ember>",
+                match => match.Groups[1].Value + " ember",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            // Handle <health>X</health> format
+            text = System.Text.RegularExpressions.Regex.Replace(
+                text,
+                @"<health>([^<]*)</health>",
+                match => match.Groups[1].Value + " health",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            // Handle <damage>X</damage> or <attack>X</attack> format
+            text = System.Text.RegularExpressions.Regex.Replace(
+                text,
+                @"<(?:damage|attack)>([^<]*)</(?:damage|attack)>",
+                match => match.Groups[1].Value + " damage",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            // Handle <capacity>X</capacity> format
+            text = System.Text.RegularExpressions.Regex.Replace(
+                text,
+                @"<capacity>([^<]*)</capacity>",
+                match => match.Groups[1].Value + " capacity",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            // Use regex to strip all remaining XML-like tags
             // This handles: <tag>, </tag>, <tag attribute="value">, self-closing <tag/>, etc.
             text = System.Text.RegularExpressions.Regex.Replace(text, @"<[^>]+>", "");
 
@@ -1658,6 +1719,13 @@ namespace MonsterTrainAccessibility.Screens
                 }
                 sb.Append(" health");
 
+                // Get unit abilities/description from CharacterData
+                string abilities = GetUnitAbilities(unit);
+                if (!string.IsNullOrEmpty(abilities))
+                {
+                    sb.Append($". {abilities}");
+                }
+
                 // Get status effects
                 string statusEffects = GetUnitStatusEffects(unit);
                 if (!string.IsNullOrEmpty(statusEffects))
@@ -1679,6 +1747,242 @@ namespace MonsterTrainAccessibility.Screens
                 MonsterTrainAccessibility.LogError($"Error getting enemy description: {ex.Message}");
                 return GetUnitName(unit) ?? "Unknown enemy";
             }
+        }
+
+        /// <summary>
+        /// Get unit abilities/description from CharacterData including subtypes, triggers, and traits
+        /// </summary>
+        private string GetUnitAbilities(object characterState)
+        {
+            try
+            {
+                var type = characterState.GetType();
+                var parts = new List<string>();
+
+                // Get CharacterData from CharacterState
+                var getCharDataMethod = type.GetMethod("GetCharacterData", Type.EmptyTypes);
+                object charData = null;
+                if (getCharDataMethod != null)
+                {
+                    charData = getCharDataMethod.Invoke(characterState, null);
+                }
+
+                if (charData != null)
+                {
+                    var charDataType = charData.GetType();
+
+                    // Check if unit can attack
+                    var getCanAttackMethod = charDataType.GetMethod("GetCanAttack", Type.EmptyTypes);
+                    if (getCanAttackMethod != null)
+                    {
+                        var canAttackResult = getCanAttackMethod.Invoke(charData, null);
+                        if (canAttackResult is bool canAttack && !canAttack)
+                        {
+                            parts.Add("Does not attack");
+                        }
+                    }
+
+                    // Get subtypes (like "Treasure", etc.)
+                    var getSubtypesMethod = charDataType.GetMethod("GetSubtypeKeys", Type.EmptyTypes);
+                    if (getSubtypesMethod != null)
+                    {
+                        var subtypes = getSubtypesMethod.Invoke(charData, null) as System.Collections.IEnumerable;
+                        if (subtypes != null)
+                        {
+                            foreach (var subtype in subtypes)
+                            {
+                                string subtypeStr = subtype?.ToString() ?? "";
+                                if (!string.IsNullOrEmpty(subtypeStr) && subtypeStr != "SubtypesData_None")
+                                {
+                                    // Clean up subtype name
+                                    subtypeStr = subtypeStr.Replace("SubtypesData_", "").Replace("_", " ");
+                                    if (!string.IsNullOrEmpty(subtypeStr))
+                                    {
+                                        parts.Add(subtypeStr);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Try to get description/abilities from triggers
+                    var getTriggersMethod = charDataType.GetMethod("GetTriggers", Type.EmptyTypes);
+                    if (getTriggersMethod != null)
+                    {
+                        var triggers = getTriggersMethod.Invoke(charData, null) as System.Collections.IList;
+                        if (triggers != null && triggers.Count > 0)
+                        {
+                            foreach (var trigger in triggers)
+                            {
+                                string triggerDesc = GetTriggerDescription(trigger);
+                                if (!string.IsNullOrEmpty(triggerDesc))
+                                {
+                                    parts.Add(triggerDesc);
+                                }
+                            }
+                        }
+                    }
+
+                    // Check for special behaviors like flees, winged, etc.
+                    string specialBehaviors = GetSpecialBehaviors(charData, charDataType);
+                    if (!string.IsNullOrEmpty(specialBehaviors))
+                    {
+                        parts.Add(specialBehaviors);
+                    }
+                }
+
+                return parts.Count > 0 ? string.Join(". ", parts) : null;
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting unit abilities: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Get description of a character trigger (ability that triggers on certain conditions)
+        /// </summary>
+        private string GetTriggerDescription(object trigger)
+        {
+            try
+            {
+                if (trigger == null) return null;
+                var triggerType = trigger.GetType();
+
+                // Try to get the trigger description
+                var getDescMethod = triggerType.GetMethod("GetDescription", Type.EmptyTypes);
+                if (getDescMethod != null)
+                {
+                    var desc = getDescMethod.Invoke(trigger, null) as string;
+                    if (!string.IsNullOrEmpty(desc))
+                    {
+                        return StripRichTextTags(desc);
+                    }
+                }
+
+                // Try to get trigger type/name
+                var getTriggerTypeMethod = triggerType.GetMethod("GetTrigger", Type.EmptyTypes);
+                if (getTriggerTypeMethod != null)
+                {
+                    var triggerTypeVal = getTriggerTypeMethod.Invoke(trigger, null);
+                    if (triggerTypeVal != null)
+                    {
+                        string triggerName = triggerTypeVal.ToString();
+                        // Convert trigger type to readable text
+                        return FormatTriggerType(triggerName);
+                    }
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        /// <summary>
+        /// Format a trigger type into readable text
+        /// </summary>
+        private string FormatTriggerType(string triggerType)
+        {
+            if (string.IsNullOrEmpty(triggerType)) return null;
+
+            switch (triggerType.ToLower())
+            {
+                case "onturnbegin": return "On turn begin";
+                case "onturnend": return "On turn end";
+                case "onhit": return "On hit";
+                case "ondeath": return "On death";
+                case "onspawn": return "On spawn";
+                case "onslay": return "Slay";
+                case "onattack": return "On attack";
+                case "onheal": return "Heals allies";
+                case "oncastspell": return "On spell cast";
+                default:
+                    // Convert camelCase to readable
+                    return System.Text.RegularExpressions.Regex.Replace(triggerType, "(\\B[A-Z])", " $1");
+            }
+        }
+
+        /// <summary>
+        /// Get special behaviors from CharacterData (flees, winged, treasure, etc.)
+        /// </summary>
+        private string GetSpecialBehaviors(object charData, Type charDataType)
+        {
+            var behaviors = new List<string>();
+
+            try
+            {
+                // Check for isTreasure or similar flags
+                var fields = charDataType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                foreach (var field in fields)
+                {
+                    string fieldName = field.Name.ToLower();
+
+                    // Check for treasure/fleeing units
+                    if (fieldName.Contains("treasure") || fieldName.Contains("flees") || fieldName.Contains("fleeing"))
+                    {
+                        var val = field.GetValue(charData);
+                        if (val is bool bVal && bVal)
+                        {
+                            if (fieldName.Contains("treasure")) behaviors.Add("Treasure unit (drops reward on kill)");
+                            else if (fieldName.Contains("flee")) behaviors.Add("Flees after combat round");
+                        }
+                    }
+
+                    // Check for winged/flying
+                    if (fieldName.Contains("winged") || fieldName.Contains("flying"))
+                    {
+                        var val = field.GetValue(charData);
+                        if (val is bool bVal && bVal)
+                        {
+                            behaviors.Add("Winged (enters random floor)");
+                        }
+                    }
+                }
+
+                // Check properties too
+                var properties = charDataType.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+                foreach (var prop in properties)
+                {
+                    string propName = prop.Name.ToLower();
+
+                    if (propName.Contains("treasure") || propName.Contains("flees"))
+                    {
+                        try
+                        {
+                            var val = prop.GetValue(charData);
+                            if (val is bool bVal && bVal)
+                            {
+                                if (propName.Contains("treasure")) behaviors.Add("Treasure unit");
+                                else if (propName.Contains("flee")) behaviors.Add("Flees");
+                            }
+                        }
+                        catch { }
+                    }
+                }
+
+                // Try GetIsFleeingUnit or similar methods
+                var fleeMethods = charDataType.GetMethods()
+                    .Where(m => m.Name.ToLower().Contains("flee") && m.GetParameters().Length == 0);
+                foreach (var method in fleeMethods)
+                {
+                    try
+                    {
+                        var result = method.Invoke(charData, null);
+                        if (result is bool bVal && bVal)
+                        {
+                            if (!behaviors.Any(b => b.Contains("Flee")))
+                                behaviors.Add("Flees after combat round");
+                        }
+                    }
+                    catch { }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting special behaviors: {ex.Message}");
+            }
+
+            return behaviors.Count > 0 ? string.Join(", ", behaviors) : null;
         }
 
         /// <summary>
@@ -2041,7 +2345,13 @@ namespace MonsterTrainAccessibility.Screens
                     var result = getTargetRoomMethod.Invoke(bossAction, null);
                     if (result is int roomIndex && roomIndex >= 0)
                     {
-                        string floorName = roomIndex == 0 ? "pyre room" : $"floor {roomIndex}";
+                        // Convert room index to user-facing floor number
+                        // Room 0 = Floor 3, Room 1 = Floor 2, Room 2 = Floor 1, Room 3 = Pyre
+                        string floorName;
+                        if (roomIndex == 3)
+                            floorName = "pyre room";
+                        else
+                            floorName = $"floor {3 - roomIndex}";
                         parts.Add($"targeting {floorName}");
                     }
                 }

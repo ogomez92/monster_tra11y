@@ -3804,7 +3804,7 @@ namespace MonsterTrainAccessibility.Screens
 
         /// <summary>
         /// Clean sprite tags like <sprite name=Gold> and convert to readable text like "gold"
-        /// Also strips other rich text tags.
+        /// Also handles game-specific tags like <gold>, <power>, upgrade highlights, etc.
         /// </summary>
         private string CleanSpriteTagsForSpeech(string text)
         {
@@ -3812,8 +3812,8 @@ namespace MonsterTrainAccessibility.Screens
                 return text;
 
             // Log original text for debugging
-            bool hadSprite = text.Contains("sprite");
-            if (hadSprite)
+            bool hadSpecialTags = text.Contains("sprite") || text.Contains("<gold") || text.Contains("power>") || text.Contains("Highlight>");
+            if (hadSpecialTags)
             {
                 MonsterTrainAccessibility.LogInfo($"CleanSpriteTagsForSpeech input: '{text}'");
             }
@@ -3833,14 +3833,69 @@ namespace MonsterTrainAccessibility.Screens
                 match => " " + match.Groups[1].Value.ToLower() + " ",
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
-            // Strip any remaining rich text tags
+            // Handle <gold>X</gold> -> "X gold"
+            text = System.Text.RegularExpressions.Regex.Replace(
+                text,
+                @"<gold>([^<]*)</gold>",
+                match => match.Groups[1].Value + " gold",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            // Handle <+Xpower> or <power>X</power> formats
+            text = System.Text.RegularExpressions.Regex.Replace(
+                text,
+                @"<\+?(\d+)power>",
+                match => "+" + match.Groups[1].Value + " power",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            text = System.Text.RegularExpressions.Regex.Replace(
+                text,
+                @"<power>([^<]*)</power>",
+                match => match.Groups[1].Value + " power",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            // Handle <ember>X</ember> format
+            text = System.Text.RegularExpressions.Regex.Replace(
+                text,
+                @"<ember>([^<]*)</ember>",
+                match => match.Groups[1].Value + " ember",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            // Handle <health>X</health> format
+            text = System.Text.RegularExpressions.Regex.Replace(
+                text,
+                @"<health>([^<]*)</health>",
+                match => match.Groups[1].Value + " health",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            // Handle <damage>X</damage> or <attack>X</attack> format
+            text = System.Text.RegularExpressions.Regex.Replace(
+                text,
+                @"<(?:damage|attack)>([^<]*)</(?:damage|attack)>",
+                match => match.Groups[1].Value + " damage",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            // Handle <capacity>X</capacity> format
+            text = System.Text.RegularExpressions.Regex.Replace(
+                text,
+                @"<capacity>([^<]*)</capacity>",
+                match => match.Groups[1].Value + " capacity",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            // Remove upgrade highlight tags but keep their content (card upgrade info)
+            // This is important - we want to keep "Armor 10" from "<upgradeHighlight>Armor 10</upgradeHighlight>"
+            text = System.Text.RegularExpressions.Regex.Replace(
+                text,
+                @"</?(?:temp)?[Uu]pgrade[Hh]ighlight>",
+                "",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            // Strip any remaining rich text tags (but after extracting useful info)
             text = System.Text.RegularExpressions.Regex.Replace(text, @"<[^>]+>", "");
 
             // Clean up double spaces
             text = System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ");
 
             string result = text.Trim();
-            if (hadSprite)
+            if (hadSpecialTags)
             {
                 MonsterTrainAccessibility.LogInfo($"CleanSpriteTagsForSpeech output: '{result}'");
             }
@@ -6285,6 +6340,31 @@ namespace MonsterTrainAccessibility.Screens
             try
             {
                 var rewardType = rewardData.GetType();
+                string typeName = rewardType.Name;
+
+                // Special handling for GoldRewardData - extract the gold amount
+                if (typeName == "GoldRewardData" || typeName.Contains("Gold"))
+                {
+                    var amountField = rewardType.GetField("_amount", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public);
+                    if (amountField != null)
+                    {
+                        var amount = amountField.GetValue(rewardData);
+                        if (amount is int goldAmount && goldAmount > 0)
+                        {
+                            return $"{goldAmount} Gold";
+                        }
+                    }
+                    // Try GetAmount method
+                    var getAmountMethod = rewardType.GetMethod("GetAmount", Type.EmptyTypes);
+                    if (getAmountMethod != null)
+                    {
+                        var amount = getAmountMethod.Invoke(rewardData, null);
+                        if (amount is int goldAmount && goldAmount > 0)
+                        {
+                            return $"{goldAmount} Gold";
+                        }
+                    }
+                }
 
                 // Try GetTitle method first (if it exists)
                 var getTitleMethod = rewardType.GetMethod("GetTitle");
