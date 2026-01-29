@@ -994,7 +994,7 @@ namespace MonsterTrainAccessibility.Screens
         }
 
         /// <summary>
-        /// Get a brief description of a unit including attack/health, status effects, and size
+        /// Get a brief description of a unit including attack/health, status effects, abilities, and size
         /// </summary>
         private string GetUnitBriefDescription(object unit)
         {
@@ -1002,6 +1002,7 @@ namespace MonsterTrainAccessibility.Screens
             int hp = GetUnitHP(unit);
             int attack = GetUnitAttack(unit);
             int size = GetUnitSize(unit);
+            bool isEnemy = IsEnemyUnit(unit);
 
             var sb = new StringBuilder();
             sb.Append($"{name} {attack}/{hp}");
@@ -1011,6 +1012,23 @@ namespace MonsterTrainAccessibility.Screens
             if (!string.IsNullOrEmpty(statusEffects))
             {
                 sb.Append($" ({statusEffects})");
+            }
+
+            // Add unit abilities/keywords (like Relentless, Multistrike, etc.)
+            string abilities = GetUnitAbilities(unit);
+            if (!string.IsNullOrEmpty(abilities))
+            {
+                sb.Append($". {abilities}");
+            }
+
+            // Add intent for enemies
+            if (isEnemy)
+            {
+                string intent = GetUnitIntent(unit);
+                if (!string.IsNullOrEmpty(intent))
+                {
+                    sb.Append($". Intent: {intent}");
+                }
             }
 
             if (size != 1) // Only mention size if it's not the default of 1
@@ -1256,10 +1274,23 @@ namespace MonsterTrainAccessibility.Screens
                     return $"Floor {floorNumber}: Unknown";
                 }
 
+                // Get capacity info
+                int maxCapacity = GetFloorCapacity(room);
+                int usedCapacity = 0;
+
                 var units = GetUnitsInRoom(room);
+
+                // Calculate used capacity from unit sizes
+                foreach (var unit in units)
+                {
+                    usedCapacity += GetUnitSize(unit);
+                }
+
+                string capacityInfo = $"{usedCapacity} of {maxCapacity} capacity";
+
                 if (units.Count == 0)
                 {
-                    return "Empty";
+                    return $"Empty. {capacityInfo}";
                 }
 
                 var friendlyUnits = new List<string>();
@@ -1267,10 +1298,8 @@ namespace MonsterTrainAccessibility.Screens
 
                 foreach (var unit in units)
                 {
-                    string name = GetUnitName(unit);
-                    int hp = GetUnitHP(unit);
-                    int attack = GetUnitAttack(unit);
-                    string description = $"{name} {attack}/{hp}";
+                    // Use GetUnitBriefDescription which includes abilities and intents
+                    string description = GetUnitBriefDescription(unit);
 
                     if (IsEnemyUnit(unit))
                     {
@@ -1283,6 +1312,7 @@ namespace MonsterTrainAccessibility.Screens
                 }
 
                 var parts = new List<string>();
+                parts.Add(capacityInfo);
                 if (friendlyUnits.Count > 0)
                 {
                     parts.Add($"Your units: {string.Join(", ", friendlyUnits)}");

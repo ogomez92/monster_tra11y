@@ -103,8 +103,8 @@ The mod automatically reads text when:
 | Key | Action |
 |-----|--------|
 | H | Read all cards in hand |
-| L | Read all floor information (L for Levels) - includes unit stats, status effects, and floor capacity |
-| N | Read enemy information and intents (N for eNemies) |
+| L | Read all floor information (L for Levels) - includes unit stats, status effects, abilities/keywords (like Relentless, Multistrike), enemy intents, and floor capacity |
+| N | Read all units with detailed info (N for uNits) - includes stats, abilities, status effects, and enemy intents |
 | R | Read resources (ember, pyre health) |
 | Tab | Read train stats (pyre health, gold, deck size) |
 **Note**: F and E are avoided because they conflict with the game's native shortcuts (F = Toggle Unit Details, E = End Turn).
@@ -176,9 +176,10 @@ You can edit this file to customize:
 The battle screen uses the game's native navigation. Use hotkeys for information:
 
 - Press **H** to hear all cards in your hand
-- Press **L** to hear floor status and units (L for Levels)
-- Press **N** to hear enemy information (N for eNemies)
+- Press **L** to hear floor status, units, abilities, and capacity (L for Levels)
+- Press **N** to hear all units with stats, abilities, and enemy intents (N for uNits)
 - Press **R** to hear ember and pyre health
+- Press **Tab** to hear train stats (pyre health, gold, deck size)
 - Press **F1** for context-sensitive help listing all available keys
 
 ### Playing Cards

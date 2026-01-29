@@ -89,7 +89,9 @@ namespace MonsterTrainAccessibility.Core
             }
             else if (Input.GetKeyDown(config.ReadResourcesKey.Value))
             {
+                MonsterTrainAccessibility.LogInfo($"R key pressed - BattleHandler null: {MonsterTrainAccessibility.BattleHandler == null}, IsInBattle: {MonsterTrainAccessibility.BattleHandler?.IsInBattle}");
                 ReadResources();
+                _inputCooldown = INPUT_COOLDOWN_TIME;
             }
             else if (Input.GetKeyDown(config.ReadGoldKey.Value))
             {
@@ -107,6 +109,7 @@ namespace MonsterTrainAccessibility.Core
             }
             else if (Input.GetKeyDown(KeyCode.Tab))
             {
+                MonsterTrainAccessibility.LogInfo("TAB key pressed - starting train stats read");
                 // When TAB is pressed, read the train stats panel after a short delay
                 // (to allow the panel to open first)
                 StartCoroutine(ReadTrainStatsDelayed());
@@ -120,9 +123,11 @@ namespace MonsterTrainAccessibility.Core
         /// </summary>
         private System.Collections.IEnumerator ReadTrainStatsDelayed()
         {
+            MonsterTrainAccessibility.LogInfo("ReadTrainStatsDelayed coroutine started");
             // Wait for the stats panel to open
             yield return new WaitForSecondsRealtime(0.3f);
 
+            MonsterTrainAccessibility.LogInfo($"ReadTrainStatsDelayed: MenuHandler null: {MonsterTrainAccessibility.MenuHandler == null}");
             // Try to read the train stats panel
             MonsterTrainAccessibility.MenuHandler?.ReadTrainStatsPanel();
         }
@@ -212,13 +217,17 @@ namespace MonsterTrainAccessibility.Core
         /// </summary>
         private void ReadResources()
         {
+            MonsterTrainAccessibility.LogInfo("ReadResources called");
             var battle = MonsterTrainAccessibility.BattleHandler;
+            MonsterTrainAccessibility.LogInfo($"ReadResources: battle null: {battle == null}, IsInBattle: {battle?.IsInBattle}");
             if (battle != null && battle.IsInBattle)
             {
+                MonsterTrainAccessibility.LogInfo("Calling AnnounceResources");
                 battle.AnnounceResources();
             }
             else
             {
+                MonsterTrainAccessibility.LogInfo("Not in battle, queueing message");
                 // Could also read gold/other resources outside battle
                 MonsterTrainAccessibility.ScreenReader?.Queue("Not in battle");
             }
