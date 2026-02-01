@@ -103,11 +103,22 @@ The mod automatically reads text when:
 | Key | Action |
 |-----|--------|
 | H | Read all cards in hand |
-| L | Read all floor information (L for Levels) - includes unit stats, status effects, abilities/keywords (like Relentless, Multistrike), enemy intents, and floor capacity |
-| N | Read all units with detailed info (N for uNits) - includes stats, abilities, status effects, and enemy intents |
+| L | Read floor status (L for Levels) - floor capacity and all units |
+| U | Read all units with detail (U for Units) - your monsters front-to-back, then enemies |
 | R | Read resources (ember, pyre health) |
+| N | Toggle combat speed (game's native key) - announces the new speed |
 | Tab | Read train stats (pyre health, gold, deck size) |
 **Note**: F and E are avoided because they conflict with the game's native shortcuts (F = Toggle Unit Details, E = End Turn).
+
+### Unit Targeting (when playing spells that target units)
+| Key | Action |
+|-----|--------|
+| Left/Right arrows | Select target unit |
+| Number keys 1-5 | Select target directly |
+| Enter | Confirm target |
+| Escape | Cancel spell |
+
+**Targeting Order**: Your first summoned unit is on the far right (front). Go LEFT to target your other units. Go RIGHT to target enemies. Floor announcements list your units front-to-back, then enemies.
 
 ### Floor Targeting (when playing a card that requires floor selection)
 | Key | Action |
@@ -176,9 +187,10 @@ You can edit this file to customize:
 The battle screen uses the game's native navigation. Use hotkeys for information:
 
 - Press **H** to hear all cards in your hand
-- Press **L** to hear floor status, units, abilities, and capacity (L for Levels)
-- Press **N** to hear all units with stats, abilities, and enemy intents (N for uNits)
+- Press **L** to hear floor status, capacity, and units (L for Levels)
+- Press **U** to hear all units with detail - your monsters front-to-back, then enemies (U for Units)
 - Press **R** to hear ember and pyre health
+- Press **N** to toggle combat speed (announces the new speed)
 - Press **Tab** to hear train stats (pyre health, gold, deck size)
 - Press **F1** for context-sensitive help listing all available keys
 
@@ -196,10 +208,11 @@ The battle screen uses the game's native navigation. Use hotkeys for information
 1. **Press F1 for Help**: On any screen, press F1 to hear all available keyboard shortcuts for that context
 2. **Start Simple**: Begin with the tutorial to learn the game flow
 3. **Read Text**: Press T to read patch notes, event descriptions, or any screen text
-4. **Use Battle Hotkeys**: H, L, N, R provide quick status updates during battle
+4. **Use Battle Hotkeys**: H, L, U, R provide quick status updates during battle
 5. **Check Ember**: Press R regularly to know your available resources
-6. **Enemy Intents**: Press N to hear what enemies plan to do next turn
+6. **Enemy Intents**: Press U to hear what enemies plan to do next turn
 7. **Re-read Items**: Press C to re-read the currently focused menu item
+8. **Combat Speed**: Press N to toggle combat speed - the mod announces the new speed
 
 ## Troubleshooting
 

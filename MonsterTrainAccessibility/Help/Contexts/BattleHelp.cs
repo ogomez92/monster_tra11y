@@ -28,14 +28,14 @@ namespace MonsterTrainAccessibility.Help.Contexts
         {
             return "Battle screen. Play cards to defeat enemies and protect your Pyre. " +
                    "H: Read hand (all cards with costs and effects). " +
-                   "L: Read floors (friendly and enemy units on each floor). " +
-                   "N: Read all units (your monsters and enemies on each floor). " +
+                   "L: Read floors (floor capacity and units). " +
+                   "U: Read all units (your monsters front-to-back, then enemies). " +
                    "R: Read resources (ember, pyre health, deck/discard counts). " +
-                   "Enter: Play selected card. Some cards require floor selection. " +
+                   "Enter: Play selected card. Some cards require floor or unit selection. " +
+                   "Left/Right arrows: Select targets when playing spells. " +
                    "E: End your turn and start combat phase. " +
                    "C: Re-read current selection. " +
-                   "T: Read all visible text on screen. " +
-                   "V: Cycle verbosity level (minimal, normal, verbose). " +
+                   "V: Cycle verbosity level. " +
                    "Enemies ascend each turn. Protect your Pyre on top floor!";
         }
     }

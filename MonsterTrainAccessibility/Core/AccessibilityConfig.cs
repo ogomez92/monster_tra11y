@@ -154,8 +154,8 @@ namespace MonsterTrainAccessibility.Core
             ReadEnemiesKey = config.Bind(
                 "Keys.Information",
                 "ReadEnemies",
-                KeyCode.N,
-                "Key to read enemy information and intents (N for eNemies). Note: E conflicts with game's End Turn"
+                KeyCode.U,
+                "Key to read all units with detail (U for Units). Note: N conflicts with game's combat speed toggle"
             );
 
             ReadResourcesKey = config.Bind(

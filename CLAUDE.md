@@ -81,11 +81,11 @@ Context-sensitive help that announces available keys based on current game scree
 | Key | Action |
 |-----|--------|
 | H | Read hand (all cards) |
-| L | Read floors (all units) - L for Levels |
-| N | Read all units (your monsters and enemies) |
+| L | Read floors (capacity and units) - L for Levels |
+| U | Read all units with detail (your monsters front-to-back, then enemies) |
 | R | Read resources (ember, pyre, cards) |
 
-Note: F and E are avoided because they conflict with the game's native shortcuts (F = Toggle Unit Details, E = End Turn).
+Note: F, E, and N are avoided because they conflict with game shortcuts (F = Toggle Unit Details, E = End Turn, N = Combat Speed Toggle).
 
 #### Floor Targeting Keys (when playing a card)
 | Key | Action |
@@ -93,6 +93,23 @@ Note: F and E are avoided because they conflict with the game's native shortcuts
 | Page Up/Down | Cycle between floors (same as game's native keys) |
 | Enter | Confirm floor selection |
 | Escape | Cancel card play |
+
+#### Unit Targeting (when playing spells)
+| Key | Action |
+|-----|--------|
+| Left/Right arrows | Select target unit |
+| Number keys 1-5 | Select target directly |
+| Enter | Confirm target |
+| Escape | Cancel spell |
+
+**Targeting Order Notes:**
+- Your first summoned unit is on the far right (front of your board)
+- Go LEFT to target your other units (toward back of board)
+- Go RIGHT to target enemy units
+- Spells like Restore default to your frontmost unit; go left for others
+- Spells like Torch default to first enemy; go right for other enemies
+- Floor announcements list: your units (front-to-back), then enemies (front-to-back)
+- When placing units: default position is next to existing units; use right arrow before confirming to place at front
 
 ### Harmony Patches (MonsterTrainAccessibility/Patches/)
 
@@ -311,3 +328,32 @@ foreach (var field in componentType.GetFields(BindingFlags.Public | BindingFlags
     MonsterTrainAccessibility.LogInfo($"  {field.Name} = {val?.GetType().Name ?? "null"}");
 }
 ```
+
+## Known Limitations / TODO
+
+### The Last Divinity DLC (Hellforged)
+
+The DLC adds several features that may not be fully accessible yet:
+
+**DLC Features:**
+- **Hellpact Shards**: Collectible shards that power special abilities
+- **Divine Boon/Divine Horde/Divine Temple**: Special reward nodes for collecting shards
+- **Covenant Selector**: UI for selecting difficulty level (shows as "CovenantSelectorUI" - may not be reading properly)
+- **Dark Pact Temple Merchant**: Special DLC merchant
+
+**What needs work:**
+1. Divine reward nodes (Boon/Horde/Temple) may not be appearing or readable in the first artifact selection screen
+2. The Covenant selector interface may just show the component name instead of readable options
+3. Shard-related effects and rewards may need specific handling
+
+**Investigation notes:**
+- The DLC content uses "Pact" terminology internally (e.g., `DarkPactTempleMerchant`, `PactAllNodesPool`)
+- Covenant/difficulty selection may require unlocking higher levels first
+- UI types to investigate: `CovenantSelectorUI`, any Pact-related UI components
+
+### Key Conflicts Avoided
+
+These keys conflict with game shortcuts and are NOT used by the mod:
+- **N**: Combat speed toggle (was previously Read Units, now U)
+- **F**: Toggle Unit Details
+- **E**: End Turn (game handles this)
