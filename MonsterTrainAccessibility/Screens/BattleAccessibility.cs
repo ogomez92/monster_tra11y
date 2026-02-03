@@ -231,6 +231,7 @@ namespace MonsterTrainAccessibility.Screens
         {
             IsInBattle = true;
             FindManagers();
+            Patches.PreviewModeDetector.Reset();
 
             MonsterTrainAccessibility.LogInfo("Battle entered");
             MonsterTrainAccessibility.ScreenReader?.AnnounceScreen("Battle started");

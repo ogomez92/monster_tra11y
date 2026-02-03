@@ -37,7 +37,8 @@
       "Bash(pushd:*)",
       "Bash(tree:*)",
       "Bash(for f in Core/*.cs Battle/*.cs Patches/*.cs Screens/*.cs Help/*.cs Help/Contexts/*.cs)",
-      "Bash(done)"
+      "Bash(done)",
+      "Bash(git log:*)"
     ]
   }
 }

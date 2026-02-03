@@ -1570,6 +1570,14 @@ namespace MonsterTrainAccessibility.Screens
                     if (uniqueTexts.Count > 0)
                     {
                         string result = string.Join(". ", uniqueTexts);
+
+                        // Try to also read the reward preview (card/relic shown next to the choice)
+                        string rewardPreviewText = GetStoryChoiceRewardPreview(go);
+                        if (!string.IsNullOrEmpty(rewardPreviewText))
+                        {
+                            result += ". Reward: " + rewardPreviewText;
+                        }
+
                         MonsterTrainAccessibility.LogInfo($"StoryChoiceItem text: {result}");
                         return result;
                     }
@@ -1619,6 +1627,312 @@ namespace MonsterTrainAccessibility.Screens
             {
                 MonsterTrainAccessibility.LogError($"Error getting story choice text: {ex.Message}");
                 return "Event choice";
+            }
+        }
+
+        /// <summary>
+        /// Find and read the reward preview (card/relic) for a story choice.
+        /// Uses reflection to call GetRewardsInfo() on the StoryChoiceItem, then looks up
+        /// card/relic data via SaveManager to get actual names and descriptions.
+        /// Also falls back to reading the ChoiceRewardPreview UI if visible.
+        /// </summary>
+        private string GetStoryChoiceRewardPreview(GameObject choiceGO)
+        {
+            try
+            {
+                // Find StoryChoiceItem component
+                Component storyChoiceItem = null;
+                foreach (var comp in choiceGO.GetComponents<Component>())
+                {
+                    if (comp != null && comp.GetType().Name == "StoryChoiceItem")
+                    {
+                        storyChoiceItem = comp;
+                        break;
+                    }
+                }
+
+                if (storyChoiceItem == null) return null;
+
+                // Walk up the hierarchy to find the StoryEventScreen
+                Transform current = choiceGO.transform;
+                Component storyEventScreen = null;
+                while (current != null)
+                {
+                    foreach (var comp in current.GetComponents<Component>())
+                    {
+                        if (comp != null && comp.GetType().Name == "StoryEventScreen")
+                        {
+                            storyEventScreen = comp;
+                            break;
+                        }
+                    }
+                    if (storyEventScreen != null) break;
+                    current = current.parent;
+                }
+
+                // Try to get rewards directly from StoryChoiceItem via GetRewardsInfo()
+                var choiceType = storyChoiceItem.GetType();
+                var getRewardsMethod = choiceType.GetMethod("GetRewardsInfo", BindingFlags.Public | BindingFlags.Instance);
+                if (getRewardsMethod != null)
+                {
+                    object rewardsList = null;
+                    var parameters = getRewardsMethod.GetParameters();
+                    if (parameters.Length == 0)
+                    {
+                        rewardsList = getRewardsMethod.Invoke(storyChoiceItem, null);
+                    }
+                    else if (parameters.Length == 1 && parameters[0].ParameterType == typeof(bool))
+                    {
+                        rewardsList = getRewardsMethod.Invoke(storyChoiceItem, new object[] { false });
+                    }
+
+                    if (rewardsList is System.Collections.IList rewards && rewards.Count > 0)
+                    {
+                        // Get SaveManager from StoryEventScreen
+                        object saveManager = null;
+                        if (storyEventScreen != null)
+                        {
+                            var saveManagerField = storyEventScreen.GetType().GetField("saveManager", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                            if (saveManagerField != null)
+                                saveManager = saveManagerField.GetValue(storyEventScreen);
+                        }
+
+                        var rewardTexts = new List<string>();
+                        foreach (var reward in rewards)
+                        {
+                            if (reward == null) continue;
+                            var rewardType = reward.GetType();
+                            var previewTypeField = rewardType.GetField("previewType", BindingFlags.Public | BindingFlags.Instance);
+                            var dataKeyField = rewardType.GetField("dataKey", BindingFlags.Public | BindingFlags.Instance);
+                            if (previewTypeField == null || dataKeyField == null) continue;
+
+                            int previewTypeVal = (int)previewTypeField.GetValue(reward);
+                            string dataKey = dataKeyField.GetValue(reward) as string;
+
+                            if (string.IsNullOrEmpty(dataKey)) continue;
+
+                            MonsterTrainAccessibility.LogInfo($"Story choice reward: previewType={previewTypeVal}, dataKey={dataKey}");
+
+                            string rewardText = GetRewardTextFromData(previewTypeVal, dataKey, saveManager);
+                            if (!string.IsNullOrEmpty(rewardText))
+                            {
+                                rewardTexts.Add(rewardText);
+                            }
+                        }
+
+                        if (rewardTexts.Count > 0)
+                        {
+                            return string.Join(". ", rewardTexts);
+                        }
+                    }
+                }
+
+                // Fall back to reading the ChoiceRewardPreview UI if visible
+                if (storyEventScreen != null)
+                {
+                    var screenType = storyEventScreen.GetType();
+                    var rewardPreviewField = screenType.GetField("rewardPreview", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                    if (rewardPreviewField != null)
+                    {
+                        var rewardPreview = rewardPreviewField.GetValue(storyEventScreen) as Component;
+                        if (rewardPreview != null && rewardPreview.gameObject.activeSelf)
+                        {
+                            foreach (var comp in rewardPreview.GetComponentsInChildren<Component>(false))
+                            {
+                                if (comp == null) continue;
+                                string typeName = comp.GetType().Name;
+
+                                if (typeName == "CardUI" && comp.gameObject.activeSelf)
+                                {
+                                    string cardText = GetCardUIText(comp.gameObject);
+                                    if (!string.IsNullOrEmpty(cardText))
+                                    {
+                                        MonsterTrainAccessibility.LogInfo($"Story choice reward card from preview: {cardText}");
+                                        return cardText;
+                                    }
+                                }
+
+                                if (typeName == "RelicInfoUI" && comp.gameObject.activeSelf)
+                                {
+                                    string relicText = GetRelicInfoText(comp.gameObject);
+                                    if (!string.IsNullOrEmpty(relicText))
+                                    {
+                                        MonsterTrainAccessibility.LogInfo($"Story choice reward relic from preview: {relicText}");
+                                        return relicText;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                return null;
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error reading story choice reward preview: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Look up reward data by type and key, returning a readable description.
+        /// PreviewType values: None=0, Card=1, Relic=2, Upgrade=3, Reward=4, Coin=5, DeckReward=6, Relic_Name=7
+        /// </summary>
+        private string GetRewardTextFromData(int previewType, string dataKey, object saveManager)
+        {
+            try
+            {
+                if (saveManager == null)
+                {
+                    MonsterTrainAccessibility.LogInfo("No SaveManager available for reward lookup");
+                    return null;
+                }
+
+                // Get AllGameData from SaveManager
+                var getAllGameDataMethod = saveManager.GetType().GetMethod("GetAllGameData", BindingFlags.Public | BindingFlags.Instance);
+                if (getAllGameDataMethod == null) return null;
+
+                var allGameData = getAllGameDataMethod.Invoke(saveManager, null);
+                if (allGameData == null) return null;
+
+                var gameDataType = allGameData.GetType();
+
+                switch (previewType)
+                {
+                    case 1: // Card
+                    {
+                        var findMethod = gameDataType.GetMethod("FindCardDataByName", BindingFlags.Public | BindingFlags.Instance);
+                        if (findMethod == null) return null;
+                        var cardData = findMethod.Invoke(allGameData, new object[] { dataKey });
+                        if (cardData == null) return null;
+                        return FormatCardDetails(cardData);
+                    }
+                    case 2: // Relic
+                    case 7: // Relic_Name
+                    {
+                        var findMethod = gameDataType.GetMethod("FindCollectableRelicDataByName", BindingFlags.Public | BindingFlags.Instance);
+                        if (findMethod == null) return null;
+                        var relicData = findMethod.Invoke(allGameData, new object[] { dataKey });
+                        if (relicData == null) return null;
+                        return FormatRelicDetails(relicData);
+                    }
+                    case 3: // Upgrade (Enhancer)
+                    {
+                        var findMethod = gameDataType.GetMethod("FindEnhancerDataByName", BindingFlags.Public | BindingFlags.Instance);
+                        if (findMethod == null) return null;
+                        var enhancerData = findMethod.Invoke(allGameData, new object[] { dataKey });
+                        if (enhancerData == null) return null;
+                        return FormatRelicDetails(enhancerData);
+                    }
+                    case 4: // Reward (GrantableRewardData - could be upgraded card)
+                    {
+                        var findMethod = gameDataType.GetMethod("FindRewardDataByName", BindingFlags.Public | BindingFlags.Instance);
+                        if (findMethod == null) return null;
+                        var rewardData = findMethod.Invoke(allGameData, new object[] { dataKey });
+                        if (rewardData == null) return null;
+
+                        var rewardDataType = rewardData.GetType();
+                        // Try to get card name from various reward types
+                        if (rewardDataType.Name == "GrantUpgradedCachedCardRewardData")
+                        {
+                            var getCardStateMethod = rewardDataType.GetMethod("GetCardState", BindingFlags.Public | BindingFlags.Instance);
+                            if (getCardStateMethod != null)
+                            {
+                                var cardState = getCardStateMethod.Invoke(rewardData, new object[] { saveManager });
+                                if (cardState != null) return FormatCardDetails(cardState);
+                            }
+                        }
+                        else if (rewardDataType.Name == "BuildCardRewardData")
+                        {
+                            var getCardDataMethod = rewardDataType.GetMethod("GetCardData", BindingFlags.Public | BindingFlags.Instance);
+                            if (getCardDataMethod != null)
+                            {
+                                var cardData = getCardDataMethod.Invoke(rewardData, null);
+                                if (cardData != null) return FormatCardDetails(cardData);
+                            }
+                        }
+
+                        // Generic fallback - try to get name
+                        var getNameMethod = rewardDataType.GetMethod("GetName", BindingFlags.Public | BindingFlags.Instance);
+                        if (getNameMethod != null)
+                        {
+                            var name = getNameMethod.Invoke(rewardData, null) as string;
+                            if (!string.IsNullOrEmpty(name)) return name;
+                        }
+                        return null;
+                    }
+                    case 5: // Coin
+                    {
+                        return $"{dataKey} gold";
+                    }
+                    default:
+                        return null;
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error looking up reward data (type={previewType}, key={dataKey}): {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Format relic/enhancer details from a RelicData or EnhancerData object.
+        /// Returns name and description.
+        /// </summary>
+        private string FormatRelicDetails(object relicData)
+        {
+            try
+            {
+                var type = relicData.GetType();
+                var sb = new StringBuilder();
+
+                var getNameMethod = type.GetMethod("GetName", BindingFlags.Public | BindingFlags.Instance);
+                if (getNameMethod != null)
+                {
+                    var name = getNameMethod.Invoke(relicData, null) as string;
+                    if (!string.IsNullOrEmpty(name))
+                        sb.Append(name);
+                }
+
+                var getDescMethod = type.GetMethod("GetDescription", BindingFlags.Public | BindingFlags.Instance);
+                if (getDescMethod != null)
+                {
+                    var desc = getDescMethod.Invoke(relicData, null) as string;
+                    if (!string.IsNullOrEmpty(desc))
+                    {
+                        string cleanDesc = BattleAccessibility.StripRichTextTags(desc);
+                        if (sb.Length > 0) sb.Append(". ");
+                        sb.Append(cleanDesc);
+                    }
+                }
+                else
+                {
+                    // Try GetDescriptionKey and localize
+                    var getDescKeyMethod = type.GetMethod("GetDescriptionKey", BindingFlags.Public | BindingFlags.Instance);
+                    if (getDescKeyMethod != null)
+                    {
+                        var descKey = getDescKeyMethod.Invoke(relicData, null) as string;
+                        if (!string.IsNullOrEmpty(descKey))
+                        {
+                            string localized = TryLocalize(descKey);
+                            if (!string.IsNullOrEmpty(localized) && localized != descKey)
+                            {
+                                string cleanDesc = BattleAccessibility.StripRichTextTags(localized);
+                                if (sb.Length > 0) sb.Append(". ");
+                                sb.Append(cleanDesc);
+                            }
+                        }
+                    }
+                }
+
+                return sb.Length > 0 ? sb.ToString() : null;
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error formatting relic details: {ex.Message}");
+                return null;
             }
         }
 
