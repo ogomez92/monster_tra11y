@@ -34,7 +34,10 @@
       "Bash(powershell.exe -Command \"Get-Content ''C:\\\\Program Files \\(x86\\)\\\\Steam\\\\steamapps\\\\common\\\\Monster Train\\\\BepInEx\\\\LogOutput.log'' -Tail 60 | Select-String -Pattern ''GetSelectedFloor|GetSelectedRoom|floor|Floor''\")",
       "Bash(powershell.exe -Command \"Get-Content ''C:\\\\Program Files \\(x86\\)\\\\Steam\\\\steamapps\\\\common\\\\Monster Train\\\\BepInEx\\\\LogOutput.log'' -Tail 80\")",
       "Bash(cmd.exe /c \"cd /d T:\\\\code\\\\mods\\\\monstertrain\\\\MonsterTrainAccessibility && dotnet build -c Release 2>&1\")",
-      "Bash(pushd:*)"
+      "Bash(pushd:*)",
+      "Bash(tree:*)",
+      "Bash(for f in Core/*.cs Battle/*.cs Patches/*.cs Screens/*.cs Help/*.cs Help/Contexts/*.cs)",
+      "Bash(done)"
     ]
   }
 }

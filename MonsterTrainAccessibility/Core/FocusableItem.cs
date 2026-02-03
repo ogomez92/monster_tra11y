@@ -185,7 +185,7 @@ namespace MonsterTrainAccessibility.Core
     public class FocusableFloor : FocusableItem
     {
         public object RoomState { get; set; } // Will be RoomState from game
-        public int FloorNumber { get; set; } // 1-3 (displayed), 0-2 internal
+        public int FloorNumber { get; set; } // Room index: 0=bottom, 1=middle, 2=top
         public int UsedCapacity { get; set; }
         public int MaxCapacity { get; set; }
         public string FriendlyUnits { get; set; }
@@ -195,7 +195,7 @@ namespace MonsterTrainAccessibility.Core
         public override string GetAccessibleDescription()
         {
             string capacity = $"{UsedCapacity} of {MaxCapacity} capacity";
-            string result = $"Floor {FloorNumber}, {capacity}";
+            string result = $"{Screens.BattleAccessibility.RoomIndexToFloorName(FloorNumber)}, {capacity}";
 
             if (!string.IsNullOrEmpty(FriendlyUnits))
             {
@@ -217,7 +217,7 @@ namespace MonsterTrainAccessibility.Core
 
         public override string GetBriefLabel()
         {
-            return $"Floor {FloorNumber}";
+            return Screens.BattleAccessibility.RoomIndexToFloorName(FloorNumber);
         }
 
         public override void Activate()

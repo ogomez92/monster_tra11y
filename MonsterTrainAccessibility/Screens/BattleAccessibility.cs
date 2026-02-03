@@ -926,6 +926,22 @@ namespace MonsterTrainAccessibility.Screens
         #region Floor Reading
 
         /// <summary>
+        /// Convert a room index to a user-facing floor name.
+        /// Room 0 = Bottom floor, Room 1 = Middle floor, Room 2 = Top floor, Room 3 = Pyre room.
+        /// </summary>
+        public static string RoomIndexToFloorName(int roomIndex)
+        {
+            switch (roomIndex)
+            {
+                case 0: return "Bottom floor";
+                case 1: return "Middle floor";
+                case 2: return "Top floor";
+                case 3: return "Pyre room";
+                default: return "Unknown floor";
+            }
+        }
+
+        /// <summary>
         /// Announce all floors
         /// </summary>
         public void AnnounceAllFloors()
@@ -936,12 +952,9 @@ namespace MonsterTrainAccessibility.Screens
                 output?.Speak("Floor status:", false);
 
                 // Monster Train has 3 playable floors + pyre room
-                // Room indices: 0=top floor, 1=middle, 2=bottom, 3=pyre room
-                // User floors: 1=bottom, 2=middle, 3=top
-                // Iterate user floors from bottom (1) to top (3)
-                for (int userFloor = 1; userFloor <= 3; userFloor++)
+                // Room indices: 0=bottom, 1=middle, 2=top, 3=pyre room
+                for (int roomIndex = 0; roomIndex <= 2; roomIndex++)
                 {
-                    int roomIndex = 3 - userFloor; // Convert user floor to room index
                     var room = GetRoom(roomIndex);
                     if (room != null)
                     {
@@ -957,7 +970,7 @@ namespace MonsterTrainAccessibility.Screens
                         }
 
                         string capacityInfo = maxCapacity > 0 ? $" ({usedCapacity}/{maxCapacity} capacity)" : "";
-                        string floorName = $"Floor {userFloor}{capacityInfo}";
+                        string floorName = $"{RoomIndexToFloorName(roomIndex)}{capacityInfo}";
 
                         if (units.Count == 0)
                         {
@@ -1037,6 +1050,24 @@ namespace MonsterTrainAccessibility.Screens
             }
 
             return sb.ToString();
+        }
+
+        /// <summary>
+        /// Get a brief description of a unit for targeting announcements.
+        /// Public wrapper around GetUnitBriefDescription for use by patches.
+        /// </summary>
+        public string GetTargetUnitDescription(object characterState)
+        {
+            if (characterState == null) return null;
+            try
+            {
+                return GetUnitBriefDescription(characterState);
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting target unit description: {ex.Message}");
+                return GetUnitName(characterState) ?? "Unknown unit";
+            }
         }
 
         /// <summary>
@@ -1164,8 +1195,8 @@ namespace MonsterTrainAccessibility.Screens
         }
 
         /// <summary>
-        /// Get the currently selected floor from the game state.
-        /// Returns user-facing floor number (1-3, where 1 is bottom, 3 is top).
+        /// Get the currently selected room index from the game state.
+        /// Returns room index (0=bottom, 1=middle, 2=top, 3=pyre).
         /// Returns -1 if unable to determine.
         /// </summary>
         public int GetSelectedFloor()
@@ -1184,17 +1215,16 @@ namespace MonsterTrainAccessibility.Screens
                 }
 
                 var roomManagerType = _roomManager.GetType();
-                int roomIndex = -1;
 
-                // GetSelectedRoom() returns an int (room index) directly, not a RoomState object
+                // GetSelectedRoom() returns an int (room index) directly
                 var getSelectedRoomMethod = roomManagerType.GetMethod("GetSelectedRoom", Type.EmptyTypes);
                 if (getSelectedRoomMethod != null)
                 {
                     var result = getSelectedRoomMethod.Invoke(_roomManager, null);
-                    if (result is int idx)
+                    if (result is int roomIndex)
                     {
-                        roomIndex = idx;
                         MonsterTrainAccessibility.LogInfo($"GetSelectedFloor: GetSelectedRoom() = {roomIndex}");
+                        return roomIndex;
                     }
                     else
                     {
@@ -1204,15 +1234,6 @@ namespace MonsterTrainAccessibility.Screens
                 else
                 {
                     MonsterTrainAccessibility.LogInfo("GetSelectedFloor: GetSelectedRoom method not found");
-                }
-
-                // Convert room index to user floor
-                // Room 0 = Floor 3 (top), Room 1 = Floor 2, Room 2 = Floor 1 (bottom), Room 3 = Pyre (floor 0)
-                if (roomIndex >= 0 && roomIndex <= 3)
-                {
-                    int userFloor = 3 - roomIndex; // This gives: 0->3, 1->2, 2->1, 3->0 (pyre)
-                    MonsterTrainAccessibility.LogInfo($"GetSelectedFloor: Converting room {roomIndex} to floor {userFloor}");
-                    return userFloor;
                 }
 
                 return -1;
@@ -1256,22 +1277,16 @@ namespace MonsterTrainAccessibility.Screens
 
         /// <summary>
         /// Get a text summary of what's on a specific floor (for floor targeting).
-        /// Floor numbers are 1-3 where 1 is bottom, 3 is top (closest to pyre).
+        /// Takes room index directly (0=bottom, 1=middle, 2=top).
         /// </summary>
-        public string GetFloorSummary(int floorNumber)
+        public string GetFloorSummary(int roomIndex)
         {
             try
             {
-                // Convert user-facing floor number (1-3) to internal room index
-                // Monster Train room indices: 0=top floor, 1=middle, 2=bottom, 3=pyre room
-                // User floor numbers: 1=bottom, 2=middle, 3=top
-                // So: userFloor 1 -> room 2, userFloor 2 -> room 1, userFloor 3 -> room 0
-                int roomIndex = 3 - floorNumber;
-
                 var room = GetRoom(roomIndex);
                 if (room == null)
                 {
-                    return $"Floor {floorNumber}: Unknown";
+                    return $"{RoomIndexToFloorName(roomIndex)}: Unknown";
                 }
 
                 // Get capacity info
@@ -1333,18 +1348,14 @@ namespace MonsterTrainAccessibility.Screens
 
         /// <summary>
         /// Get a list of all enemy units on all floors (for unit targeting).
-        /// Returns a list of formatted strings like "Armored Shiv 10/20 on floor 2"
         /// </summary>
         public List<string> GetAllEnemies()
         {
             var enemies = new List<string>();
             try
             {
-                // Check all 3 floors (user floors 1-3)
-                // Room indices: 0=top floor, 1=middle, 2=bottom
-                for (int floorNumber = 1; floorNumber <= 3; floorNumber++)
+                for (int roomIndex = 0; roomIndex <= 2; roomIndex++)
                 {
-                    int roomIndex = 3 - floorNumber; // Convert user floor to room index
                     var room = GetRoom(roomIndex);
                     if (room == null) continue;
 
@@ -1356,7 +1367,7 @@ namespace MonsterTrainAccessibility.Screens
                             string name = GetUnitName(unit);
                             int hp = GetUnitHP(unit);
                             int attack = GetUnitAttack(unit);
-                            enemies.Add($"{name} {attack}/{hp} on floor {floorNumber}");
+                            enemies.Add($"{name} {attack}/{hp} on {RoomIndexToFloorName(roomIndex).ToLower()}");
                         }
                     }
                 }
@@ -1370,18 +1381,14 @@ namespace MonsterTrainAccessibility.Screens
 
         /// <summary>
         /// Get a list of all friendly units on all floors (for unit targeting).
-        /// Returns a list of formatted strings like "Train Steward 5/8 on floor 1"
         /// </summary>
         public List<string> GetAllFriendlyUnits()
         {
             var friendlies = new List<string>();
             try
             {
-                // Check all 3 floors (user floors 1-3)
-                // Room indices: 0=top floor, 1=middle, 2=bottom
-                for (int floorNumber = 1; floorNumber <= 3; floorNumber++)
+                for (int roomIndex = 0; roomIndex <= 2; roomIndex++)
                 {
-                    int roomIndex = 3 - floorNumber; // Convert user floor to room index
                     var room = GetRoom(roomIndex);
                     if (room == null) continue;
 
@@ -1393,7 +1400,7 @@ namespace MonsterTrainAccessibility.Screens
                             string name = GetUnitName(unit);
                             int hp = GetUnitHP(unit);
                             int attack = GetUnitAttack(unit);
-                            friendlies.Add($"{name} {attack}/{hp} on floor {floorNumber}");
+                            friendlies.Add($"{name} {attack}/{hp} on {RoomIndexToFloorName(roomIndex).ToLower()}");
                         }
                     }
                 }
@@ -1846,27 +1853,22 @@ namespace MonsterTrainAccessibility.Screens
                 int roomsFound = 0;
                 int totalUnits = 0;
 
-                // Iterate user floors from bottom (1) to top (3), then pyre room
-                // Room indices: 0=top floor, 1=middle, 2=bottom, 3=pyre room
-                // User floors: 1=bottom, 2=middle, 3=top
-                int[] userFloors = { 1, 2, 3 };
-
-                foreach (int userFloor in userFloors)
+                // Iterate room indices from bottom (0) to top (2)
+                for (int roomIndex = 0; roomIndex <= 2; roomIndex++)
                 {
-                    int roomIndex = 3 - userFloor; // Convert user floor to room index
                     var room = GetRoom(roomIndex);
                     if (room == null)
                     {
-                        MonsterTrainAccessibility.LogInfo($"Room {roomIndex} (floor {userFloor}) is null");
+                        MonsterTrainAccessibility.LogInfo($"Room {roomIndex} ({RoomIndexToFloorName(roomIndex)}) is null");
                         continue;
                     }
                     roomsFound++;
 
                     var units = GetUnitsInRoom(room);
                     totalUnits += units.Count;
-                    MonsterTrainAccessibility.LogInfo($"Room {roomIndex} (floor {userFloor}) has {units.Count} units");
+                    MonsterTrainAccessibility.LogInfo($"Room {roomIndex} ({RoomIndexToFloorName(roomIndex)}) has {units.Count} units");
 
-                    string floorName = $"Floor {userFloor}";
+                    string floorName = RoomIndexToFloorName(roomIndex);
                     var playerDescriptions = new List<string>();
                     var enemyDescriptions = new List<string>();
 
@@ -2490,6 +2492,45 @@ namespace MonsterTrainAccessibility.Screens
                     }
                 }
 
+                // Try to get character data for special abilities
+                var getCharDataMethod = type.GetMethod("GetCharacterData", Type.EmptyTypes);
+                if (getCharDataMethod != null)
+                {
+                    var charData = getCharDataMethod.Invoke(characterState, null);
+                    if (charData != null)
+                    {
+                        string specialAbility = GetCharacterSpecialAbility(charData);
+                        if (!string.IsNullOrEmpty(specialAbility))
+                        {
+                            return specialAbility;
+                        }
+                    }
+                }
+
+                // Try to get trigger effects (abilities that activate on certain conditions)
+                var getTriggerMethod = type.GetMethod("GetTriggers", Type.EmptyTypes) ??
+                                       type.GetMethod("GetCharacterTriggers", Type.EmptyTypes);
+                if (getTriggerMethod != null)
+                {
+                    var triggers = getTriggerMethod.Invoke(characterState, null) as System.Collections.IList;
+                    if (triggers != null && triggers.Count > 0)
+                    {
+                        var triggerDescs = new List<string>();
+                        foreach (var trigger in triggers)
+                        {
+                            string triggerDesc = GetTriggerDescription(trigger);
+                            if (!string.IsNullOrEmpty(triggerDesc))
+                            {
+                                triggerDescs.Add(triggerDesc);
+                            }
+                        }
+                        if (triggerDescs.Count > 0)
+                        {
+                            return string.Join(", ", triggerDescs);
+                        }
+                    }
+                }
+
                 // Check attack damage to infer basic intent
                 int attack = GetUnitAttack(characterState);
                 if (attack > 0)
@@ -2500,6 +2541,58 @@ namespace MonsterTrainAccessibility.Screens
             catch (Exception ex)
             {
                 MonsterTrainAccessibility.LogError($"Error getting unit intent: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Get special ability description from character data (healing, buffs, etc.)
+        /// </summary>
+        private string GetCharacterSpecialAbility(object charData)
+        {
+            try
+            {
+                var charType = charData.GetType();
+
+                // Look for subtypes (healing characters, support characters, etc.)
+                var subtypesField = charType.GetField("subtypes", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (subtypesField != null)
+                {
+                    var subtypes = subtypesField.GetValue(charData) as System.Collections.IList;
+                    if (subtypes != null)
+                    {
+                        foreach (var subtype in subtypes)
+                        {
+                            string subtypeName = subtype?.ToString()?.ToLower() ?? "";
+                            if (subtypeName.Contains("healer") || subtypeName.Contains("support"))
+                            {
+                                return "Healer/Support unit";
+                            }
+                        }
+                    }
+                }
+
+                // Look for triggers that might indicate special behavior
+                var triggersField = charType.GetField("triggers", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (triggersField != null)
+                {
+                    var triggers = triggersField.GetValue(charData) as System.Collections.IList;
+                    if (triggers != null && triggers.Count > 0)
+                    {
+                        foreach (var trigger in triggers)
+                        {
+                            string desc = GetTriggerDescription(trigger);
+                            if (!string.IsNullOrEmpty(desc))
+                            {
+                                return desc;
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting character special ability: {ex.Message}");
             }
             return null;
         }
@@ -2585,14 +2678,7 @@ namespace MonsterTrainAccessibility.Screens
                     var result = getTargetRoomMethod.Invoke(bossAction, null);
                     if (result is int roomIndex && roomIndex >= 0)
                     {
-                        // Convert room index to user-facing floor number
-                        // Room 0 = Floor 3, Room 1 = Floor 2, Room 2 = Floor 1, Room 3 = Pyre
-                        string floorName;
-                        if (roomIndex == 3)
-                            floorName = "pyre room";
-                        else
-                            floorName = $"floor {3 - roomIndex}";
-                        parts.Add($"targeting {floorName}");
+                        parts.Add($"targeting {RoomIndexToFloorName(roomIndex).ToLower()}");
                     }
                 }
 
@@ -2679,15 +2765,15 @@ namespace MonsterTrainAccessibility.Screens
         }
 
         /// <summary>
-        /// Announce unit death with floor info
+        /// Announce unit death with floor info. roomIndex: 0=bottom, 1=middle, 2=top.
         /// </summary>
-        public void OnUnitDied(string unitName, bool isEnemy, int userFloor = -1)
+        public void OnUnitDied(string unitName, bool isEnemy, int roomIndex = -1)
         {
             if (!MonsterTrainAccessibility.AccessibilitySettings.AnnounceDeaths.Value)
                 return;
 
             string prefix = isEnemy ? "Enemy" : "Your";
-            string floorInfo = userFloor > 0 ? $" on floor {userFloor}" : "";
+            string floorInfo = roomIndex >= 0 ? $" on {RoomIndexToFloorName(roomIndex).ToLower()}" : "";
             MonsterTrainAccessibility.ScreenReader?.Queue($"{prefix} {unitName} died{floorInfo}");
         }
 
@@ -2703,11 +2789,11 @@ namespace MonsterTrainAccessibility.Screens
         }
 
         /// <summary>
-        /// Announce unit spawned (entering the battlefield)
+        /// Announce unit spawned (entering the battlefield). roomIndex: 0=bottom, 1=middle, 2=top.
         /// </summary>
-        public void OnUnitSpawned(string unitName, bool isEnemy, int floorIndex)
+        public void OnUnitSpawned(string unitName, bool isEnemy, int roomIndex)
         {
-            MonsterTrainAccessibility.LogInfo($"OnUnitSpawned called: {unitName}, isEnemy={isEnemy}, floor={floorIndex}, IsInBattle={IsInBattle}");
+            MonsterTrainAccessibility.LogInfo($"OnUnitSpawned called: {unitName}, isEnemy={isEnemy}, roomIndex={roomIndex}, IsInBattle={IsInBattle}");
 
             if (!IsInBattle)
             {
@@ -2728,17 +2814,7 @@ namespace MonsterTrainAccessibility.Screens
                 return;
             }
 
-            // Determine floor name - handle invalid floor indices
-            string floorName;
-            if (floorIndex <= 0)
-            {
-                // Floor index 0 is pyre room, negative means unknown
-                floorName = floorIndex == 0 ? "pyre room" : "the battlefield";
-            }
-            else
-            {
-                floorName = $"floor {floorIndex}";
-            }
+            string floorName = roomIndex >= 0 ? RoomIndexToFloorName(roomIndex).ToLower() : "the battlefield";
 
             if (isEnemy)
             {
@@ -2762,15 +2838,14 @@ namespace MonsterTrainAccessibility.Screens
         }
 
         /// <summary>
-        /// Announce a specific enemy ascending to a floor
+        /// Announce a specific enemy ascending to a floor. roomIndex: 0=bottom, 1=middle, 2=top, 3=pyre.
         /// </summary>
-        public void OnEnemyAscended(string enemyName, int floor)
+        public void OnEnemyAscended(string enemyName, int roomIndex)
         {
             if (!IsInBattle)
                 return;
 
-            string floorText = floor > 0 ? $"floor {floor}" : "the pyre room";
-            MonsterTrainAccessibility.ScreenReader?.Queue($"{enemyName} ascends to {floorText}");
+            MonsterTrainAccessibility.ScreenReader?.Queue($"{enemyName} ascends to {RoomIndexToFloorName(roomIndex).ToLower()}");
         }
 
         /// <summary>

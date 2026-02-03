@@ -21,6 +21,11 @@ namespace MonsterTrainAccessibility.Core
         private float _inputCooldown = 0f;
         private const float INPUT_COOLDOWN_TIME = 0.15f;
 
+        /// <summary>
+        /// Currently browsed floor room index for Page Up/Down outside targeting mode
+        /// </summary>
+        private int _browsingFloor = 2; // Start at bottom (Floor 1)
+
         private void Update()
         {
             if (!IsEnabled)
@@ -109,11 +114,15 @@ namespace MonsterTrainAccessibility.Core
             }
             else if (Input.GetKeyDown(KeyCode.Tab))
             {
-                MonsterTrainAccessibility.LogInfo("TAB key pressed - starting train stats read");
-                // When TAB is pressed, read the train stats panel after a short delay
-                // (to allow the panel to open first)
-                StartCoroutine(ReadTrainStatsDelayed());
-                _inputCooldown = INPUT_COOLDOWN_TIME;
+                // Skip train stats read when in Settings screen - Tab is used for tab navigation there
+                if (Help.ScreenStateTracker.CurrentScreen != Help.GameScreen.Settings)
+                {
+                    MonsterTrainAccessibility.LogInfo("TAB key pressed - starting train stats read");
+                    // When TAB is pressed, read the train stats panel after a short delay
+                    // (to allow the panel to open first)
+                    StartCoroutine(ReadTrainStatsDelayed());
+                    _inputCooldown = INPUT_COOLDOWN_TIME;
+                }
             }
             else if (Input.GetKeyDown(KeyCode.N))
             {
@@ -122,6 +131,15 @@ namespace MonsterTrainAccessibility.Core
                 // (to allow the game to process the speed change first)
                 StartCoroutine(AnnounceSpeedChangeDelayed());
                 _inputCooldown = INPUT_COOLDOWN_TIME;
+            }
+            else if (Input.GetKeyDown(KeyCode.PageUp) || Input.GetKeyDown(KeyCode.PageDown))
+            {
+                var battle = MonsterTrainAccessibility.BattleHandler;
+                if (battle != null && battle.IsInBattle)
+                {
+                    BrowseFloor(Input.GetKeyDown(KeyCode.PageUp));
+                    _inputCooldown = INPUT_COOLDOWN_TIME;
+                }
             }
 
         }
@@ -152,6 +170,9 @@ namespace MonsterTrainAccessibility.Core
             MonsterTrainAccessibility.ScreenReader?.Speak($"Speed: {speedName}", false);
         }
 
+        private static System.Reflection.MethodInfo _getActiveGameSpeedMethod;
+        private static bool _speedMethodSearched;
+
         /// <summary>
         /// Get the current game speed setting name
         /// </summary>
@@ -159,108 +180,38 @@ namespace MonsterTrainAccessibility.Core
         {
             try
             {
-                // Try to find GameStateManager or similar for speed setting
-                foreach (var assembly in System.AppDomain.CurrentDomain.GetAssemblies())
+                // Find SaveManager.GetActiveGameSpeed() via reflection (cached)
+                if (!_speedMethodSearched)
                 {
-                    if (!assembly.GetName().Name.Contains("Assembly-CSharp"))
-                        continue;
-
-                    // Look for GameStateManager
-                    var gameStateType = assembly.GetType("GameStateManager");
-                    if (gameStateType != null)
+                    _speedMethodSearched = true;
+                    foreach (var assembly in System.AppDomain.CurrentDomain.GetAssemblies())
                     {
-                        var instanceProp = gameStateType.GetProperty("Instance",
-                            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
-                        object instance = instanceProp?.GetValue(null);
+                        if (!assembly.GetName().Name.Contains("Assembly-CSharp"))
+                            continue;
 
-                        if (instance == null)
+                        var saveManagerType = assembly.GetType("SaveManager");
+                        if (saveManagerType != null)
                         {
-                            instance = UnityEngine.Object.FindObjectOfType(gameStateType);
-                        }
-
-                        if (instance != null)
-                        {
-                            // Look for speed-related properties/fields
-                            var speedProp = gameStateType.GetProperty("GameSpeed") ??
-                                           gameStateType.GetProperty("CombatSpeed") ??
-                                           gameStateType.GetProperty("CurrentSpeed");
-                            if (speedProp != null)
-                            {
-                                var speed = speedProp.GetValue(instance);
-                                if (speed != null)
-                                {
-                                    return speed.ToString();
-                                }
-                            }
-
-                            // Try fields
-                            var speedField = gameStateType.GetField("gameSpeed",
-                                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance) ??
-                                gameStateType.GetField("_gameSpeed",
-                                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                            if (speedField != null)
-                            {
-                                var speed = speedField.GetValue(instance);
-                                if (speed != null)
-                                {
-                                    return speed.ToString();
-                                }
-                            }
-                        }
-                    }
-
-                    // Look for ScreenManager or CombatManager
-                    foreach (var typeName in new[] { "ScreenManager", "CombatManager", "BattleManager", "CoreGameManager" })
-                    {
-                        var managerType = assembly.GetType(typeName);
-                        if (managerType == null) continue;
-
-                        object instance = null;
-                        var instanceProp = managerType.GetProperty("Instance",
-                            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
-                        instance = instanceProp?.GetValue(null);
-
-                        if (instance == null)
-                        {
-                            instance = UnityEngine.Object.FindObjectOfType(managerType);
-                        }
-
-                        if (instance != null)
-                        {
-                            // Look for speed enum or index
-                            foreach (var prop in managerType.GetProperties())
-                            {
-                                if (prop.Name.ToLower().Contains("speed"))
-                                {
-                                    var val = prop.GetValue(instance);
-                                    if (val != null)
-                                    {
-                                        return FormatSpeedValue(val);
-                                    }
-                                }
-                            }
-                            foreach (var field in managerType.GetFields(
-                                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance))
-                            {
-                                if (field.Name.ToLower().Contains("speed"))
-                                {
-                                    var val = field.GetValue(instance);
-                                    if (val != null)
-                                    {
-                                        return FormatSpeedValue(val);
-                                    }
-                                }
-                            }
+                            _getActiveGameSpeedMethod = saveManagerType.GetMethod("GetActiveGameSpeed",
+                                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                            break;
                         }
                     }
                 }
 
-                // Fallback: check Unity's time scale as a rough indicator
-                float timeScale = Time.timeScale;
-                if (timeScale <= 0.5f) return "Slow";
-                if (timeScale <= 1.0f) return "Normal";
-                if (timeScale <= 2.0f) return "Fast";
-                return "Very Fast";
+                if (_getActiveGameSpeedMethod != null)
+                {
+                    // Find the SaveManager instance in the scene
+                    var saveManager = UnityEngine.Object.FindObjectOfType(_getActiveGameSpeedMethod.DeclaringType);
+                    if (saveManager != null)
+                    {
+                        var speed = _getActiveGameSpeedMethod.Invoke(saveManager, null);
+                        if (speed != null)
+                        {
+                            return FormatGameSpeed(speed);
+                        }
+                    }
+                }
             }
             catch (System.Exception ex)
             {
@@ -271,40 +222,14 @@ namespace MonsterTrainAccessibility.Core
         }
 
         /// <summary>
-        /// Format a speed value into a readable name
+        /// Format a SaveManager.GameSpeed enum value into a readable name
         /// </summary>
-        private string FormatSpeedValue(object value)
+        private string FormatGameSpeed(object value)
         {
-            if (value == null) return "Unknown";
-
-            // If it's an enum, use its name
-            if (value.GetType().IsEnum)
-            {
-                return value.ToString();
-            }
-
-            // If it's an int (speed index)
-            if (value is int index)
-            {
-                switch (index)
-                {
-                    case 0: return "Normal";
-                    case 1: return "Fast";
-                    case 2: return "Very Fast";
-                    default: return $"Speed {index}";
-                }
-            }
-
-            // If it's a float (time scale)
-            if (value is float scale)
-            {
-                if (scale <= 0.5f) return "Slow";
-                if (scale <= 1.0f) return "Normal";
-                if (scale <= 2.0f) return "Fast";
-                return "Very Fast";
-            }
-
-            return value.ToString();
+            // The enum is: Normal=0, Fast=1, Ultra=2, SuperUltra=3, Instant=100
+            string name = value.ToString();
+            if (name == "SuperUltra") return "Super Ultra";
+            return name;
         }
 
         /// <summary>
@@ -321,6 +246,25 @@ namespace MonsterTrainAccessibility.Core
             {
                 MonsterTrainAccessibility.ScreenReader?.Queue("Not in battle");
             }
+        }
+
+        /// <summary>
+        /// Browse floors with Page Up/Down when not in targeting mode
+        /// </summary>
+        private void BrowseFloor(bool up)
+        {
+            // Room index 0 = top floor, 2 = bottom floor
+            // Page Up = go up = decrease room index, Page Down = go down = increase room index
+            if (up)
+                _browsingFloor = Mathf.Max(0, _browsingFloor - 1);
+            else
+                _browsingFloor = Mathf.Min(2, _browsingFloor + 1);
+
+            var battle = MonsterTrainAccessibility.BattleHandler;
+            string floorName = Screens.BattleAccessibility.RoomIndexToFloorName(_browsingFloor);
+            string summary = battle?.GetFloorSummary(_browsingFloor) ?? "";
+            string message = string.IsNullOrEmpty(summary) ? floorName : $"{floorName}. {summary}";
+            MonsterTrainAccessibility.ScreenReader?.Speak(message, false);
         }
 
         /// <summary>

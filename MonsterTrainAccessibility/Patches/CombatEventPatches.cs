@@ -320,7 +320,7 @@ namespace MonsterTrainAccessibility.Patches
         private static int RoomIndexToUserFloor(int roomIndex)
         {
             if (roomIndex < 0 || roomIndex > 2) return -1;
-            return 3 - roomIndex;
+            return roomIndex;
         }
     }
 
@@ -591,7 +591,7 @@ namespace MonsterTrainAccessibility.Patches
         private static int RoomIndexToUserFloor(int roomIndex)
         {
             if (roomIndex < 0 || roomIndex > 2) return -1;
-            return 3 - roomIndex;
+            return roomIndex;
         }
     }
 
@@ -777,7 +777,7 @@ namespace MonsterTrainAccessibility.Patches
         private static int RoomIndexToUserFloor(int roomIndex)
         {
             if (roomIndex < 0 || roomIndex > 2) return -1;
-            return 3 - roomIndex;
+            return roomIndex;
         }
     }
 
@@ -1173,16 +1173,12 @@ namespace MonsterTrainAccessibility.Patches
                 // Track this spawn
                 _announcedSpawns.Add(hash);
 
-                int userFloor = RoomIndexToUserFloor(roomIndex);
+                int floorIndex = RoomIndexToUserFloor(roomIndex);
 
-                // Build a proper announcement
-                string floorText = userFloor > 0 ? $"floor {userFloor}" : "the battlefield";
-                string unitType = isEnemy ? "Enemy" : "Friendly";
+                MonsterTrainAccessibility.LogInfo($"Unit spawned via Setup: {name}, isEnemy={isEnemy}, roomIndex={roomIndex}");
 
-                MonsterTrainAccessibility.LogInfo($"Unit spawned via Setup: {name}, isEnemy={isEnemy}, roomIndex={roomIndex}, floor={userFloor}");
-
-                // Announce the spawn with proper floor text
-                MonsterTrainAccessibility.BattleHandler?.OnUnitSpawned(name, isEnemy, userFloor);
+                // Announce the spawn - BattleAccessibility handles floor name display
+                MonsterTrainAccessibility.BattleHandler?.OnUnitSpawned(name, isEnemy, floorIndex);
             }
             catch (Exception ex)
             {
@@ -1262,7 +1258,7 @@ namespace MonsterTrainAccessibility.Patches
         private static int RoomIndexToUserFloor(int roomIndex)
         {
             if (roomIndex < 0 || roomIndex > 2) return -1;
-            return 3 - roomIndex;
+            return roomIndex;
         }
     }
 
@@ -1474,10 +1470,8 @@ namespace MonsterTrainAccessibility.Patches
 
         private static int RoomIndexToUserFloor(int roomIndex)
         {
-            // Based on observed behavior: Room 0 = Floor 1 (bottom), Room 1 = Floor 2, Room 2 = Floor 3, Room 3 = Pyre
             if (roomIndex < 0) return -1;
-            if (roomIndex >= 3) return 0; // Pyre room
-            return roomIndex + 1; // Room 0 = Floor 1, Room 1 = Floor 2, Room 2 = Floor 3
+            return roomIndex;
         }
     }
 
@@ -1728,6 +1722,96 @@ namespace MonsterTrainAccessibility.Patches
     /// <summary>
     /// Detect combat phase changes for better context
     /// </summary>
+    /// <summary>
+    /// Detect healing via CharacterState.ApplyHeal
+    /// Signature: ApplyHeal(int amount, bool triggerOnHeal = true, CardState responsibleCard = null, RelicState relicState = null, bool fromMaxHPChange = false)
+    /// </summary>
+    public static class HealAppliedPatch
+    {
+        private static float _lastHealTime = 0f;
+        private static string _lastHealKey = "";
+
+        public static void TryPatch(Harmony harmony)
+        {
+            try
+            {
+                var charStateType = AccessTools.TypeByName("CharacterState");
+                if (charStateType != null)
+                {
+                    var method = AccessTools.Method(charStateType, "ApplyHeal");
+                    if (method != null)
+                    {
+                        var prefix = new HarmonyMethod(typeof(HealAppliedPatch).GetMethod(nameof(Prefix)));
+                        harmony.Patch(method, prefix: prefix);
+                        MonsterTrainAccessibility.LogInfo("Patched CharacterState.ApplyHeal");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Failed to patch ApplyHeal: {ex.Message}");
+            }
+        }
+
+        // __instance is the CharacterState being healed, __0 is the heal amount
+        public static void Prefix(object __instance, int __0)
+        {
+            try
+            {
+                // Skip if in floor targeting mode (preview)
+                var targeting = MonsterTrainAccessibility.FloorTargeting;
+                if (targeting != null && targeting.IsTargeting)
+                    return;
+
+                int amount = __0;
+                if (amount <= 0 || __instance == null)
+                    return;
+
+                // Check if unit is alive and can be healed before announcing
+                var charType = __instance.GetType();
+
+                var isAliveProperty = charType.GetProperty("IsAlive");
+                if (isAliveProperty != null)
+                {
+                    var alive = isAliveProperty.GetValue(__instance);
+                    if (alive is bool b && !b)
+                        return;
+                }
+
+                // Check PreviewMode - don't announce preview heals
+                var previewProp = charType.GetProperty("PreviewMode");
+                if (previewProp != null)
+                {
+                    var preview = previewProp.GetValue(__instance);
+                    if (preview is bool p && p)
+                        return;
+                }
+
+                string targetName = "Unit";
+                var getNameMethod = charType.GetMethod("GetName");
+                if (getNameMethod != null)
+                {
+                    targetName = getNameMethod.Invoke(__instance, null) as string ?? "Unit";
+                }
+
+                // Deduplicate
+                float currentTime = UnityEngine.Time.unscaledTime;
+                string healKey = $"{targetName}_{amount}";
+                if (healKey == _lastHealKey && currentTime - _lastHealTime < 0.3f)
+                    return;
+
+                _lastHealKey = healKey;
+                _lastHealTime = currentTime;
+
+                MonsterTrainAccessibility.ScreenReader?.Queue($"{targetName} healed for {amount}");
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in heal patch: {ex.Message}");
+            }
+        }
+    }
+
     public static class CombatPhasePatch
     {
         public static void TryPatch(Harmony harmony)

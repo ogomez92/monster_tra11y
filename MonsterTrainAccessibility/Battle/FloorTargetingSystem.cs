@@ -6,7 +6,7 @@ namespace MonsterTrainAccessibility.Battle
     /// <summary>
     /// Handles keyboard-based floor targeting for playing cards.
     /// When a card requires floor selection, this system allows the player
-    /// to select a floor using number keys (1-3) or arrow keys instead of mouse.
+    /// to select a floor using Page Up/Down instead of mouse.
     /// </summary>
     public class FloorTargetingSystem : MonoBehaviour
     {
@@ -21,9 +21,9 @@ namespace MonsterTrainAccessibility.Battle
         public bool IsTargeting { get; private set; }
 
         /// <summary>
-        /// Currently selected floor (1-3, where 1 is bottom, 3 is top)
+        /// Currently selected room index (0=bottom, 1=middle, 2=top)
         /// </summary>
-        public int SelectedFloor { get; private set; } = 1;
+        public int SelectedFloor { get; private set; } = 0;
 
         /// <summary>
         /// The card being played (for reference during targeting)
@@ -97,7 +97,7 @@ namespace MonsterTrainAccessibility.Battle
         /// Start floor targeting mode for a card
         /// </summary>
         /// <param name="card">The card being played</param>
-        /// <param name="onConfirm">Called with selected floor (1-3) when confirmed</param>
+        /// <param name="onConfirm">Called with selected room index when confirmed</param>
         /// <param name="onCancel">Called when targeting is cancelled</param>
         public void StartTargeting(object card, Action<int> onConfirm, Action onCancel)
         {
@@ -111,23 +111,21 @@ namespace MonsterTrainAccessibility.Battle
             if (battleHandler != null)
             {
                 int gameFloor = battleHandler.GetSelectedFloor();
-                // Valid floors: 0 = Pyre, 1-3 = regular floors
                 if (gameFloor >= 0 && gameFloor <= 3)
                 {
                     SelectedFloor = gameFloor;
-                    MonsterTrainAccessibility.LogInfo($"Floor targeting started - synced to game floor {gameFloor}");
+                    MonsterTrainAccessibility.LogInfo($"Floor targeting started - synced to room index {gameFloor}");
                 }
                 else
                 {
-                    // Couldn't get floor from game, default to floor 1
-                    SelectedFloor = 1;
-                    MonsterTrainAccessibility.LogInfo($"Floor targeting started - couldn't read game floor ({gameFloor}), defaulting to floor 1");
+                    SelectedFloor = 0;
+                    MonsterTrainAccessibility.LogInfo($"Floor targeting started - couldn't read game floor ({gameFloor}), defaulting to bottom");
                 }
             }
             else
             {
-                SelectedFloor = 1;
-                MonsterTrainAccessibility.LogInfo($"Floor targeting started - no battle handler, defaulting to floor 1");
+                SelectedFloor = 0;
+                MonsterTrainAccessibility.LogInfo($"Floor targeting started - no battle handler, defaulting to bottom");
             }
 
             AnnounceTargetingStart();
@@ -149,18 +147,6 @@ namespace MonsterTrainAccessibility.Battle
         }
 
         /// <summary>
-        /// Select a specific floor
-        /// </summary>
-        private void SelectFloor(int floor)
-        {
-            if (floor < 1 || floor > 3)
-                return;
-
-            SelectedFloor = floor;
-            AnnounceFloorSelection();
-        }
-
-        /// <summary>
         /// Read the current floor from game state and announce it.
         /// This is called after Page Up/Down to stay in sync with the game.
         /// </summary>
@@ -179,11 +165,10 @@ namespace MonsterTrainAccessibility.Battle
             if (battleHandler != null)
             {
                 int gameFloor = battleHandler.GetSelectedFloor();
-                // Valid floors: 0 = Pyre, 1-3 = regular floors
                 if (gameFloor >= 0 && gameFloor <= 3)
                 {
                     SelectedFloor = gameFloor;
-                    MonsterTrainAccessibility.LogInfo($"ReadFloorFromGame: game floor is {gameFloor}");
+                    MonsterTrainAccessibility.LogInfo($"ReadFloorFromGame: room index is {gameFloor}");
 
                     // Always announce the current floor from game state
                     AnnounceFloorSelection();
@@ -194,32 +179,6 @@ namespace MonsterTrainAccessibility.Battle
                     MonsterTrainAccessibility.LogInfo($"ReadFloorFromGame: invalid floor {gameFloor}");
                 }
             }
-        }
-
-        /// <summary>
-        /// Cycle to the next/previous floor (clamped, doesn't wrap - matches game behavior)
-        /// DEPRECATED: Use ReadFloorFromGameAndAnnounce instead to stay in sync with game.
-        /// </summary>
-        private void CycleFloor(int direction)
-        {
-            int newFloor = SelectedFloor + direction;
-
-            // Clamp to valid range (1-3), don't wrap - matches game's native floor navigation
-            if (newFloor < 1)
-            {
-                newFloor = 1;
-                MonsterTrainAccessibility.ScreenReader?.Speak("Bottom floor", false);
-                return;
-            }
-            if (newFloor > 3)
-            {
-                newFloor = 3;
-                MonsterTrainAccessibility.ScreenReader?.Speak("Top floor", false);
-                return;
-            }
-
-            SelectedFloor = newFloor;
-            AnnounceFloorSelection();
         }
 
         /// <summary>
@@ -235,8 +194,9 @@ namespace MonsterTrainAccessibility.Battle
             _onConfirm = null;
             _onCancel = null;
 
-            MonsterTrainAccessibility.ScreenReader?.Speak($"Playing on floor {floor}", false);
-            MonsterTrainAccessibility.LogInfo($"Floor targeting confirmed: floor {floor}");
+            string floorName = Screens.BattleAccessibility.RoomIndexToFloorName(floor);
+            MonsterTrainAccessibility.ScreenReader?.Speak($"Playing on {floorName.ToLower()}", false);
+            MonsterTrainAccessibility.LogInfo($"Floor targeting confirmed: room index {floor}");
 
             callback?.Invoke(floor);
         }
@@ -264,7 +224,7 @@ namespace MonsterTrainAccessibility.Battle
         /// </summary>
         private void AnnounceTargetingStart()
         {
-            string floorName = SelectedFloor == 0 ? "Pyre" : $"Floor {SelectedFloor}";
+            string floorName = Screens.BattleAccessibility.RoomIndexToFloorName(SelectedFloor);
             string summary = GetFloorSummary(SelectedFloor);
             string floorInfo = string.IsNullOrEmpty(summary) ? floorName : $"{floorName}. {summary}";
             string message = $"Select floor. Page Up/Down to change. Enter to confirm, Escape to cancel. {floorInfo}";
@@ -276,7 +236,7 @@ namespace MonsterTrainAccessibility.Battle
         /// </summary>
         private void AnnounceFloorSelection()
         {
-            string floorName = SelectedFloor == 0 ? "Pyre" : $"Floor {SelectedFloor}";
+            string floorName = Screens.BattleAccessibility.RoomIndexToFloorName(SelectedFloor);
             string summary = GetFloorSummary(SelectedFloor);
             string message = string.IsNullOrEmpty(summary) ? floorName : $"{floorName}. {summary}";
             MonsterTrainAccessibility.ScreenReader?.Speak(message, false);
@@ -285,12 +245,12 @@ namespace MonsterTrainAccessibility.Battle
         /// <summary>
         /// Get a summary of what's on a specific floor
         /// </summary>
-        private string GetFloorSummary(int floor)
+        private string GetFloorSummary(int roomIndex)
         {
             var battle = MonsterTrainAccessibility.BattleHandler;
             if (battle != null)
             {
-                return battle.GetFloorSummary(floor);
+                return battle.GetFloorSummary(roomIndex);
             }
             return "";
         }
