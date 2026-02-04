@@ -1493,6 +1493,47 @@ namespace MonsterTrainAccessibility.Patches
     }
 
     /// <summary>
+    /// Detect when compendium/logbook screen is shown
+    /// </summary>
+    public static class CompendiumScreenPatch
+    {
+        public static void TryPatch(Harmony harmony)
+        {
+            try
+            {
+                var targetType = AccessTools.TypeByName("CompendiumScreen");
+                if (targetType != null)
+                {
+                    var method = AccessTools.Method(targetType, "Initialize");
+                    if (method != null)
+                    {
+                        var postfix = new HarmonyMethod(typeof(CompendiumScreenPatch).GetMethod(nameof(Postfix)));
+                        harmony.Patch(method, postfix: postfix);
+                        MonsterTrainAccessibility.LogInfo("Patched CompendiumScreen.Initialize");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Failed to patch CompendiumScreen: {ex.Message}");
+            }
+        }
+
+        public static void Postfix()
+        {
+            try
+            {
+                ScreenStateTracker.SetScreen(Help.GameScreen.Compendium);
+                MonsterTrainAccessibility.ScreenReader?.AnnounceScreen("Logbook. Use Page Up and Page Down to switch sections. Left and Right arrows to turn pages.");
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in CompendiumScreen patch: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
     /// Generic screen manager patch to catch all screen transitions
     /// </summary>
     public static class ScreenManagerPatch

@@ -119,6 +119,7 @@ Manual patches (no `[HarmonyPatch]` attributes - use `TryPatch()` methods):
   - `CardDraftScreenPatch`, `ClassSelectionScreenPatch`, `MapScreenPatch`
   - `MerchantScreenPatch`, `EnhancerSelectionScreenPatch`, `GameOverScreenPatch`
   - `SettingsScreenPatch`: Announces "Settings. Press Tab to switch between tabs."
+  - `CompendiumScreenPatch`: Announces "Logbook" with navigation keys (Page Up/Down for sections, arrows for pages)
   - `ScreenManagerPatch`: Generic screen transition detection
 - **CombatEventPatches**: Turn changes, damage, deaths, status effects
 - **CardEventPatches**: Draw, play, discard events
@@ -326,6 +327,246 @@ foreach (var field in componentType.GetFields(BindingFlags.Public | BindingFlags
 {
     var val = field.GetValue(component);
     MonsterTrainAccessibility.LogInfo($"  {field.Name} = {val?.GetType().Name ?? "null"}");
+}
+```
+
+## Game Source Reference (`game/` folder)
+
+The `game/` folder contains decompiled game source classes from `Assembly-CSharp`. These can be referenced directly instead of guessing method signatures for reflection/Harmony patches. **Note:** The mod still uses runtime reflection since these files are not compiled into the mod — they exist purely as reference.
+
+### Core Managers
+
+| Class | Role | Key Methods/Fields |
+|-------|------|-------------------|
+| `CardManager` | Deck, hand, draw, play, discard | `DrawCards(int)`, `PlayCard(int, SpawnPoint, ref SelectionError)`, `DiscardCard(DiscardCardParams)`, `ShuffleDeck()`, `GetHand()`, `GetHandCard(int)`, `GetDiscardPile()`, `AddCard()` |
+| `CombatManager` | Combat phases, damage, turns | `StartPlayerTurn()`, `EndPlayerTurn()`, `StartCombat()`, `EndCombat()`, `ApplyDamageToTarget()`. Enum `Phase`: Start, Placement, PreCombat, MonsterTurn, Combat, HeroTurn, EndOfCombat |
+| `SaveManager` | Save/load, game state, preview mode | `PreviewMode` property, `GetTowerHP()`, `AdjustTowerHP()`, `GetCurrentScenarioData()`, `GetBalanceData()`. Enums: `GameSpeed`, `VictoryType`, `VictorySectionState` |
+| `RoomManager` | Floor management (3 floors + pyre) | `GetRoom()`, `GetRoomState()`, `NumRooms = 4`, `currentSelectedRoom`, `rooms` list |
+| `PlayerManager` | Player resources | `GetEnergy()`, `AddEnergy()`, `RemoveEnergy()`, `GetTowerHP()`, `AdjustTowerHP()`. Signals: `energyChangedSignal`, `healPlayerSignal` |
+| `MonsterManager` | Player unit management | `InstantiateCharacter()`, `AddCharacter()`, `SpawnCharacter()`, `GetTeamType()` → `Team.Type.Monsters` |
+| `HeroManager` | Enemy unit management | `InstantiateCharacter()`, `AddCharacter()`, `OnSpawnPointChanged()`, `PostAscensionDescensionSingularCharacterTrigger()`, `GetTeamType()` → `Team.Type.Heroes` |
+| `RelicManager` | Artifact management | `GetRelicState()`, `AddRelic()`, `RemoveRelic()` |
+| `ScreenManager` | Screen transitions | `ChangeScreen()`, `LoadScreen()`, `ShowScreen()` |
+| `StatusEffectManager` | Status effect tracking | Global status effect registry |
+| `ScenarioManager` | Battle scenario/boss | Manages current scenario |
+| `StoryManager` | Story events | Event progression |
+| `InputManager` | Input handling | Keyboard/gamepad input |
+| `SoundManager` | Audio | Sound playback |
+| `RandomManager` | RNG | Random number generation |
+
+### State Classes (Runtime Game Objects)
+
+| Class | Role | Key Methods/Fields |
+|-------|------|-------------------|
+| `CharacterState` | Unit instance (health, position, status) | `GetName()`, `GetHP()`, `GetAttackDamage()`, `GetTeamType()`, `GetCurrentRoomIndex()`, `GetStatusEffectStacks(string)`, `GetStatusEffect(string)`, `ApplyDamage()`, `ApplyHeal()`, `AddStatusEffect()`, `Setup()`. Enums: `MovementState`, `CombatPreviewState`, `DestroyedState`. Inner: `StatusEffectStack`, `ApplyDamageParams`, `AddStatusEffectParams`. Property: `PreviewMode` |
+| `CardState` | Card instance | `GetTitle()`, `GetTitleKey()`, `GetCost(...)`, `GetCostWithoutTraits()`, `GetStatusEffects()`, `Setup(CardData, ...)`. Fields: `cardType`, `cost`, `costType`, `targetsRoom`, `targetless`, `rarityType` |
+| `RoomState` | Floor state and capacity | Floor state including units, capacity, enchantments |
+| `PyreRoomState` | Pyre health tracking | Pyre-specific room state |
+| `BossState` | Boss-specific state | Boss action tracking |
+| `RelicState` | Artifact instance | Individual artifact runtime state |
+| `CardUpgradeState` | Card upgrade instance | `GetAttackDamage()`, `GetAttackDamageBuff()`, `GetCostReduction()`, `GetStatusEffectUpgrades()`, `Setup(CardUpgradeData)` |
+| `CardEffectState` | Card effect instance | `GetStatusEffectStackMultiplier()`, `GetDescriptionAsTrait()`, `Setup(CardEffectData, ...)` |
+| `RunState` | Current run state | Run progression data |
+| `NodeState` | Map node instance | Individual map node |
+| `RewardState` | Reward instance | Reward data |
+| `MerchantGoodState` | Shop item instance | Merchant item data |
+| `CovenantState` | Difficulty level | Covenant tracking |
+| `MutatorState` | Mutator modifier | Mutator tracking |
+
+### Data Classes (Definitions/Templates)
+
+| Class | Role | Key Methods/Fields |
+|-------|------|-------------------|
+| `CardData` | Card definition | `GetName()`, `GetNameKey()`, `GetCost()`, `GetCostType()`, `GetStatusEffects()`. Fields: `nameKey`, `cost`, `cardType`, `traits`, `effects`, `startingUpgrades`. Enum `CostType`: Default, ConsumeRemainingEnergy, NonPlayable |
+| `CharacterData` | Unit template | `GetName()`, `GetNameKey()`, `GetAttackDamage()`, `GetStatusEffectImmunities()` |
+| `CardEffectData` | Card effect definition | `GetStatusEffectStackMultiplier()` |
+| `CardTraitData` | Card trait definition | `Setup(string traitStateName)` |
+| `CardUpgradeData` | Upgrade definition | `GetCostReduction()`, `GetStatusEffectUpgrades()` |
+| `CardUpgradeTreeData` | Upgrade tree structure | Champion upgrade paths |
+| `CollectableRelicData` | Artifact definition | Extends `RelicData` with collectability |
+| `RelicData` | Base artifact definition | `GetName()`, `GetNameKey()`, `GetDescriptionKey()` |
+| `SinsData` | Trial modifier | Trial relics with special effects |
+| `ScenarioData` | Battle/boss definition | `GetBattleName()`, `GetBossIcon()`, `GetBossAtIndex(int)` |
+| `ClassData` | Clan definition | `GetTitle()`, `GetTitleKey()`, `GetDescription()`, `GetDescriptionKey()` |
+| `ChampionData` | Champion definition | Champion template |
+| `CovenantData` | Covenant/difficulty | Difficulty level definition |
+| `MutatorData` | Mutator definition | Game modifier definition |
+| `AllGameData` | Master data container | All cards, relics, classes, etc. |
+| `BalanceData` | Balance constants | `GetMaxEnergy()`, `GetStatusEffectsDisplayData()` |
+
+### Screen Classes
+
+| Class | Entry Method | Notes |
+|-------|-------------|-------|
+| `MainMenuScreen` | `Initialize()` | Main menu — patched for screen transition |
+| `BattleIntroScreen` | `Initialize()` / `Setup()` / `Show()` | Pre-battle boss info |
+| `MapScreen` | `Initialize()` | Map/node navigation |
+| `CardDraftScreen` | `Setup(List<CardData>, string, bool, Action)` | Card draft selection |
+| `RelicDraftScreen` | `Setup(List<CollectableRelicData>, string, bool, Action)` | Artifact draft |
+| `ClassSelectionScreen` | `Initialize()` | Clan/class selection |
+| `ChampionUpgradeScreen` | `Setup(CardUpgradeTreeData, Source, Action)` | Champion upgrades |
+| `MerchantScreen` | — | Shop/merchant |
+| `RewardScreen` | `Show(List<RewardState>, Source, Action, ...)` | Reward selection |
+| `DeckScreen` | `Setup(Params)` | Deck builder |
+| `GameOverScreen` | — | Victory/defeat |
+| `StoryEventScreen` | — | Story events |
+| `SynthesisScreen` | `Setup(Source, Action)` | Unit synthesis |
+| `SettingsScreen` | — | Settings |
+| `CompendiumScreen` | — | Card/relic compendium |
+| `RunSummaryScreen` | `Setup(RunAggregateData, Action, ...)` | Run summary |
+| `DialogScreen` | — | Dialogue/text boxes |
+| `MinimapScreen` | — | Minimap display |
+
+### Card Effects (`CardEffect*.cs`, 40+ classes)
+
+All extend `CardEffectBase`. Key pattern:
+- `Setup(CardEffectState)` — initialization
+- `GetDescriptionAsTrait(CardEffectState)` — tooltip text
+
+**Common effects:** `CardEffectDamage`, `CardEffectHeal`, `CardEffectHealTrain`, `CardEffectAddStatusEffect`, `CardEffectRemoveStatusEffect`, `CardEffectSpawnMonster`, `CardEffectSpawnHero`, `CardEffectBuffDamage`, `CardEffectBuffMaxHealth`, `CardEffectDraw`, `CardEffectAdjustEnergy`, `CardEffectGainEnergy`, `CardEffectBump`, `CardEffectKill`, `CardEffectSacrifice`, `CardEffectRecruit`, `CardEffectTransform`, `CardEffectRandomDiscard`, `CardEffectDiscardHand`, `CardEffectFreezeCard`, `CardEffectModifyCardCost`, `CardEffectAdjustRoomCapacity`
+
+### Card Traits (`CardTrait*.cs`, 40+ classes)
+
+Trait state/data pairs. Key ones:
+- `CardTraitExhaustState` (Consume), `CardTraitIntrinsicState` (Intrinsic), `CardTraitFreeze` (Freeze), `CardTraitPermafrost` (Permafrost), `CardTraitRetain` (Holdover), `CardTraitSelfPurge` (Purge), `CardTraitCopyOnPlay`, `CardTraitCorruptRestricted`, `CardTraitIgnoreArmor`, `CardTraitUnplayable`
+- **Scaling traits** (20+): `CardTraitScalingAddDamage`, `CardTraitScalingAddStatusEffect`, `CardTraitScalingBuffDamage`, `CardTraitScalingHeal`, `CardTraitScalingReduceCost`, `CardTraitScalingUpgradeUnitAttack/Health/Size/StatusEffect`
+
+### Relic Effects (`RelicEffect*.cs`, 150+ classes)
+
+All extend `RelicEffectBase` and implement various `IRelicEffect` interfaces. The interfaces determine when the effect triggers:
+- `IStartOfCombatRelicEffect`, `IEndOfCombatRelicEffect`, `IEndOfTurnRelicEffect`
+- `ICardPlayedRelicEffect`, `ICardDrawnRelicEffect`, `IOnDiscardRelicEffect`
+- `ICharacterStatAdjustmentRelicEffect`, `IOnStatusEffectAddedRelicEffect`
+- `IStartOfRunRelicEffect`, `IMerchantRelicEffect`, `ICardModifierRelicEffect`
+
+### Status Effects (`StatusEffect*State.cs`, 40+ classes)
+
+All extend `StatusEffectState`. Named by mechanic:
+- **Buffs:** `Armor`, `Regen`, `DamageShield`, `Lifesteal`, `Haste`, `Multistrike`, `Stealth`, `SpellShield`, `Buff`
+- **Debuffs:** `Poison`, `Dazed`, `Rooted`, `Fragile`, `SpellWeakness`, `MeleeWeakness`, `Sap`, `Debuff`, `Silenced`
+- **Mechanics:** `Endless`, `Ephemeral`, `Immobile`, `Immune`, `Inedible`, `Inert`, `Cardless`, `HealImmunity`
+- **Combat:** `Spikes`, `Trample`, `Splash`, `Ambush`, `Hunter`, `AttractDamage`
+- **Special:** `Scorch`, `Spark`, `HealMultiplier`, `Revive`, `Hatch`, `EatMany`, `CorruptPoison`, `CorruptRegen`
+- **DLC:** `ShardUpgrade`, `StygianBlessing`, `PyreLock`
+
+### UI Classes (Key ones for text extraction)
+
+| Class | Role |
+|-------|------|
+| `CardUI` | Card display. Enums: `CardUIState` (Hand, FaceDown, Screen, Locked), `MasteryType` |
+| `CharacterUI` | Unit health/status display |
+| `BossDetailsUI` | Boss information panel |
+| `HandUI` | Hand display, card animations |
+| `RoomUI` | Floor display |
+| `RoomTargetingUI` | Floor targeting indicator |
+| `SpawnPointUI` | Unit placement slots |
+| `BranchChoiceUI` | Choice branching |
+| `CardChoiceItem` | Draft card item |
+| `RelicChoiceItemUI` | Artifact choice item |
+| `MerchantGoodDetailsUI` | Shop item details |
+| `MerchantServiceUI` | Shop service display |
+| `CovenantSelectionUI` | Difficulty selector |
+| `ChampionSelectionUI` | Champion choice |
+| `TooltipUI` / `TooltipContainer` | Tooltip system |
+| `EndTurnUI` | End turn button |
+| `EnergyUI` | Ember display |
+| `GoldUI` | Gold display |
+| `TowerHPUI` | Pyre health display |
+| `DeckCountUI` | Deck counter |
+
+### Currently Patched Methods
+
+These are the game methods the mod hooks via Harmony (see `Patches/`):
+
+| Patch | Target | Method |
+|-------|--------|--------|
+| `MainMenuScreenPatch` | `MainMenuScreen` | `Initialize` (postfix) |
+| `BattleIntroScreenPatch` | `BattleIntroScreen` | `Initialize`/`Setup`/`Show` (postfix) |
+| `CombatStartPatch` | `CombatManager` | `StartCombat` (postfix) |
+| `CardDraftScreenPatch` | `CardDraftScreen` | `Setup` (postfix) |
+| `ClassSelectionScreenPatch` | `ClassSelectionScreen` | `Initialize` (postfix) |
+| `MapScreenPatch` | `MapScreen` | `Initialize` (postfix) |
+| `MerchantScreenPatch` | `MerchantScreen` | `Initialize` (postfix) |
+| `GameOverScreenPatch` | `GameOverScreen` | `Initialize` (postfix) |
+| `SettingsScreenPatch` | `SettingsScreen` | `Initialize` (postfix) |
+| `CompendiumScreenPatch` | `CompendiumScreen` | `Initialize` (postfix) |
+| `ScreenManagerPatch` | `ScreenManager` | Generic transition detection |
+| `CardDrawPatch` | `CardManager` | `DrawCards` (postfix) |
+| `CardPlayedPatch` | `CardManager` | `PlayCard` (postfix) |
+| `CardTargetingPatches` | `CardSelectionBehaviour` | `MoveTargetWithKeyboard` (postfix), `SelectCardInternal(bool, bool)` (postfix) |
+| `CombatEventPatches` | Various | Turn changes, damage, deaths, status effects |
+
+### Reward System Classes
+
+| Class | Role |
+|-------|------|
+| `RewardData` | Base reward (has `_rewardTitleKey` field) |
+| `CardRewardData` | Card reward |
+| `CardPoolRewardData` | Random card pool reward |
+| `GoldRewardData` | Gold reward |
+| `HealthRewardData` | Pyre health reward |
+| `CrystalRewardData` | Crystal/shard reward (Hellforged DLC) |
+| `DraftRewardData` | Draft choice reward |
+| `RelicDraftRewardData` | Artifact choice reward |
+| `ChampionUpgradeRewardData` | Champion upgrade |
+| `EnhancerRewardData` | Card upgrade reward |
+| `PurgeRewardData` | Card purge option |
+| `MerchantRewardData` | Shop reward |
+| `UnitSynthesisRewardData` | Unit merge reward |
+| `MapSkipRewardData` | Map skip reward |
+
+### Map & Progression
+
+| Class | Role |
+|-------|------|
+| `MapNodeData` | Node definition (battle, merchant, event, etc.) |
+| `MapNodeBucketData` | Node pool configuration |
+| `MapNodeUI` / `MapNodeUIBase` | Node display |
+| `MapBattleNodeUI` | Battle node icon |
+| `MapPath` | Path between nodes |
+| `MapSection` | Map region |
+| `MapPlayerTrain` | Player train on map |
+| `RewardNodeData` | Reward node configuration |
+
+### Signals (Event System)
+
+The game uses `Signal<T>` for pub/sub events:
+- `CardManager.cardPlayedSignal` — `Signal<CardState>`
+- `CardManager.cardPilesChangedSignal` — `Signal<CardPileInformation>`
+- `CardManager.deckShuffledSignal` — `Signal<bool>`
+- `PlayerManager.energyChangedSignal` — `Signal<int>`
+- `PlayerManager.healPlayerSignal` — `Signal<int>` (static)
+
+### Key Structs for Patch Parameters
+
+```csharp
+// CombatManager damage parameters
+CombatManager.ApplyDamageToTargetParameters {
+    CardState playedCard, bool finalEffectInSequence, RelicState relicState,
+    Damage.Type damageType, CharacterState selfTarget, VfxAtLoc vfxAtLoc, bool showDamageVfx
+}
+
+// CharacterState damage parameters
+CharacterState.ApplyDamageParams {
+    CharacterState attacker, CardState damageSourceCard, bool damageSourceCardFinishingResolution,
+    RelicState damageSourceRelic, Damage.Type damageType, bool fromAttractDamageTrigger
+}
+
+// CharacterState status effect parameters
+CharacterState.AddStatusEffectParams {
+    bool spawnEffect, bool overrideImmunity, RelicState sourceRelicState,
+    CardState sourceCardState, CardManager cardManager, Type fromEffectType, bool sourceIsHero
+}
+
+// CardManager discard parameters
+CardManager.DiscardCardParams {
+    CardState discardCard, bool wasPlayed, bool handDiscarded, float effectDelay,
+    CharacterState characterSummoned, Type outSuppressTraitOnDiscard
+}
+
+// CardManager pile counts
+CardManager.CardPileInformation {
+    int deckCount, int handCount, int discardCount, int exhaustedCount, int eatenCount
 }
 ```
 
