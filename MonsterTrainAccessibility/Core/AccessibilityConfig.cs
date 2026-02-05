@@ -43,6 +43,7 @@ namespace MonsterTrainAccessibility.Core
         public ConfigEntry<bool> AnnounceDeaths { get; private set; }
         public ConfigEntry<bool> AnnounceSpawns { get; private set; }
         public ConfigEntry<bool> AnnounceDialogue { get; private set; }
+        public ConfigEntry<bool> AnnounceRelicTriggers { get; private set; }
         public ConfigEntry<bool> InterruptOnFocusChange { get; private set; }
 
         public AccessibilityConfig(ConfigFile config)
@@ -235,6 +236,13 @@ namespace MonsterTrainAccessibility.Core
                 "Dialogue",
                 true,
                 "Announce enemy speech bubbles and dialogue"
+            );
+
+            AnnounceRelicTriggers = config.Bind(
+                "Announcements",
+                "RelicTriggers",
+                true,
+                "Announce when artifacts/relics trigger during combat"
             );
 
             InterruptOnFocusChange = config.Bind(

@@ -311,6 +311,52 @@ namespace MonsterTrainAccessibility.Patches
     }
 
     /// <summary>
+    /// Detect card exhausted/consumed (removed from deck after playing).
+    /// Hooks CardManager.MoveToStandByPile(CardState, bool wasPlayed, bool wasExhausted, ...)
+    /// </summary>
+    public static class CardExhaustedPatch
+    {
+        public static void TryPatch(Harmony harmony)
+        {
+            try
+            {
+                var cardManagerType = AccessTools.TypeByName("CardManager");
+                if (cardManagerType != null)
+                {
+                    var method = AccessTools.Method(cardManagerType, "MoveToStandByPile");
+                    if (method != null)
+                    {
+                        var prefix = new HarmonyMethod(typeof(CardExhaustedPatch).GetMethod(nameof(Prefix)));
+                        harmony.Patch(method, prefix: prefix);
+                        MonsterTrainAccessibility.LogInfo("Patched CardManager.MoveToStandByPile for exhaust detection");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Failed to patch MoveToStandByPile: {ex.Message}");
+            }
+        }
+
+        // __0 = CardState cardState, __1 = bool wasPlayed, __2 = bool wasExhausted
+        public static void Prefix(object __0, bool __1, bool __2)
+        {
+            try
+            {
+                // Only announce when a card is actually exhausted (consumed)
+                if (!__2 || __0 == null) return;
+
+                string cardName = CharacterStateHelper.GetCardName(__0);
+                MonsterTrainAccessibility.BattleHandler?.OnCardExhausted(cardName);
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in card exhausted patch: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
     /// Detect hand changed (for refreshing accessible hand info)
     /// </summary>
     public static class HandChangedPatch

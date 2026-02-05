@@ -10351,25 +10351,21 @@ namespace MonsterTrainAccessibility.Screens
         /// </summary>
         private string GetTraitDefinition(string traitName)
         {
-            // Common card traits with their definitions
-            var traitDefinitions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                { "permafrost", "Permafrost: Card remains in hand when drawn" },
-                { "frozen", "Frozen: Cannot be played until unfrozen" },
-                { "consume", "Consume: Removed from deck after playing" },
-                { "holdover", "Holdover: Returns to hand at end of turn" },
-                { "purge", "Purge: Removed from deck permanently" },
-                { "exhaust", "Exhaust: Removed from deck for this battle" },
-                { "intrinsic", "Intrinsic: Always drawn on first turn" },
-                { "etch", "Etch: Permanently upgrade this card" }
-            };
-
-            if (traitDefinitions.TryGetValue(traitName, out string definition))
+            // Look up in shared keyword dictionary
+            var keywords = Core.KeywordManager.GetKeywords();
+            if (keywords.TryGetValue(traitName, out string definition))
             {
                 return definition;
             }
 
-            // Try localization
+            // Also try formatted name (e.g. "SelfPurge" -> "Self Purge")
+            string formatted = FormatTraitName(traitName);
+            if (formatted != traitName && keywords.TryGetValue(formatted, out definition))
+            {
+                return definition;
+            }
+
+            // Try localization as last resort
             string key = $"CardTrait_{traitName}_Tooltip";
             string localized = LocalizeKey(key);
             if (!string.IsNullOrEmpty(localized) && localized != key)
@@ -10433,99 +10429,8 @@ namespace MonsterTrainAccessibility.Screens
         {
             if (string.IsNullOrEmpty(description)) return;
 
-            // Known keywords to look for (case-insensitive)
-            var knownKeywords = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                // Trigger abilities
-                { "Slay", "Slay: Triggers after dealing a killing blow" },
-                { "Revenge", "Revenge: Triggers when this unit takes damage" },
-                { "Strike", "Strike: Triggers when this unit attacks" },
-                { "Extinguish", "Extinguish: Triggers when this unit dies" },
-                { "Summon", "Summon: Triggers when this unit is played" },
-                { "Incant", "Incant: Triggers when you play a spell on this floor" },
-                { "Resolve", "Resolve: Triggers after combat" },
-                { "Rally", "Rally: Triggers when you play a non-Morsel unit on this floor" },
-                { "Harvest", "Harvest: Triggers when any unit on this floor dies" },
-                { "Gorge", "Gorge: Triggers when this unit eats a Morsel" },
-                { "Inspire", "Inspire: Triggers when gaining Echo on this floor" },
-                { "Rejuvenate", "Rejuvenate: Triggers when healed, even at full health" },
-                { "Action", "Action: Triggers at start of this unit's turn" },
-                { "Hatch", "Hatch: Unit dies and triggers hatching ability" },
-                { "Hunger", "Hunger: Triggers when an Eaten unit is summoned" },
-                { "Armored", "Armored: Triggers when Armor is added" },
-                // Buffs
-                { "Armor", "Armor: Blocks damage before health, each point blocks one damage" },
-                { "Rage", "Rage: +2 Attack per stack, decreases every turn" },
-                { "Regen", "Regen: Restores 1 health per stack at end of turn" },
-                { "Damage Shield", "Damage Shield: Nullifies the next source of damage" },
-                { "Lifesteal", "Lifesteal: Heals for damage dealt when attacking" },
-                { "Spikes", "Spikes: Attackers take 1 damage per stack" },
-                { "Stealth", "Stealth: Not targeted in combat, loses 1 stack per turn" },
-                { "Spell Shield", "Spell Shield: Absorbs the next damage spell" },
-                { "Spellshield", "Spellshield: Absorbs the next damage spell" },
-                { "Soul", "Soul: Powers Devourer of Death's Extinguish ability" },
-                // Debuffs
-                { "Frostbite", "Frostbite: Takes 1 damage per stack at end of turn" },
-                { "Sap", "Sap: -2 Attack per stack, decreases every turn" },
-                { "Dazed", "Dazed: Cannot attack or use Action/Resolve abilities" },
-                { "Rooted", "Rooted: Prevents the next floor movement" },
-                { "Emberdrain", "Emberdrain: Lose Ember at turn start, decreases each turn" },
-                { "Heartless", "Heartless: Cannot be healed" },
-                { "Melee Weakness", "Melee Weakness: Takes extra damage from next melee attack" },
-                { "Spell Weakness", "Spell Weakness: Takes extra damage from next spell" },
-                { "Reap", "Reap: Takes 1 damage per stack of Echo after combat" },
-                // Unit effects
-                { "Quick", "Quick: Attacks before enemy units" },
-                { "Multistrike", "Multistrike: Attacks an additional time each turn" },
-                { "Sweep", "Sweep: Attacks all enemy units" },
-                { "Trample", "Trample: Excess damage hits the next enemy" },
-                { "Burnout", "Burnout: Dies when counter reaches 0" },
-                { "Endless", "Endless: Returns card to top of draw pile when killed" },
-                { "Fragile", "Fragile: Dies if it loses any health" },
-                { "Immobile", "Immobile: Cannot move between floors" },
-                { "Inert", "Inert: Cannot attack unless it has Fuel" },
-                { "Fuel", "Fuel: Allows Inert units to attack, loses 1 per turn" },
-                { "Phased", "Phased: Cannot attack or be damaged/targeted" },
-                { "Relentless", "Relentless: Combat continues until all enemies defeated, cannot be rooted" },
-                { "Haste", "Haste: Moves directly from first to third floor" },
-                { "Cardless", "Cardless: Not from a card, won't go to Consume pile" },
-                { "Buffet", "Buffet: Can be eaten multiple times" },
-                { "Shell", "Shell: Consumes Echo to remove stacks, triggers Hatch when depleted" },
-                { "Silence", "Silence: Disables triggered abilities" },
-                { "Silenced", "Silenced: Triggered abilities are disabled" },
-                { "Purify", "Purify: Removes all debuffs at end of turn" },
-                { "Enchant", "Enchant: Other friendly units on floor gain a bonus" },
-                { "Shard", "Shard: Powers Solgard the Martyr's abilities" },
-                { "Eaten", "Eaten: Will be eaten by front unit after combat" },
-                // Card effects
-                { "Consume", "Consume: Can only be played once per battle" },
-                { "Doublestack", "Doublestack: Status effect stacks added by this card are doubled" },
-                { "Frozen", "Frozen: Not discarded at end of turn" },
-                { "Permafrost", "Permafrost: Gains Frozen when drawn" },
-                { "Purge", "Purge: Removed from deck for the rest of the run" },
-                { "Intrinsic", "Intrinsic: Starts in your opening hand" },
-                { "Holdover", "Holdover: Returns to hand at end of turn" },
-                { "Etch", "Etch: Permanently upgrade this card when consumed" },
-                { "Offering", "Offering: Played automatically if discarded" },
-                { "Reserve", "Reserve: Triggers if card remains in hand at end of turn" },
-                { "Pyrebound", "Pyrebound: Only playable in Pyre Room or floor below" },
-                { "Piercing", "Piercing: Damage ignores Armor and shields" },
-                { "Magic Power", "Magic Power: Boosts spell damage and healing" },
-                { "Attuned", "Attuned: Multiplies Magic Power effects by 5" },
-                { "Infused", "Infused: Floor gains 1 Echo when played" },
-                { "Extract", "Extract: Removes charged echoes when played" },
-                { "Spellchain", "Spellchain: Creates a copy with +1 cost and Purge" },
-                { "X Cost", "X Cost: Spends all remaining Ember, effect scales with amount" },
-                { "Unplayable", "Unplayable: This card cannot be played" },
-                // Unit actions
-                { "Ascend", "Ascend: Move up a floor to the back" },
-                { "Descend", "Descend: Move down a floor to the back" },
-                { "Reform", "Reform: Return a defeated friendly unit to hand" },
-                { "Sacrifice", "Sacrifice: Kill a friendly unit to play this card" },
-                { "Cultivate", "Cultivate: Increase stats of lowest health friendly unit" },
-                // Enemy effects
-                { "Recover", "Recover: Restores health to friendly units after combat" }
-            };
+            // Keywords loaded from game localization + fallbacks
+            var knownKeywords = Core.KeywordManager.GetKeywords();
 
             foreach (var keyword in knownKeywords)
             {

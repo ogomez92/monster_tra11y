@@ -1534,6 +1534,27 @@ namespace MonsterTrainAccessibility.Patches
                         _lastAnnouncedRoomIndex = newRoomIndex;
                     }
                 }
+                else if (newRoomIndex >= 0 && oldRoomIndex >= 0 && newRoomIndex < oldRoomIndex)
+                {
+                    // Enemy descended (bumped down a floor)
+                    string charName = "Enemy";
+                    var getNameMethod = charType.GetMethod("GetName", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                    if (getNameMethod != null && getNameMethod.GetParameters().Length == 0)
+                    {
+                        charName = getNameMethod.Invoke(__0, null) as string ?? "Enemy";
+                    }
+
+                    int newFloor = RoomIndexToUserFloor(newRoomIndex);
+
+                    float currentTime = UnityEngine.Time.time;
+                    if (currentTime - _lastAscendTime > 0.5f || newRoomIndex != _lastAnnouncedRoomIndex)
+                    {
+                        MonsterTrainAccessibility.LogInfo($"Enemy descended: {charName} to floor {newFloor}");
+                        MonsterTrainAccessibility.BattleHandler?.OnEnemyDescended(charName, newFloor);
+                        _lastAscendTime = currentTime;
+                        _lastAnnouncedRoomIndex = newRoomIndex;
+                    }
+                }
             }
             catch (Exception ex)
             {
@@ -1647,6 +1668,11 @@ namespace MonsterTrainAccessibility.Patches
                         {
                             int damage = _lastPyreHP - currentHP;
                             MonsterTrainAccessibility.BattleHandler?.OnPyreDamaged(damage, currentHP);
+                        }
+                        else if (_lastPyreHP > 0 && currentHP > _lastPyreHP)
+                        {
+                            int healing = currentHP - _lastPyreHP;
+                            MonsterTrainAccessibility.BattleHandler?.OnPyreHealed(healing, currentHP);
                         }
                         _lastPyreHP = currentHP;
                     }
@@ -1962,6 +1988,312 @@ namespace MonsterTrainAccessibility.Patches
             catch (Exception ex)
             {
                 MonsterTrainAccessibility.LogError($"Error in combat phase patch: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Detect when an artifact/relic triggers during combat.
+    /// Hooks RelicManager.NotifyRelicTriggered(RelicState, IRelicEffect)
+    /// </summary>
+    public static class RelicTriggeredPatch
+    {
+        private static float _lastTriggerTime = 0f;
+        private static string _lastTriggerKey = "";
+
+        public static void TryPatch(Harmony harmony)
+        {
+            try
+            {
+                var relicManagerType = AccessTools.TypeByName("RelicManager");
+                if (relicManagerType == null) return;
+
+                var method = AccessTools.Method(relicManagerType, "NotifyRelicTriggered");
+                if (method != null)
+                {
+                    var postfix = new HarmonyMethod(typeof(RelicTriggeredPatch).GetMethod(nameof(Postfix)));
+                    harmony.Patch(method, postfix: postfix);
+                    MonsterTrainAccessibility.LogInfo("Patched RelicManager.NotifyRelicTriggered");
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Failed to patch NotifyRelicTriggered: {ex.Message}");
+            }
+        }
+
+        // __0 = RelicState triggeredRelic, __1 = IRelicEffect triggeredEffect
+        public static void Postfix(object __0, object __1)
+        {
+            try
+            {
+                if (__0 == null) return;
+
+                string relicName = CharacterStateHelper.GetRelicName(__0);
+
+                // Deduplicate rapid triggers of the same relic
+                float currentTime = UnityEngine.Time.unscaledTime;
+                if (relicName == _lastTriggerKey && currentTime - _lastTriggerTime < 0.3f)
+                    return;
+
+                _lastTriggerKey = relicName;
+                _lastTriggerTime = currentTime;
+
+                MonsterTrainAccessibility.BattleHandler?.OnRelicTriggered(relicName);
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in relic triggered patch: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Detect when a status effect is removed from a unit.
+    /// Hooks CharacterState.RemoveStatusEffect(string statusId, bool removeAtEndOfTurn, int numStacks, ...)
+    /// </summary>
+    public static class StatusEffectRemovedPatch
+    {
+        private static string _lastRemovedEffect = "";
+        private static float _lastRemovedTime = 0f;
+
+        public static void TryPatch(Harmony harmony)
+        {
+            try
+            {
+                var characterType = AccessTools.TypeByName("CharacterState");
+                if (characterType == null) return;
+
+                var method = AccessTools.Method(characterType, "RemoveStatusEffect");
+                if (method != null)
+                {
+                    var postfix = new HarmonyMethod(typeof(StatusEffectRemovedPatch).GetMethod(nameof(Postfix)));
+                    harmony.Patch(method, postfix: postfix);
+                    MonsterTrainAccessibility.LogInfo($"Patched CharacterState.RemoveStatusEffect");
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Failed to patch RemoveStatusEffect: {ex.Message}");
+            }
+        }
+
+        // __instance = CharacterState, __0 = statusId, __1 = removeAtEndOfTurn, __2 = numStacks
+        public static void Postfix(object __instance, string __0, bool __1, int __2)
+        {
+            try
+            {
+                if (!MonsterTrainAccessibility.AccessibilitySettings.AnnounceStatusEffects.Value)
+                    return;
+
+                if (string.IsNullOrEmpty(__0) || __2 <= 0)
+                    return;
+
+                if (PreviewModeDetector.ShouldSuppressAnnouncement(__instance))
+                    return;
+
+                string unitName = CharacterStateHelper.GetUnitName(__instance);
+                string effectName = CharacterStateHelper.CleanStatusName(__0);
+
+                // Deduplicate
+                string effectKey = $"{unitName}_{__0}_{__2}_remove";
+                float currentTime = UnityEngine.Time.unscaledTime;
+                if (effectKey == _lastRemovedEffect && currentTime - _lastRemovedTime < 0.5f)
+                    return;
+
+                _lastRemovedEffect = effectKey;
+                _lastRemovedTime = currentTime;
+
+                MonsterTrainAccessibility.BattleHandler?.OnStatusEffectRemoved(unitName, effectName, __2);
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in status effect removed patch: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Detect combat phase transitions for granular announcements.
+    /// Hooks CombatManager.SetCombatPhase(Phase) - private method.
+    /// Complements existing CombatPhasePatch by announcing MonsterTurn, HeroTurn, BossAction, etc.
+    /// </summary>
+    public static class CombatPhaseChangePatch
+    {
+        private static string _lastPhase = "";
+
+        public static void TryPatch(Harmony harmony)
+        {
+            try
+            {
+                var combatType = AccessTools.TypeByName("CombatManager");
+                if (combatType == null) return;
+
+                var method = combatType.GetMethod("SetCombatPhase",
+                    BindingFlags.NonPublic | BindingFlags.Instance);
+                if (method != null)
+                {
+                    var postfix = new HarmonyMethod(typeof(CombatPhaseChangePatch).GetMethod(nameof(Postfix)));
+                    harmony.Patch(method, postfix: postfix);
+                    MonsterTrainAccessibility.LogInfo("Patched CombatManager.SetCombatPhase");
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Failed to patch SetCombatPhase: {ex.Message}");
+            }
+        }
+
+        // __0 = Phase enum value
+        public static void Postfix(object __0)
+        {
+            try
+            {
+                if (__0 == null) return;
+                string phaseName = __0.ToString();
+
+                if (phaseName == _lastPhase) return;
+                _lastPhase = phaseName;
+
+                // Map phases to user-friendly names
+                // Skip "Combat" - already announced by existing CombatPhasePatch
+                // Skip Start, Placement, PreCombat, MonsterTurnQueueClear - too noisy / not useful
+                string announcement = null;
+                switch (phaseName)
+                {
+                    case "MonsterTurn":
+                        announcement = "Your units attack";
+                        break;
+                    case "HeroTurn":
+                        announcement = "Enemy turn";
+                        break;
+                    case "EndOfCombat":
+                        announcement = "Combat ended";
+                        break;
+                    case "BossActionPreCombat":
+                    case "BossActionPostCombat":
+                        announcement = "Boss action";
+                        break;
+                }
+
+                if (announcement != null)
+                {
+                    MonsterTrainAccessibility.BattleHandler?.OnCombatPhaseChanged(announcement);
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in combat phase change patch: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Detect when all enemies on the current wave have been defeated.
+    /// Hooks HeroManager's internal notification for no more heroes.
+    /// </summary>
+    public static class AllEnemiesDefeatedPatch
+    {
+        public static void TryPatch(Harmony harmony)
+        {
+            try
+            {
+                var heroManagerType = AccessTools.TypeByName("HeroManager");
+                if (heroManagerType == null) return;
+
+                // Try public method first, then private
+                var method = heroManagerType.GetMethod("NoMoreHeroes",
+                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance) ??
+                    heroManagerType.GetMethod("SendNoMoreHeroesNotifications",
+                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+
+                if (method != null)
+                {
+                    var postfix = new HarmonyMethod(typeof(AllEnemiesDefeatedPatch).GetMethod(nameof(Postfix)));
+                    harmony.Patch(method, postfix: postfix);
+                    MonsterTrainAccessibility.LogInfo($"Patched HeroManager.{method.Name} for all-enemies-defeated detection");
+                }
+                else
+                {
+                    MonsterTrainAccessibility.LogInfo("NoMoreHeroes/SendNoMoreHeroesNotifications not found - all-enemies-defeated detection disabled");
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Failed to patch all enemies defeated: {ex.Message}");
+            }
+        }
+
+        public static void Postfix()
+        {
+            try
+            {
+                MonsterTrainAccessibility.BattleHandler?.OnAllEnemiesDefeated();
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in all enemies defeated patch: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Detect when a unit's max HP is buffed.
+    /// Hooks CharacterState.BuffMaxHP(int amount, bool triggerOnHeal, RelicState relicState)
+    /// This is a coroutine (IEnumerator), so we use prefix to capture params.
+    /// </summary>
+    public static class MaxHPBuffPatch
+    {
+        private static float _lastBuffTime = 0f;
+        private static string _lastBuffKey = "";
+
+        public static void TryPatch(Harmony harmony)
+        {
+            try
+            {
+                var characterType = AccessTools.TypeByName("CharacterState");
+                if (characterType == null) return;
+
+                var method = AccessTools.Method(characterType, "BuffMaxHP");
+                if (method != null)
+                {
+                    var prefix = new HarmonyMethod(typeof(MaxHPBuffPatch).GetMethod(nameof(Prefix)));
+                    harmony.Patch(method, prefix: prefix);
+                    MonsterTrainAccessibility.LogInfo("Patched CharacterState.BuffMaxHP");
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Failed to patch BuffMaxHP: {ex.Message}");
+            }
+        }
+
+        // __instance = CharacterState, __0 = amount (int)
+        public static void Prefix(object __instance, int __0)
+        {
+            try
+            {
+                if (__0 <= 0 || __instance == null) return;
+
+                if (PreviewModeDetector.ShouldSuppressAnnouncement(__instance))
+                    return;
+
+                string unitName = CharacterStateHelper.GetUnitName(__instance);
+
+                // Deduplicate
+                float currentTime = UnityEngine.Time.unscaledTime;
+                string buffKey = $"{unitName}_{__0}";
+                if (buffKey == _lastBuffKey && currentTime - _lastBuffTime < 0.3f)
+                    return;
+
+                _lastBuffKey = buffKey;
+                _lastBuffTime = currentTime;
+
+                MonsterTrainAccessibility.BattleHandler?.OnMaxHPBuffed(unitName, __0);
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in max HP buff patch: {ex.Message}");
             }
         }
     }

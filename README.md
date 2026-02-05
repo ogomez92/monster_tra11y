@@ -108,7 +108,6 @@ The mod automatically reads text when:
 | R | Read resources (ember, pyre health) |
 | N | Toggle combat speed (game's native key) - announces the new speed |
 | Tab | Read train stats (pyre health, gold, deck size) |
-**Note**: F and E are avoided because they conflict with the game's native shortcuts (F = Toggle Unit Details, E = End Turn).
 
 ### Unit Targeting (when playing spells that target units)
 | Key | Action |
@@ -145,10 +144,10 @@ These are the game's built-in keyboard shortcuts that work with or without the a
 
 | Action | Keyboard Shortcut |
 |--------|-------------------|
-| End Turn | `E` / `Enter` (Hold for safety if enabled in options) |
+| End Turn | `F` |
 | Undo Action | `Z` / `Ctrl + Z` (Only works for certain non-random actions) |
 | Speed Up Gameplay | `Spacebar` (Toggles between speeds during combat) |
-| Toggle Unit Details | `F` (on a unit) |
+| Toggle Unit Details | `E` (on a unit) |
 | Show Draw Pile | `D` |
 | Show Discard Pile | `G` |
 | Show Exhaust/Consumed Pile | `X` |

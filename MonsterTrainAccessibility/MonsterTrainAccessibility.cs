@@ -119,6 +119,11 @@ namespace MonsterTrainAccessibility
             EnemyDialoguePatch.TryPatch(_harmony);
             HealAppliedPatch.TryPatch(_harmony);
             CombatPhasePatch.TryPatch(_harmony);
+            RelicTriggeredPatch.TryPatch(_harmony);
+            StatusEffectRemovedPatch.TryPatch(_harmony);
+            CombatPhaseChangePatch.TryPatch(_harmony);
+            AllEnemiesDefeatedPatch.TryPatch(_harmony);
+            MaxHPBuffPatch.TryPatch(_harmony);
 
             // Card targeting patches
             CardTargetingPatches.TryPatch(_harmony);
@@ -128,6 +133,7 @@ namespace MonsterTrainAccessibility
             CardPlayedPatch.TryPatch(_harmony);
             CardDiscardedPatch.TryPatch(_harmony);
             DeckShuffledPatch.TryPatch(_harmony);
+            CardExhaustedPatch.TryPatch(_harmony);
             HandChangedPatch.TryPatch(_harmony);
         }
 

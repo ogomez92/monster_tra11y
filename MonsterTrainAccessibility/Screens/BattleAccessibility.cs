@@ -598,13 +598,19 @@ namespace MonsterTrainAccessibility.Screens
             text = System.Text.RegularExpressions.Regex.Replace(
                 text,
                 @"<sprite\s+name\s*=\s*[""']?([^""'>\s]+)[""']?\s*/?>",
-                match => " " + match.Groups[1].Value.ToLower() + " ",
+                match => " " + MapSpriteName(match.Groups[1].Value) + " ",
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
             text = System.Text.RegularExpressions.Regex.Replace(
                 text,
                 @"<sprite\s*=\s*[""']?([^""'>\s]+)[""']?\s*/?>",
-                match => " " + match.Groups[1].Value.ToLower() + " ",
+                match => " " + MapSpriteName(match.Groups[1].Value) + " ",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            // Strip localization placeholders: {[codeint0]}, {[effect0.power]}, {[status0.power]}, etc.
+            // These appear in generic tooltip text where no card/effect context is available.
+            text = System.Text.RegularExpressions.Regex.Replace(
+                text, @"\{?\[(?:effect|status|trait|paramint|codeint|dynamicint|statusmultiplier)[^\]]*\]\}?", "",
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
             // Handle <gold>X</gold> -> "X gold"
@@ -662,6 +668,24 @@ namespace MonsterTrainAccessibility.Screens
             text = System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ");
 
             return text.Trim();
+        }
+
+        /// <summary>
+        /// Map sprite names to readable text for screen readers.
+        /// </summary>
+        private static string MapSpriteName(string spriteName)
+        {
+            switch (spriteName.ToLowerInvariant())
+            {
+                case "xcost": return "X";
+                case "gold": return "gold";
+                case "capacity": return "capacity";
+                case "ember": return "ember";
+                case "health": return "health";
+                case "attack": return "attack";
+                case "damage": return "damage";
+                default: return spriteName.ToLower();
+            }
         }
 
         private string GetCardType(object cardState)
@@ -800,99 +824,8 @@ namespace MonsterTrainAccessibility.Screens
             {
                 var keywords = new List<string>();
 
-                // Known keywords with their definitions
-                var knownKeywords = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                {
-                    // Trigger abilities
-                    { "Slay", "Slay: Triggers after dealing a killing blow" },
-                    { "Revenge", "Revenge: Triggers when damaged" },
-                    { "Strike", "Strike: Triggers when attacking" },
-                    { "Extinguish", "Extinguish: Triggers when dying" },
-                    { "Summon", "Summon: Triggers when played" },
-                    { "Incant", "Incant: Triggers when spell played on floor" },
-                    { "Resolve", "Resolve: Triggers after combat" },
-                    { "Rally", "Rally: Triggers when unit played on floor" },
-                    { "Harvest", "Harvest: Triggers when unit dies on floor" },
-                    { "Gorge", "Gorge: Triggers when eating a Morsel" },
-                    { "Inspire", "Inspire: Triggers when gaining Echo" },
-                    { "Rejuvenate", "Rejuvenate: Triggers when healed" },
-                    { "Action", "Action: Triggers at turn start" },
-                    { "Hatch", "Hatch: Triggers on death" },
-                    { "Hunger", "Hunger: Triggers when Eaten unit summoned" },
-                    { "Armored", "Armored: Triggers when Armor added" },
-                    // Buffs
-                    { "Armor", "Armor: Blocks damage" },
-                    { "Rage", "Rage: +2 Attack per stack" },
-                    { "Regen", "Regen: Heals each turn" },
-                    { "Damage Shield", "Damage Shield: Blocks next damage" },
-                    { "Lifesteal", "Lifesteal: Heals for damage dealt" },
-                    { "Spikes", "Spikes: Damages attackers" },
-                    { "Stealth", "Stealth: Not targeted in combat" },
-                    { "Spell Shield", "Spell Shield: Absorbs next spell" },
-                    { "Spellshield", "Spellshield: Absorbs next spell" },
-                    { "Soul", "Soul: Powers Extinguish ability" },
-                    // Debuffs
-                    { "Frostbite", "Frostbite: Damages at end of turn" },
-                    { "Sap", "Sap: -2 Attack per stack" },
-                    { "Dazed", "Dazed: Cannot attack" },
-                    { "Rooted", "Rooted: Cannot move floors" },
-                    { "Emberdrain", "Emberdrain: Lose Ember at turn start" },
-                    { "Heartless", "Heartless: Cannot be healed" },
-                    { "Melee Weakness", "Melee Weakness: Extra melee damage" },
-                    { "Spell Weakness", "Spell Weakness: Extra spell damage" },
-                    { "Reap", "Reap: Damages after combat" },
-                    // Unit effects
-                    { "Quick", "Quick: Attacks first" },
-                    { "Multistrike", "Multistrike: Extra attack" },
-                    { "Sweep", "Sweep: Attacks all enemies" },
-                    { "Trample", "Trample: Excess damage continues" },
-                    { "Burnout", "Burnout: Dies when counter reaches 0" },
-                    { "Endless", "Endless: Returns to draw pile" },
-                    { "Fragile", "Fragile: Dies if damaged" },
-                    { "Immobile", "Immobile: Cannot move" },
-                    { "Inert", "Inert: Needs Fuel to attack" },
-                    { "Fuel", "Fuel: Allows Inert to attack" },
-                    { "Phased", "Phased: Cannot be targeted" },
-                    { "Relentless", "Relentless: Attacks until floor cleared" },
-                    { "Haste", "Haste: Skips to third floor" },
-                    { "Cardless", "Cardless: Not from a card" },
-                    { "Buffet", "Buffet: Can be eaten multiple times" },
-                    { "Shell", "Shell: Uses Echo, triggers Hatch" },
-                    { "Silence", "Silence: Disables triggers" },
-                    { "Silenced", "Silenced: Triggers disabled" },
-                    { "Purify", "Purify: Removes debuffs" },
-                    { "Enchant", "Enchant: Buffs floor allies" },
-                    { "Shard", "Shard: Powers Solgard" },
-                    { "Eaten", "Eaten: Will be eaten" },
-                    // Card effects
-                    { "Consume", "Consume: One use per battle" },
-                    { "Doublestack", "Doublestack: Doubles status stacks" },
-                    { "Frozen", "Frozen: Not discarded" },
-                    { "Permafrost", "Permafrost: Gains Frozen" },
-                    { "Purge", "Purge: Removed from deck" },
-                    { "Intrinsic", "Intrinsic: Starts in hand" },
-                    { "Holdover", "Holdover: Returns to hand" },
-                    { "Etch", "Etch: Upgrades when consumed" },
-                    { "Offering", "Offering: Plays if discarded" },
-                    { "Reserve", "Reserve: Triggers if kept" },
-                    { "Pyrebound", "Pyrebound: Pyre room only" },
-                    { "Piercing", "Piercing: Ignores Armor" },
-                    { "Magic Power", "Magic Power: Boosts spells" },
-                    { "Attuned", "Attuned: 5x Magic Power" },
-                    { "Infused", "Infused: Adds Echo" },
-                    { "Extract", "Extract: Uses charged echoes" },
-                    { "Spellchain", "Spellchain: Creates copy" },
-                    { "X Cost", "X Cost: Uses all Ember" },
-                    { "Unplayable", "Unplayable: Cannot be played" },
-                    // Unit actions
-                    { "Ascend", "Ascend: Move up" },
-                    { "Descend", "Descend: Move down" },
-                    { "Reform", "Reform: Returns unit to hand" },
-                    { "Sacrifice", "Sacrifice: Kill unit to play" },
-                    { "Cultivate", "Cultivate: Buff weakest unit" },
-                    // Enemy effects
-                    { "Recover", "Recover: Heals after combat" }
-                };
+                // Keywords loaded from game localization + fallbacks
+                var knownKeywords = Core.KeywordManager.GetKeywords();
 
                 foreach (var keyword in knownKeywords)
                 {
@@ -2887,6 +2820,97 @@ namespace MonsterTrainAccessibility.Screens
 
             // Only announce if there are units to fight
             MonsterTrainAccessibility.ScreenReader?.Queue("Combat!");
+        }
+
+        /// <summary>
+        /// Announce when an artifact/relic triggers during combat
+        /// </summary>
+        public void OnRelicTriggered(string relicName)
+        {
+            if (!IsInBattle)
+                return;
+
+            if (!MonsterTrainAccessibility.AccessibilitySettings.AnnounceRelicTriggers.Value)
+                return;
+
+            MonsterTrainAccessibility.ScreenReader?.Queue($"{relicName} triggered");
+        }
+
+        /// <summary>
+        /// Announce when a card is exhausted/consumed (removed from deck)
+        /// </summary>
+        public void OnCardExhausted(string cardName)
+        {
+            if (!IsInBattle)
+                return;
+
+            MonsterTrainAccessibility.ScreenReader?.Queue($"{cardName} consumed");
+        }
+
+        /// <summary>
+        /// Announce pyre healing
+        /// </summary>
+        public void OnPyreHealed(int amount, int currentHP)
+        {
+            if (!IsInBattle)
+                return;
+
+            MonsterTrainAccessibility.ScreenReader?.Queue($"Pyre healed for {amount}. {currentHP} health");
+        }
+
+        /// <summary>
+        /// Announce status effect removed from a unit
+        /// </summary>
+        public void OnStatusEffectRemoved(string unitName, string effectName, int stacks)
+        {
+            if (!MonsterTrainAccessibility.AccessibilitySettings.AnnounceStatusEffects.Value)
+                return;
+
+            MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName} loses {effectName} {stacks}");
+        }
+
+        /// <summary>
+        /// Announce enemy descending to a lower floor (bumped down). roomIndex: 0=bottom, 1=middle, 2=top.
+        /// </summary>
+        public void OnEnemyDescended(string enemyName, int roomIndex)
+        {
+            if (!IsInBattle)
+                return;
+
+            MonsterTrainAccessibility.ScreenReader?.Queue($"{enemyName} descends to {RoomIndexToFloorName(roomIndex).ToLower()}");
+        }
+
+        /// <summary>
+        /// Announce when all enemies in the current wave have been defeated
+        /// </summary>
+        public void OnAllEnemiesDefeated()
+        {
+            if (!IsInBattle)
+                return;
+
+            MonsterTrainAccessibility.ScreenReader?.Queue("All enemies defeated");
+        }
+
+        /// <summary>
+        /// Announce combat phase transitions (MonsterTurn, HeroTurn, BossAction, etc.)
+        /// </summary>
+        public void OnCombatPhaseChanged(string phaseName)
+        {
+            if (!IsInBattle)
+                return;
+
+            MonsterTrainAccessibility.ScreenReader?.Queue(phaseName);
+        }
+
+        /// <summary>
+        /// Announce when a unit's max HP is increased
+        /// </summary>
+        public void OnMaxHPBuffed(string unitName, int amount)
+        {
+            if (!IsInBattle)
+                return;
+
+            MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName} gains {amount} max health");
         }
 
         #endregion
