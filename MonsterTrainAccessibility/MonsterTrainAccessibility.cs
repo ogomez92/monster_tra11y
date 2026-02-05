@@ -101,6 +101,9 @@ namespace MonsterTrainAccessibility
             MerchantScreenPatch.TryPatch(_harmony);
             EnhancerSelectionScreenPatch.TryPatch(_harmony);
             GameOverScreenPatch.TryPatch(_harmony);
+            StatHighlightPatch.TryPatch(_harmony);
+            WinStreakPatch.TryPatch(_harmony);
+            UnlockScreenPatch.TryPatch(_harmony);
             SettingsScreenPatch.TryPatch(_harmony);
             CompendiumScreenPatch.TryPatch(_harmony);
             ScreenManagerPatch.TryPatch(_harmony);

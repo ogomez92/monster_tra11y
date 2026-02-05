@@ -3,6 +3,7 @@ using MonsterTrainAccessibility.Core;
 using MonsterTrainAccessibility.Help;
 using System;
 using System.Linq;
+using System.Reflection;
 using UnityEngine;
 
 namespace MonsterTrainAccessibility.Patches
@@ -708,12 +709,12 @@ namespace MonsterTrainAccessibility.Patches
                                 if (effect != null)
                                 {
                                     var effectType = effect.GetType();
+                                    var bindingFlags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public;
 
                                     // If status index specified, get from paramStatusEffects array
                                     if (statusIndex >= 0 && property.ToLower() == "power")
                                     {
-                                        var statusEffectsField = effectType.GetField("paramStatusEffects",
-                                            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+                                        var statusEffectsField = effectType.GetField("paramStatusEffects", bindingFlags);
                                         if (statusEffectsField != null)
                                         {
                                             var statusEffects = statusEffectsField.GetValue(effect) as Array;
@@ -734,11 +735,45 @@ namespace MonsterTrainAccessibility.Patches
                                             }
                                         }
                                     }
+                                    // Handle "power" without status index - common for simple effects
+                                    else if (statusIndex < 0 && property.ToLower() == "power")
+                                    {
+                                        // First try paramInt (most common for simple integer values like +X attack)
+                                        var paramIntField = effectType.GetField("paramInt", bindingFlags);
+                                        if (paramIntField != null)
+                                        {
+                                            var value = paramIntField.GetValue(effect);
+                                            if (value != null)
+                                            {
+                                                return value.ToString();
+                                            }
+                                        }
+
+                                        // Try first status effect's count as fallback
+                                        var statusEffectsField = effectType.GetField("paramStatusEffects", bindingFlags);
+                                        if (statusEffectsField != null)
+                                        {
+                                            var statusEffects = statusEffectsField.GetValue(effect) as Array;
+                                            if (statusEffects != null && statusEffects.Length > 0)
+                                            {
+                                                var statusEffect = statusEffects.GetValue(0);
+                                                if (statusEffect != null)
+                                                {
+                                                    var countField = statusEffect.GetType().GetField("count",
+                                                        System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                                                    if (countField != null)
+                                                    {
+                                                        var count = countField.GetValue(statusEffect);
+                                                        return count?.ToString() ?? match.Value;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
                                     else
                                     {
-                                        // Try to get the property directly from effect
-                                        var propField = effectType.GetField("param" + char.ToUpper(property[0]) + property.Substring(1),
-                                            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+                                        // Try to get the property directly from effect (e.g., paramInt, paramFloat)
+                                        var propField = effectType.GetField("param" + char.ToUpper(property[0]) + property.Substring(1), bindingFlags);
                                         if (propField != null)
                                         {
                                             var value = propField.GetValue(effect);
@@ -954,12 +989,77 @@ namespace MonsterTrainAccessibility.Patches
             try
             {
                 ScreenStateTracker.SetScreen(Help.GameScreen.Map);
-                MonsterTrainAccessibility.ScreenReader?.AnnounceScreen("Map. Press F1 for help.");
+
+                // Try to get map progress from the MapScreen instance
+                string progressInfo = GetMapProgress(__instance);
+                if (!string.IsNullOrEmpty(progressInfo))
+                {
+                    MonsterTrainAccessibility.ScreenReader?.AnnounceScreen($"Map. {progressInfo} Press F1 for help.");
+                }
+                else
+                {
+                    MonsterTrainAccessibility.ScreenReader?.AnnounceScreen("Map. Press F1 for help.");
+                }
             }
             catch (Exception ex)
             {
                 MonsterTrainAccessibility.LogError($"Error in MapScreen patch: {ex.Message}");
             }
+        }
+
+        private static string GetMapProgress(object mapScreen)
+        {
+            try
+            {
+                var type = mapScreen.GetType();
+
+                // Try to get saveManager field
+                var saveManagerField = type.GetField("saveManager", BindingFlags.NonPublic | BindingFlags.Instance);
+                if (saveManagerField == null) return null;
+
+                var saveManager = saveManagerField.GetValue(mapScreen);
+                if (saveManager == null) return null;
+
+                var saveManagerType = saveManager.GetType();
+
+                // Get current distance (ring/section)
+                var getCurrentDistanceMethod = saveManagerType.GetMethod("GetCurrentDistance");
+                var getRunLengthMethod = saveManagerType.GetMethod("GetRunLength");
+
+                if (getCurrentDistanceMethod == null || getRunLengthMethod == null)
+                    return null;
+
+                int currentDistance = (int)getCurrentDistanceMethod.Invoke(saveManager, null);
+                int runLength = (int)getRunLengthMethod.Invoke(saveManager, null);
+
+                // Ring is 1-indexed for user display
+                int currentRing = currentDistance + 1;
+                int totalRings = runLength;
+
+                // Check victory state
+                var getVictorySectionStateMethod = saveManagerType.GetMethod("GetVictorySectionState");
+                if (getVictorySectionStateMethod != null)
+                {
+                    var victoryState = getVictorySectionStateMethod.Invoke(saveManager, null);
+                    string victoryStateName = victoryState?.ToString() ?? "";
+
+                    if (victoryStateName == "Victory")
+                    {
+                        return "Victory!";
+                    }
+                    else if (victoryStateName == "PreHellforgedBoss")
+                    {
+                        return $"Ring {currentRing} of {totalRings}. Final boss ahead.";
+                    }
+                }
+
+                return $"Ring {currentRing} of {totalRings}.";
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting map progress: {ex.Message}");
+            }
+            return null;
         }
     }
 
@@ -1169,11 +1269,8 @@ namespace MonsterTrainAccessibility.Patches
             {
                 MonsterTrainAccessibility.LogInfo("Game over screen entered");
 
-                // Auto-read the game over screen
+                // Auto-read the game over screen with full details
                 AutoReadGameOverScreen(__instance);
-
-                // Also call the menu handler for additional processing
-                MonsterTrainAccessibility.MenuHandler?.OnGameOverScreenEntered(__instance);
 
                 // Fix navigation by selecting the first button after a short delay
                 if (__instance is MonoBehaviour screenBehaviour)
@@ -1256,186 +1353,647 @@ namespace MonsterTrainAccessibility.Patches
             {
                 var sb = new System.Text.StringBuilder();
                 var screenType = screen?.GetType();
+                var bindingFlags = System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
 
-                // Log fields for debugging
-                MonsterTrainAccessibility.LogInfo($"=== GameOverScreen fields ===");
-                if (screenType != null)
-                {
-                    foreach (var field in screenType.GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance))
-                    {
-                        try
-                        {
-                            var value = field.GetValue(screen);
-                            MonsterTrainAccessibility.LogInfo($"  {field.Name} = {value?.GetType().Name ?? "null"}");
-                        }
-                        catch { }
-                    }
-                }
-
-                // Try to get victory/defeat status from SaveManager
-                bool isVictory = false;
-                int score = 0;
+                // Get key data from the screen object and its base classes
+                string victoryTypeStr = null;
+                int finalScore = 0;
+                string mainClassName = null;
+                string subClassName = null;
+                int covenantLevel = 0;
                 int battlesWon = 0;
-                int ring = 0;
+                double runTimeSeconds = 0;
+                int gold = 0;
 
-                var saveManagerType = AccessTools.TypeByName("SaveManager");
-                if (saveManagerType != null)
+                // Check all types in inheritance chain (GameOverScreen extends GameOverScreenBase)
+                var currentType = screenType;
+                while (currentType != null)
                 {
-                    var saveManager = UnityEngine.Object.FindObjectOfType(saveManagerType) as UnityEngine.Object;
-                    if (saveManager != null)
+                    // Get victoryType field (SaveManager.VictoryType enum)
+                    var victoryTypeField = currentType.GetField("victoryType", bindingFlags);
+                    if (victoryTypeField != null && victoryTypeStr == null)
                     {
-                        // Check if battle was won/lost
-                        var battleCompleteMethod = saveManagerType.GetMethod("BattleComplete");
-                        if (battleCompleteMethod != null)
+                        var vt = victoryTypeField.GetValue(screen);
+                        if (vt != null)
                         {
-                            var result = battleCompleteMethod.Invoke(saveManager, null);
-                            if (result is bool bc) isVictory = bc;
-                        }
-
-                        // Get ring/covenant level
-                        var getCovenantMethod = saveManagerType.GetMethod("GetAscensionLevel") ??
-                                               saveManagerType.GetMethod("GetCovenantLevel");
-                        if (getCovenantMethod != null)
-                        {
-                            var result = getCovenantMethod.Invoke(saveManager, null);
-                            if (result is int r) ring = r;
-                        }
-
-                        // Get battles won
-                        var getBattlesMethod = saveManagerType.GetMethod("GetNumBattlesWon");
-                        if (getBattlesMethod != null)
-                        {
-                            var result = getBattlesMethod.Invoke(saveManager, null);
-                            if (result is int b) battlesWon = b;
-                        }
-
-                        // Get score
-                        var getScoreMethod = saveManagerType.GetMethod("GetRunScore") ??
-                                            saveManagerType.GetMethod("GetScore");
-                        if (getScoreMethod != null)
-                        {
-                            var result = getScoreMethod.Invoke(saveManager, null);
-                            if (result is int s) score = s;
+                            victoryTypeStr = vt.ToString();
                         }
                     }
-                }
 
-                // Try to get specific labels from the screen
-                string resultTitle = null;
-                string runType = null;
-
-                if (screenType != null)
-                {
-                    // Look for result/victory/defeat label
-                    var resultField = screenType.GetField("resultLabel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance) ??
-                                     screenType.GetField("titleLabel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance) ??
-                                     screenType.GetField("victoryDefeatLabel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-
-                    if (resultField != null)
+                    // Get finalScore field
+                    var finalScoreField = currentType.GetField("finalScore", bindingFlags);
+                    if (finalScoreField != null && finalScore == 0)
                     {
-                        var labelObj = resultField.GetValue(screen);
-                        if (labelObj != null)
+                        var fs = finalScoreField.GetValue(screen);
+                        if (fs is int score) finalScore = score;
+                    }
+
+                    // Get currentRunData (RunAggregateData) for detailed info
+                    var runDataField = currentType.GetField("currentRunData", bindingFlags);
+                    if (runDataField != null)
+                    {
+                        var runData = runDataField.GetValue(screen);
+                        if (runData != null)
                         {
-                            var textProp = labelObj.GetType().GetProperty("text");
-                            if (textProp != null)
+                            var runDataType = runData.GetType();
+
+                            // Get battles won
+                            var getBattlesMethod = runDataType.GetMethod("GetNumBattlesWon");
+                            if (getBattlesMethod != null)
                             {
-                                resultTitle = textProp.GetValue(labelObj) as string;
+                                var result = getBattlesMethod.Invoke(runData, null);
+                                if (result is int b) battlesWon = b;
                             }
-                        }
-                    }
 
-                    // Look for run type label
-                    var runTypeField = screenType.GetField("runTypeLabel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance) ??
-                                      screenType.GetField("runNameLabel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-
-                    if (runTypeField != null)
-                    {
-                        var labelObj = runTypeField.GetValue(screen);
-                        if (labelObj != null)
-                        {
-                            var textProp = labelObj.GetType().GetProperty("text");
-                            if (textProp != null)
+                            // Get run time
+                            var getRunTimeMethod = runDataType.GetMethod("GetRunTime");
+                            if (getRunTimeMethod != null)
                             {
-                                runType = textProp.GetValue(labelObj) as string;
+                                var result = getRunTimeMethod.Invoke(runData, null);
+                                if (result is TimeSpan ts) runTimeSeconds = ts.TotalSeconds;
                             }
-                        }
-                    }
 
-                    // Look for score label
-                    var scoreField = screenType.GetField("scoreLabel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance) ??
-                                    screenType.GetField("totalScoreLabel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-
-                    if (scoreField != null && score == 0)
-                    {
-                        var labelObj = scoreField.GetValue(screen);
-                        if (labelObj != null)
-                        {
-                            var textProp = labelObj.GetType().GetProperty("text");
-                            if (textProp != null)
+                            // Get gold
+                            var getGoldMethod = runDataType.GetMethod("GetFinalGold");
+                            if (getGoldMethod != null)
                             {
-                                var scoreText = textProp.GetValue(labelObj) as string;
-                                if (!string.IsNullOrEmpty(scoreText))
+                                var result = getGoldMethod.Invoke(runData, null);
+                                if (result is int g) gold = g;
+                            }
+
+                            // Get covenant/ascension level
+                            var getAscensionMethod = runDataType.GetMethod("GetAscensionLevel");
+                            if (getAscensionMethod != null)
+                            {
+                                var result = getAscensionMethod.Invoke(runData, null);
+                                if (result is int a) covenantLevel = a;
+                            }
+
+                            // Get score from run data if not found elsewhere
+                            if (finalScore == 0)
+                            {
+                                var getScoreMethod = runDataType.GetMethod("GetScore");
+                                if (getScoreMethod != null)
                                 {
-                                    // Parse score from text like "4,254"
-                                    scoreText = System.Text.RegularExpressions.Regex.Replace(scoreText, "[^0-9]", "");
-                                    int.TryParse(scoreText, out score);
+                                    var result = getScoreMethod.Invoke(runData, null);
+                                    if (result is int s) finalScore = s;
                                 }
                             }
+                        }
+                    }
+
+                    // Get saveManager for clan names
+                    var saveManagerField = currentType.GetField("saveManager", bindingFlags);
+                    if (saveManagerField != null && mainClassName == null)
+                    {
+                        var saveManager = saveManagerField.GetValue(screen);
+                        if (saveManager != null)
+                        {
+                            var smType = saveManager.GetType();
+
+                            // Get main class
+                            var getMainClassMethod = smType.GetMethod("GetMainClass");
+                            if (getMainClassMethod != null)
+                            {
+                                var mainClass = getMainClassMethod.Invoke(saveManager, null);
+                                if (mainClass != null)
+                                {
+                                    var getTitleMethod = mainClass.GetType().GetMethod("GetTitle");
+                                    if (getTitleMethod != null)
+                                    {
+                                        mainClassName = getTitleMethod.Invoke(mainClass, null) as string;
+                                    }
+                                }
+                            }
+
+                            // Get sub class
+                            var getSubClassMethod = smType.GetMethod("GetSubClass");
+                            if (getSubClassMethod != null)
+                            {
+                                var subClass = getSubClassMethod.Invoke(saveManager, null);
+                                if (subClass != null)
+                                {
+                                    var getTitleMethod = subClass.GetType().GetMethod("GetTitle");
+                                    if (getTitleMethod != null)
+                                    {
+                                        subClassName = getTitleMethod.Invoke(subClass, null) as string;
+                                    }
+                                }
+                            }
+
+                            // Get covenant level from saveManager if not found
+                            if (covenantLevel == 0)
+                            {
+                                var getAscensionMethod = smType.GetMethod("GetAscensionLevel");
+                                if (getAscensionMethod != null)
+                                {
+                                    var result = getAscensionMethod.Invoke(saveManager, null);
+                                    if (result is int a) covenantLevel = a;
+                                }
+                            }
+
+                            // Get battles won from saveManager if not found
+                            if (battlesWon == 0)
+                            {
+                                var getBattlesMethod = smType.GetMethod("GetNumBattlesWon");
+                                if (getBattlesMethod != null)
+                                {
+                                    var result = getBattlesMethod.Invoke(saveManager, null);
+                                    if (result is int b) battlesWon = b;
+                                }
+                            }
+                        }
+                    }
+
+                    currentType = currentType.BaseType;
+                }
+
+                // Also try to get the title label text directly
+                string titleText = null;
+                var titleField = screenType?.GetField("titleLabel", bindingFlags);
+                if (titleField != null)
+                {
+                    var labelObj = titleField.GetValue(screen);
+                    if (labelObj != null)
+                    {
+                        var textProp = labelObj.GetType().GetProperty("text");
+                        if (textProp != null)
+                        {
+                            titleText = textProp.GetValue(labelObj) as string;
                         }
                     }
                 }
 
                 // Build announcement
-                // Result title (Victory/Defeat)
-                if (!string.IsNullOrEmpty(resultTitle))
+                // Victory/Defeat - use title text if available, otherwise infer from victoryType
+                if (!string.IsNullOrEmpty(titleText))
                 {
-                    sb.Append($"{resultTitle}. ");
+                    sb.Append($"{titleText}! ");
+                }
+                else if (!string.IsNullOrEmpty(victoryTypeStr))
+                {
+                    if (victoryTypeStr == "Hellforged")
+                        sb.Append("Hellforged Victory! ");
+                    else if (victoryTypeStr == "Standard")
+                        sb.Append("Victory! ");
+                    else
+                        sb.Append("Defeat. ");
                 }
                 else
                 {
-                    sb.Append(isVictory ? "Victory. " : "Defeat. ");
+                    sb.Append("Run complete. ");
                 }
 
-                // Run type and ring
-                if (!string.IsNullOrEmpty(runType))
+                // Clans
+                if (!string.IsNullOrEmpty(mainClassName) && !string.IsNullOrEmpty(subClassName))
                 {
-                    sb.Append($"{runType}. ");
+                    sb.Append($"{mainClassName} and {subClassName}. ");
                 }
-                if (ring > 0)
+                else if (!string.IsNullOrEmpty(mainClassName))
                 {
-                    sb.Append($"Covenant {ring}. ");
+                    sb.Append($"{mainClassName}. ");
+                }
+
+                // Covenant
+                if (covenantLevel > 0)
+                {
+                    sb.Append($"Covenant {covenantLevel}. ");
+                }
+
+                // Battles won
+                if (battlesWon > 0)
+                {
+                    sb.Append($"{battlesWon} battles won. ");
                 }
 
                 // Score
-                if (score > 0)
+                if (finalScore > 0)
                 {
-                    sb.Append($"Score: {score:N0}. ");
+                    sb.Append($"Score: {finalScore:N0}. ");
                 }
 
-                // Battles
-                if (battlesWon > 0)
+                // Gold
+                if (gold > 0)
                 {
-                    sb.Append($"Battles won: {battlesWon}. ");
+                    sb.Append($"Gold: {gold:N0}. ");
                 }
+
+                // Run time
+                if (runTimeSeconds > 0)
+                {
+                    var runTime = TimeSpan.FromSeconds(runTimeSeconds);
+                    if (runTime.TotalHours >= 1)
+                    {
+                        sb.Append($"Time: {(int)runTime.TotalHours} hours {runTime.Minutes} minutes. ");
+                    }
+                    else
+                    {
+                        sb.Append($"Time: {runTime.Minutes} minutes {runTime.Seconds} seconds. ");
+                    }
+                }
+
+                sb.Append("Press R for run summary. ");
 
                 // Announce
                 string announcement = sb.ToString().Trim();
-                if (!string.IsNullOrEmpty(announcement))
-                {
-                    MonsterTrainAccessibility.LogInfo($"Game over auto-read: {announcement}");
-                    MonsterTrainAccessibility.ScreenReader?.Speak(announcement, false);
-                }
-                else
-                {
-                    // Fallback
-                    MonsterTrainAccessibility.ScreenReader?.Speak("Run complete. Press T to read stats.", false);
-                }
+                MonsterTrainAccessibility.LogInfo($"Game over auto-read: {announcement}");
+                MonsterTrainAccessibility.ScreenReader?.Speak(announcement, false);
             }
             catch (Exception ex)
             {
                 MonsterTrainAccessibility.LogError($"Error in AutoReadGameOverScreen: {ex.Message}");
-                MonsterTrainAccessibility.ScreenReader?.Speak("Run complete.", false);
+                MonsterTrainAccessibility.ScreenReader?.Speak("Run complete. Press R for run summary.", false);
             }
+        }
+    }
+
+    /// <summary>
+    /// Announce stat highlights as they appear on the game over screen.
+    /// Hooks StatHighlightUI.AnimateInCoroutine to read the stat when it animates in.
+    /// </summary>
+    public static class StatHighlightPatch
+    {
+        public static void TryPatch(Harmony harmony)
+        {
+            try
+            {
+                var targetType = AccessTools.TypeByName("StatHighlightUI");
+                if (targetType == null)
+                {
+                    MonsterTrainAccessibility.LogInfo("StatHighlightUI not found");
+                    return;
+                }
+
+                // Hook AnimateInCoroutine - this is called when the stat becomes visible
+                var animateMethod = AccessTools.Method(targetType, "AnimateInCoroutine");
+                if (animateMethod != null)
+                {
+                    var prefix = new HarmonyMethod(typeof(StatHighlightPatch).GetMethod(nameof(AnimatePrefix)));
+                    harmony.Patch(animateMethod, prefix: prefix);
+                    MonsterTrainAccessibility.LogInfo("Patched StatHighlightUI.AnimateInCoroutine");
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Failed to patch StatHighlightUI: {ex.Message}");
+            }
+        }
+
+        // Prefix runs before AnimateInCoroutine - at this point the labels are already set
+        public static void AnimatePrefix(object __instance)
+        {
+            try
+            {
+                if (__instance == null) return;
+
+                var instanceType = __instance.GetType();
+                var bindingFlags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+
+                string headerText = null;
+                string statText = null;
+
+                // Get headerLabel text
+                var headerField = instanceType.GetField("headerLabel", bindingFlags);
+                if (headerField != null)
+                {
+                    var label = headerField.GetValue(__instance);
+                    if (label != null)
+                    {
+                        var textProp = label.GetType().GetProperty("text");
+                        if (textProp != null)
+                        {
+                            headerText = textProp.GetValue(label) as string;
+                        }
+                    }
+                }
+
+                // Get statLabel text
+                var statField = instanceType.GetField("statLabel", bindingFlags);
+                if (statField != null)
+                {
+                    var label = statField.GetValue(__instance);
+                    if (label != null)
+                    {
+                        var textProp = label.GetType().GetProperty("text");
+                        if (textProp != null)
+                        {
+                            statText = textProp.GetValue(label) as string;
+                        }
+                    }
+                }
+
+                // Build and announce
+                if (!string.IsNullOrEmpty(headerText) || !string.IsNullOrEmpty(statText))
+                {
+                    // Clean rich text tags
+                    headerText = Screens.BattleAccessibility.StripRichTextTags(headerText ?? "");
+                    statText = Screens.BattleAccessibility.StripRichTextTags(statText ?? "");
+
+                    // Remove newlines for cleaner speech
+                    statText = statText.Replace("\n", " ").Replace("\r", "");
+
+                    string announcement = $"{headerText}: {statText}".Trim();
+                    MonsterTrainAccessibility.LogInfo($"Stat highlight: {announcement}");
+                    MonsterTrainAccessibility.ScreenReader?.Queue(announcement);
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in StatHighlightPatch: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Announce win streak when it appears on the game over screen.
+    /// </summary>
+    public static class WinStreakPatch
+    {
+        public static void TryPatch(Harmony harmony)
+        {
+            try
+            {
+                var targetType = AccessTools.TypeByName("WinStreakIncreaseUI");
+                if (targetType == null)
+                {
+                    MonsterTrainAccessibility.LogInfo("WinStreakIncreaseUI not found");
+                    return;
+                }
+
+                // Hook AnimateInCoroutine
+                var animateMethod = AccessTools.Method(targetType, "AnimateInCoroutine");
+                if (animateMethod != null)
+                {
+                    var prefix = new HarmonyMethod(typeof(WinStreakPatch).GetMethod(nameof(AnimatePrefix)));
+                    harmony.Patch(animateMethod, prefix: prefix);
+                    MonsterTrainAccessibility.LogInfo("Patched WinStreakIncreaseUI.AnimateInCoroutine");
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Failed to patch WinStreakIncreaseUI: {ex.Message}");
+            }
+        }
+
+        public static void AnimatePrefix(object __instance)
+        {
+            try
+            {
+                if (__instance == null) return;
+
+                var instanceType = __instance.GetType();
+                var bindingFlags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public;
+
+                string countText = null;
+                string previousText = null;
+
+                // Get countLabel from base WinStreakUI class
+                var countField = instanceType.GetField("countLabel", bindingFlags);
+                if (countField == null)
+                {
+                    // Try base type
+                    countField = instanceType.BaseType?.GetField("countLabel", bindingFlags);
+                }
+                if (countField != null)
+                {
+                    var label = countField.GetValue(__instance);
+                    if (label != null)
+                    {
+                        var textProp = label.GetType().GetProperty("text");
+                        if (textProp != null)
+                        {
+                            countText = textProp.GetValue(label) as string;
+                        }
+                    }
+                }
+
+                // Get previousWinStreakLabel
+                var prevField = instanceType.GetField("previousWinStreakLabel", bindingFlags);
+                if (prevField != null)
+                {
+                    var label = prevField.GetValue(__instance);
+                    if (label != null)
+                    {
+                        var textProp = label.GetType().GetProperty("text");
+                        if (textProp != null)
+                        {
+                            previousText = textProp.GetValue(label) as string;
+                        }
+                    }
+                }
+
+                // Build announcement
+                if (!string.IsNullOrEmpty(countText))
+                {
+                    countText = Screens.BattleAccessibility.StripRichTextTags(countText);
+                    string announcement;
+                    if (!string.IsNullOrEmpty(previousText))
+                    {
+                        previousText = Screens.BattleAccessibility.StripRichTextTags(previousText);
+                        announcement = $"Win streak increased! {previousText} to {countText}";
+                    }
+                    else
+                    {
+                        announcement = $"Win streak: {countText}";
+                    }
+                    MonsterTrainAccessibility.LogInfo($"Win streak: {announcement}");
+                    MonsterTrainAccessibility.ScreenReader?.Queue(announcement);
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in WinStreakPatch: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Announce unlocks (level ups, new cards/relics, clan unlocks, etc.) as they appear.
+    /// </summary>
+    public static class UnlockScreenPatch
+    {
+        public static void TryPatch(Harmony harmony)
+        {
+            try
+            {
+                var targetType = AccessTools.TypeByName("UnlockScreen");
+                if (targetType == null)
+                {
+                    MonsterTrainAccessibility.LogInfo("UnlockScreen not found");
+                    return;
+                }
+
+                // Hook ShowNextUnlock - this is called each time an unlock is shown
+                var showMethod = AccessTools.Method(targetType, "ShowNextUnlock");
+                if (showMethod != null)
+                {
+                    var postfix = new HarmonyMethod(typeof(UnlockScreenPatch).GetMethod(nameof(ShowNextUnlockPostfix)));
+                    harmony.Patch(showMethod, postfix: postfix);
+                    MonsterTrainAccessibility.LogInfo("Patched UnlockScreen.ShowNextUnlock");
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Failed to patch UnlockScreen: {ex.Message}");
+            }
+        }
+
+        public static void ShowNextUnlockPostfix(object __instance)
+        {
+            try
+            {
+                if (__instance == null) return;
+
+                var instanceType = __instance.GetType();
+                var bindingFlags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+
+                // Get currentItem (UnlockDisplayData) via the property
+                var currentItemProp = instanceType.GetProperty("currentItem", bindingFlags);
+                if (currentItemProp == null) return;
+
+                var currentItem = currentItemProp.GetValue(__instance);
+                if (currentItem == null) return;
+
+                var itemType = currentItem.GetType();
+
+                // Get source (UnlockSource enum)
+                var sourceField = itemType.GetField("source");
+                string source = sourceField?.GetValue(currentItem)?.ToString() ?? "";
+
+                // Get headerTextContent (clan name, etc.)
+                var headerContentField = itemType.GetField("headerTextContent");
+                string headerContent = headerContentField?.GetValue(currentItem) as string ?? "";
+
+                // Get headerLevel
+                var headerLevelField = itemType.GetField("headerLevel");
+                int headerLevel = -1;
+                if (headerLevelField != null)
+                {
+                    var lvl = headerLevelField.GetValue(currentItem);
+                    if (lvl is int l) headerLevel = l;
+                }
+
+                // Get unlocked card name
+                string unlockedCardName = null;
+                var cardDataField = itemType.GetField("unlockedCardData");
+                if (cardDataField != null)
+                {
+                    var cardData = cardDataField.GetValue(currentItem);
+                    if (cardData != null)
+                    {
+                        var getNameMethod = cardData.GetType().GetMethod("GetName");
+                        if (getNameMethod != null)
+                        {
+                            unlockedCardName = getNameMethod.Invoke(cardData, null) as string;
+                        }
+                    }
+                }
+
+                // Get unlocked relic name
+                string unlockedRelicName = null;
+                var relicDataField = itemType.GetField("unlockedRelicData");
+                if (relicDataField != null)
+                {
+                    var relicData = relicDataField.GetValue(currentItem);
+                    if (relicData != null)
+                    {
+                        var getNameMethod = relicData.GetType().GetMethod("GetName");
+                        if (getNameMethod != null)
+                        {
+                            unlockedRelicName = getNameMethod.Invoke(relicData, null) as string;
+                        }
+                    }
+                }
+
+                // Get unlocked feature data (title)
+                string featureTitle = null;
+                var featureDataField = itemType.GetField("unlockedFeatureData");
+                if (featureDataField != null)
+                {
+                    var featureData = featureDataField.GetValue(currentItem);
+                    if (featureData != null)
+                    {
+                        var titleField = featureData.GetType().GetField("title");
+                        if (titleField != null)
+                        {
+                            featureTitle = titleField.GetValue(featureData) as string;
+                        }
+                    }
+                }
+
+                // Build announcement based on source type
+                string announcement = BuildUnlockAnnouncement(source, headerContent, headerLevel,
+                    unlockedCardName, unlockedRelicName, featureTitle);
+
+                if (!string.IsNullOrEmpty(announcement))
+                {
+                    MonsterTrainAccessibility.LogInfo($"Unlock: {announcement}");
+                    MonsterTrainAccessibility.ScreenReader?.Speak(announcement, false);
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in UnlockScreenPatch: {ex.Message}");
+            }
+        }
+
+        private static string BuildUnlockAnnouncement(string source, string headerContent, int headerLevel,
+            string cardName, string relicName, string featureTitle)
+        {
+            var sb = new System.Text.StringBuilder();
+
+            switch (source)
+            {
+                case "ClanLevelUp":
+                    sb.Append($"{headerContent} reached level {headerLevel}! ");
+                    if (!string.IsNullOrEmpty(cardName))
+                        sb.Append($"Unlocked card: {cardName}. ");
+                    if (!string.IsNullOrEmpty(relicName))
+                        sb.Append($"Unlocked artifact: {relicName}. ");
+                    if (!string.IsNullOrEmpty(featureTitle))
+                        sb.Append($"Unlocked: {featureTitle}. ");
+                    break;
+
+                case "NewClan":
+                    sb.Append($"New clan unlocked: {featureTitle ?? headerContent}! ");
+                    break;
+
+                case "CovenantUnlocked":
+                    sb.Append($"Covenant mode unlocked! {featureTitle}");
+                    break;
+
+                case "ChallengeLevelUp":
+                    sb.Append($"New covenant level unlocked! {featureTitle}");
+                    break;
+
+                case "CardMastery":
+                    sb.Append("Card mastery achieved! ");
+                    break;
+
+                case "DivineCardMastery":
+                    sb.Append("Divine card mastery achieved! ");
+                    break;
+
+                case "FeatureUnlocked":
+                    sb.Append($"Feature unlocked: {featureTitle}! ");
+                    break;
+
+                case "MasteryCardFrameUnlocked":
+                    sb.Append("Mastery card frame unlocked! ");
+                    break;
+
+                default:
+                    if (!string.IsNullOrEmpty(cardName))
+                        sb.Append($"Unlocked card: {cardName}. ");
+                    else if (!string.IsNullOrEmpty(relicName))
+                        sb.Append($"Unlocked artifact: {relicName}. ");
+                    else if (!string.IsNullOrEmpty(featureTitle))
+                        sb.Append($"Unlocked: {featureTitle}. ");
+                    break;
+            }
+
+            sb.Append("Press Enter to continue.");
+            return sb.ToString().Trim();
         }
     }
 

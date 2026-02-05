@@ -2866,7 +2866,11 @@ namespace MonsterTrainAccessibility.Screens
             if (!MonsterTrainAccessibility.AccessibilitySettings.AnnounceStatusEffects.Value)
                 return;
 
-            MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName} loses {effectName} {stacks}");
+            // Format: "Hornbreaker Prince loses 5 Rage" or "Hornbreaker Prince loses Rage" if stacks is 1
+            string message = stacks > 1
+                ? $"{unitName} loses {stacks} {effectName}"
+                : $"{unitName} loses {effectName}";
+            MonsterTrainAccessibility.ScreenReader?.Queue(message);
         }
 
         /// <summary>

@@ -3352,6 +3352,10 @@ namespace MonsterTrainAccessibility.Screens
                     sb.Append("Current position. ");
                 }
 
+                // Try to get MapNodeUI data for visited status and more details
+                string visitedStatus = GetMapNodeVisitedStatus(go);
+                string rewardDetails = GetMapNodeRewardDetails(go);
+
                 if (componentType == "MinimapBattleNode")
                 {
                     sb.Append("Battle");
@@ -3369,10 +3373,22 @@ namespace MonsterTrainAccessibility.Screens
                     sb.Append("Unknown node");
                 }
 
+                // Add visited status
+                if (!string.IsNullOrEmpty(visitedStatus))
+                {
+                    sb.Append($" ({visitedStatus})");
+                }
+
                 // Add body/description if available
                 if (!string.IsNullOrEmpty(body))
                 {
                     sb.Append($". {body}");
+                }
+
+                // Add reward details if available (more specific than tooltip body)
+                if (!string.IsNullOrEmpty(rewardDetails))
+                {
+                    sb.Append($". {rewardDetails}");
                 }
 
                 // Find available directions from sibling nodes
@@ -3854,6 +3870,191 @@ namespace MonsterTrainAccessibility.Screens
                 return title;
             }
 
+            return null;
+        }
+
+        /// <summary>
+        /// Get visited status from MapNodeUI component
+        /// </summary>
+        private string GetMapNodeVisitedStatus(GameObject go)
+        {
+            try
+            {
+                Transform current = go.transform;
+                while (current != null)
+                {
+                    foreach (var component in current.GetComponents<Component>())
+                    {
+                        if (component == null) continue;
+                        string typeName = component.GetType().Name;
+                        if (typeName == "MapNodeUI")
+                        {
+                            var type = component.GetType();
+
+                            // Check visited field
+                            var visitedField = type.GetField("visited", BindingFlags.NonPublic | BindingFlags.Instance);
+                            bool visited = false;
+                            if (visitedField != null)
+                            {
+                                visited = (bool)visitedField.GetValue(component);
+                            }
+
+                            // Check canActivate field
+                            var canActivateProp = type.GetProperty("CanActivate", BindingFlags.Public | BindingFlags.Instance);
+                            bool canActivate = false;
+                            if (canActivateProp != null)
+                            {
+                                canActivate = (bool)canActivateProp.GetValue(component);
+                            }
+
+                            if (visited)
+                                return "visited";
+                            else if (canActivate)
+                                return "available";
+                            else
+                                return "locked";
+                        }
+                    }
+                    current = current.parent;
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting map node visited status: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Get detailed reward info from MapNodeUI/MapNodeData - extracts specific rewards
+        /// </summary>
+        private string GetMapNodeRewardDetails(GameObject go)
+        {
+            try
+            {
+                Transform current = go.transform;
+                while (current != null)
+                {
+                    foreach (var component in current.GetComponents<Component>())
+                    {
+                        if (component == null) continue;
+                        string typeName = component.GetType().Name;
+                        if (typeName == "MapNodeUI")
+                        {
+                            var type = component.GetType();
+
+                            // Get the MapNodeData
+                            var dataField = type.GetField("data", BindingFlags.NonPublic | BindingFlags.Instance);
+                            if (dataField == null) continue;
+
+                            var mapNodeData = dataField.GetValue(component);
+                            if (mapNodeData == null) continue;
+
+                            var dataType = mapNodeData.GetType();
+
+                            // Check if it's a RewardNodeData
+                            if (dataType.Name == "RewardNodeData" || dataType.BaseType?.Name == "RewardNodeData")
+                            {
+                                return ExtractRewardNodeDetails(mapNodeData, dataType);
+                            }
+
+                            // Check for DLC crystal cost
+                            var crystalCostField = dataType.GetField("dlcHellforgedCrystalsCost", BindingFlags.NonPublic | BindingFlags.Instance);
+                            if (crystalCostField != null)
+                            {
+                                int cost = (int)crystalCostField.GetValue(mapNodeData);
+                                if (cost > 0)
+                                {
+                                    return $"Costs {cost} crystal{(cost > 1 ? "s" : "")}";
+                                }
+                            }
+
+                            return null;
+                        }
+                    }
+                    current = current.parent;
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting map node reward details: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Extract specific reward details from a RewardNodeData
+        /// </summary>
+        private string ExtractRewardNodeDetails(object rewardNodeData, Type dataType)
+        {
+            try
+            {
+                var details = new List<string>();
+
+                // Check for crystal cost
+                var crystalCostProp = dataType.GetProperty("DlcHellforgedCrystalsCost", BindingFlags.Public | BindingFlags.Instance);
+                if (crystalCostProp != null)
+                {
+                    int cost = (int)crystalCostProp.GetValue(rewardNodeData);
+                    if (cost > 0)
+                    {
+                        details.Add($"Costs {cost} crystal{(cost > 1 ? "s" : "")}");
+                    }
+                }
+
+                // Try to get rewards list
+                var getRewardsMethod = dataType.GetMethod("GetRewards", BindingFlags.Public | BindingFlags.Instance);
+                if (getRewardsMethod != null)
+                {
+                    var rewards = getRewardsMethod.Invoke(rewardNodeData, null);
+                    if (rewards is System.Collections.IEnumerable rewardList)
+                    {
+                        foreach (var reward in rewardList)
+                        {
+                            if (reward == null) continue;
+                            var rewardType = reward.GetType();
+
+                            // Get RewardTitle property
+                            var titleProp = rewardType.GetProperty("RewardTitle", BindingFlags.Public | BindingFlags.Instance);
+                            if (titleProp != null)
+                            {
+                                string title = titleProp.GetValue(reward) as string;
+                                if (!string.IsNullOrEmpty(title) && !title.Contains("KEY>"))
+                                {
+                                    // Also try to get RewardValue for gold/health amounts
+                                    var valueProp = rewardType.GetProperty("RewardValue", BindingFlags.Public | BindingFlags.Instance);
+                                    if (valueProp != null)
+                                    {
+                                        int value = (int)valueProp.GetValue(reward);
+                                        if (value > 0 && !title.Contains(value.ToString()))
+                                        {
+                                            details.Add($"{title}: {value}");
+                                        }
+                                        else
+                                        {
+                                            details.Add(title);
+                                        }
+                                    }
+                                    else
+                                    {
+                                        details.Add(title);
+                                    }
+                                }
+                            }
+
+                            // Only add first reward to keep it concise
+                            if (details.Count >= 2)
+                                break;
+                        }
+                    }
+                }
+
+                return details.Count > 0 ? string.Join(", ", details) : null;
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error extracting reward node details: {ex.Message}");
+            }
             return null;
         }
 

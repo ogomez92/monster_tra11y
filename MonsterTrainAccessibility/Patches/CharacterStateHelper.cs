@@ -1,4 +1,6 @@
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Reflection;
 
 namespace MonsterTrainAccessibility.Patches
@@ -9,6 +11,11 @@ namespace MonsterTrainAccessibility.Patches
     /// </summary>
     public static class CharacterStateHelper
     {
+        // Cached status effect localization data
+        private static Dictionary<string, string> _statusIdToLocPrefix;
+        private static MethodInfo _localizeMethod;
+        private static bool _localizationInitialized;
+
         public static string GetUnitName(object characterState)
         {
             if (characterState == null) return "Unit";
@@ -175,6 +182,12 @@ namespace MonsterTrainAccessibility.Patches
             if (string.IsNullOrEmpty(statusId))
                 return "effect";
 
+            // Try to get the localized name from the game's status effect system
+            string localizedName = GetLocalizedStatusName(statusId);
+            if (!string.IsNullOrEmpty(localizedName))
+                return localizedName;
+
+            // Fall back to string cleanup
             string name = statusId
                 .Replace("_StatusId", "")
                 .Replace("StatusId", "")
@@ -182,6 +195,159 @@ namespace MonsterTrainAccessibility.Patches
 
             name = System.Text.RegularExpressions.Regex.Replace(name, "([a-z])([A-Z])", "$1 $2");
             return name.ToLower().Trim();
+        }
+
+        /// <summary>
+        /// Get the localized display name for a status effect ID using the game's localization system.
+        /// </summary>
+        private static string GetLocalizedStatusName(string statusId)
+        {
+            try
+            {
+                EnsureLocalizationInitialized();
+
+                if (_statusIdToLocPrefix == null || _localizeMethod == null)
+                    return null;
+
+                // Look up the localization prefix for this status ID
+                if (!_statusIdToLocPrefix.TryGetValue(statusId, out string locPrefix))
+                    return null;
+
+                // Try to get the localized name using {prefix}_CardText
+                string nameKey = locPrefix + "_CardText";
+                string localizedName = InvokeLocalize(nameKey);
+
+                if (!string.IsNullOrEmpty(localizedName) && localizedName != nameKey)
+                {
+                    // Strip any rich text tags
+                    localizedName = Screens.BattleAccessibility.StripRichTextTags(localizedName).Trim();
+                    if (!string.IsNullOrEmpty(localizedName))
+                        return localizedName;
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"GetLocalizedStatusName error: {ex.Message}");
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Initialize the status effect localization lookup dictionary.
+        /// </summary>
+        private static void EnsureLocalizationInitialized()
+        {
+            if (_localizationInitialized)
+                return;
+            _localizationInitialized = true;
+
+            try
+            {
+                // Find the Localize method
+                foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    var asmName = assembly.GetName().Name;
+                    if (!asmName.Contains("Assembly-CSharp") && !asmName.Contains("Trainworks"))
+                        continue;
+
+                    try
+                    {
+                        foreach (var type in assembly.GetTypes())
+                        {
+                            if (!type.IsClass) continue;
+
+                            var method = type.GetMethod("Localize", BindingFlags.Public | BindingFlags.Static);
+                            if (method != null && method.ReturnType == typeof(string))
+                            {
+                                var parameters = method.GetParameters();
+                                if (parameters.Length >= 1 && parameters[0].ParameterType == typeof(string))
+                                {
+                                    _localizeMethod = method;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    catch { }
+
+                    if (_localizeMethod != null) break;
+                }
+
+                // Find StatusEffectManager.StatusIdToLocalizationExpression
+                Type semType = null;
+                foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    semType = assembly.GetType("StatusEffectManager");
+                    if (semType != null) break;
+                }
+
+                if (semType != null)
+                {
+                    // Try field first, then property
+                    var field = semType.GetField("StatusIdToLocalizationExpression",
+                        BindingFlags.Public | BindingFlags.Static);
+                    IDictionary dict = null;
+
+                    if (field != null)
+                    {
+                        dict = field.GetValue(null) as IDictionary;
+                    }
+                    else
+                    {
+                        var prop = semType.GetProperty("StatusIdToLocalizationExpression",
+                            BindingFlags.Public | BindingFlags.Static);
+                        if (prop != null)
+                        {
+                            dict = prop.GetValue(null) as IDictionary;
+                        }
+                    }
+
+                    if (dict != null)
+                    {
+                        _statusIdToLocPrefix = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                        foreach (DictionaryEntry entry in dict)
+                        {
+                            string key = entry.Key?.ToString();
+                            string value = entry.Value as string;
+                            if (!string.IsNullOrEmpty(key) && !string.IsNullOrEmpty(value))
+                            {
+                                _statusIdToLocPrefix[key] = value;
+                            }
+                        }
+                        MonsterTrainAccessibility.LogInfo($"CharacterStateHelper: Loaded {_statusIdToLocPrefix.Count} status effect localizations");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"EnsureLocalizationInitialized error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Invoke the cached Localize method.
+        /// </summary>
+        private static string InvokeLocalize(string key)
+        {
+            if (string.IsNullOrEmpty(key) || _localizeMethod == null)
+                return null;
+
+            try
+            {
+                var parameters = _localizeMethod.GetParameters();
+                var args = new object[parameters.Length];
+                args[0] = key;
+                for (int i = 1; i < parameters.Length; i++)
+                {
+                    args[i] = parameters[i].HasDefaultValue ? parameters[i].DefaultValue : null;
+                }
+
+                return _localizeMethod.Invoke(null, args) as string;
+            }
+            catch { }
+
+            return null;
         }
     }
 }
