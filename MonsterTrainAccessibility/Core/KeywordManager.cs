@@ -158,8 +158,8 @@ namespace MonsterTrainAccessibility.Core
                     string prefix = entry.Value as string;
                     if (string.IsNullOrEmpty(prefix)) continue;
 
-                    string name = Localize(prefix + nameSuffix);
-                    string tooltip = Localize(prefix + tooltipSuffix);
+                    string name = TryLocalize(prefix + nameSuffix);
+                    string tooltip = TryLocalize(prefix + tooltipSuffix);
 
                     if (string.IsNullOrEmpty(name) || name == (prefix + nameSuffix))
                         continue;
@@ -226,12 +226,12 @@ namespace MonsterTrainAccessibility.Core
             {
                 try
                 {
-                    string name = Localize(traitName + "_CardText");
-                    string tooltip = Localize(traitName + "_TooltipText");
+                    string name = TryLocalize(traitName + "_CardText");
+                    string tooltip = TryLocalize(traitName + "_TooltipText");
 
                     // Also try _CardTooltipText variant
                     if (string.IsNullOrEmpty(tooltip) || tooltip == (traitName + "_TooltipText"))
-                        tooltip = Localize(traitName + "_CardTooltipText");
+                        tooltip = TryLocalize(traitName + "_CardTooltipText");
 
                     if (string.IsNullOrEmpty(name) || name == (traitName + "_CardText"))
                         continue;
@@ -353,9 +353,17 @@ namespace MonsterTrainAccessibility.Core
             }
         }
 
-        private static string Localize(string key)
+        /// <summary>
+        /// Localize a key using the game's localization system.
+        /// Public so other classes (e.g. BattleAccessibility) can reuse it.
+        /// </summary>
+        public static string TryLocalize(string key)
         {
-            if (string.IsNullOrEmpty(key) || _localizeMethod == null)
+            if (string.IsNullOrEmpty(key))
+                return null;
+
+            EnsureLocalizeMethod();
+            if (_localizeMethod == null)
                 return null;
 
             try

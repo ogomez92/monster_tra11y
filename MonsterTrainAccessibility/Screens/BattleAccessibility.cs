@@ -2297,32 +2297,221 @@ namespace MonsterTrainAccessibility.Screens
                 if (trigger == null) return null;
                 var triggerType = trigger.GetType();
 
-                // Try to get the trigger description
-                var getDescMethod = triggerType.GetMethod("GetDescription", Type.EmptyTypes);
-                if (getDescMethod != null)
+                // Get the localized trigger name (e.g. "Strike:", "On Death:")
+                string triggerName = null;
+                var getKeywordTextMethod = triggerType.GetMethod("GetKeywordText", Type.EmptyTypes);
+                if (getKeywordTextMethod != null)
                 {
-                    var desc = getDescMethod.Invoke(trigger, null) as string;
-                    if (!string.IsNullOrEmpty(desc))
+                    triggerName = getKeywordTextMethod.Invoke(trigger, null) as string;
+                    if (!string.IsNullOrEmpty(triggerName))
+                        triggerName = StripRichTextTags(triggerName).Trim().TrimEnd(':');
+                }
+
+                // Fall back to trigger enum name if keyword text was empty
+                if (string.IsNullOrEmpty(triggerName))
+                {
+                    var getTriggerTypeMethod = triggerType.GetMethod("GetTrigger", Type.EmptyTypes);
+                    if (getTriggerTypeMethod != null)
                     {
-                        return StripRichTextTags(desc);
+                        var triggerTypeVal = getTriggerTypeMethod.Invoke(trigger, null);
+                        if (triggerTypeVal != null)
+                            triggerName = FormatTriggerType(triggerTypeVal.ToString());
                     }
                 }
 
-                // Try to get trigger type/name
-                var getTriggerTypeMethod = triggerType.GetMethod("GetTrigger", Type.EmptyTypes);
-                if (getTriggerTypeMethod != null)
+                // Look up the trigger name in KeywordManager to get the tooltip explanation
+                // e.g. "Extinguish" -> "Extinguish: Triggers after combat resolves"
+                string triggerTooltip = null;
+                if (!string.IsNullOrEmpty(triggerName))
                 {
-                    var triggerTypeVal = getTriggerTypeMethod.Invoke(trigger, null);
-                    if (triggerTypeVal != null)
+                    var keywords = KeywordManager.GetKeywords();
+                    if (keywords != null && keywords.TryGetValue(triggerName, out string keywordEntry))
                     {
-                        string triggerName = triggerTypeVal.ToString();
-                        // Convert trigger type to readable text
-                        return FormatTriggerType(triggerName);
+                        // keywordEntry is "TriggerName: tooltip explanation"
+                        // Extract just the tooltip part after the name
+                        int colonIdx = keywordEntry.IndexOf(':');
+                        if (colonIdx >= 0 && colonIdx < keywordEntry.Length - 1)
+                            triggerTooltip = keywordEntry.Substring(colonIdx + 1).Trim();
                     }
                 }
+
+                // Get the description key and localize it to get the actual effect text
+                string description = null;
+                var getDescKeyMethod = triggerType.GetMethod("GetDescriptionKey", Type.EmptyTypes);
+                if (getDescKeyMethod != null)
+                {
+                    var descKey = getDescKeyMethod.Invoke(trigger, null) as string;
+                    if (!string.IsNullOrEmpty(descKey))
+                    {
+                        var localized = KeywordManager.TryLocalize(descKey);
+                        if (!string.IsNullOrEmpty(localized))
+                        {
+                            // Resolve {[effect0.power]} etc. placeholders before stripping tags
+                            if (localized.Contains("{["))
+                                localized = ResolveTriggerEffectPlaceholders(localized, trigger, triggerType);
+                            description = StripRichTextTags(localized).Trim();
+                        }
+                    }
+                }
+
+                // Combine: "Extinguish (triggers after combat): Gain 50 gold"
+                var sb = new StringBuilder();
+                if (!string.IsNullOrEmpty(triggerName))
+                {
+                    sb.Append(triggerName);
+                    if (!string.IsNullOrEmpty(triggerTooltip))
+                        sb.Append($" ({triggerTooltip})");
+                    if (!string.IsNullOrEmpty(description))
+                        sb.Append($": {description}");
+                }
+                else if (!string.IsNullOrEmpty(description))
+                {
+                    sb.Append(description);
+                }
+
+                if (sb.Length > 0)
+                    return sb.ToString();
             }
             catch { }
             return null;
+        }
+
+        /// <summary>
+        /// Resolve {[effect0.power]}, {[effect0.status0.power]}, {[#effect0.power]} placeholders
+        /// in trigger description text using the trigger's effect data.
+        /// </summary>
+        private string ResolveTriggerEffectPlaceholders(string text, object trigger, Type triggerType)
+        {
+            try
+            {
+                // Get effects from the trigger (works for both CharacterTriggerState and CharacterTriggerData)
+                var getEffectsMethod = triggerType.GetMethod("GetEffects", Type.EmptyTypes);
+                // CharacterTriggerState.GetEffects() has an optional bool param; try no-arg first
+                if (getEffectsMethod == null)
+                {
+                    // Try the overload with bool parameter: GetEffects(bool getStackable = true)
+                    foreach (var m in triggerType.GetMethods())
+                    {
+                        if (m.Name == "GetEffects" && m.GetParameters().Length <= 1)
+                        {
+                            getEffectsMethod = m;
+                            break;
+                        }
+                    }
+                }
+
+                // Also try getting effects from the underlying trigger data
+                if (getEffectsMethod == null)
+                {
+                    var getTriggerDataMethod = triggerType.GetMethod("GetTriggerData", Type.EmptyTypes);
+                    if (getTriggerDataMethod != null)
+                    {
+                        var triggerData = getTriggerDataMethod.Invoke(trigger, null);
+                        if (triggerData != null)
+                        {
+                            var tdType = triggerData.GetType();
+                            getEffectsMethod = tdType.GetMethod("GetEffects", Type.EmptyTypes);
+                            if (getEffectsMethod != null)
+                            {
+                                trigger = triggerData;
+                                triggerType = tdType;
+                            }
+                        }
+                    }
+                }
+
+                if (getEffectsMethod == null) return text;
+
+                // Call GetEffects - handle optional parameters
+                var methodParams = getEffectsMethod.GetParameters();
+                object[] callArgs;
+                if (methodParams.Length == 0)
+                    callArgs = Array.Empty<object>();
+                else
+                {
+                    callArgs = new object[methodParams.Length];
+                    for (int i = 0; i < methodParams.Length; i++)
+                        callArgs[i] = methodParams[i].HasDefaultValue ? methodParams[i].DefaultValue : null;
+                }
+
+                var effects = getEffectsMethod.Invoke(trigger, callArgs) as System.Collections.IList;
+                if (effects == null || effects.Count == 0) return text;
+
+                // Match {[effect0.power]}, {[effect0.status0.power]}, {[#effect0.power]}, {[#effect0.status0.power]}
+                var regex = new System.Text.RegularExpressions.Regex(
+                    @"\{\[#?effect(\d+)\.(?:status(\d+)\.)?(\w+)\]\}");
+
+                text = regex.Replace(text, match =>
+                {
+                    int effectIndex = int.Parse(match.Groups[1].Value);
+                    string property = match.Groups[3].Value.ToLower();
+                    int statusIndex = match.Groups[2].Success ? int.Parse(match.Groups[2].Value) : -1;
+
+                    if (effectIndex >= effects.Count) return match.Value;
+                    var effect = effects[effectIndex];
+                    if (effect == null) return match.Value;
+
+                    var effectType = effect.GetType();
+                    var bindFlags = BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public;
+
+                    // Status effect stack count: {[effect0.status0.power]}
+                    if (statusIndex >= 0 && property == "power")
+                    {
+                        var statusField = effectType.GetField("paramStatusEffects", bindFlags);
+                        if (statusField != null)
+                        {
+                            var statusEffects = statusField.GetValue(effect) as Array;
+                            if (statusEffects != null && statusIndex < statusEffects.Length)
+                            {
+                                var se = statusEffects.GetValue(statusIndex);
+                                if (se != null)
+                                {
+                                    var countField = se.GetType().GetField("count", BindingFlags.Public | BindingFlags.Instance);
+                                    if (countField != null)
+                                        return countField.GetValue(se)?.ToString() ?? match.Value;
+                                }
+                            }
+                        }
+                        return match.Value;
+                    }
+
+                    // Map property name to field name
+                    string fieldName;
+                    switch (property)
+                    {
+                        case "power": fieldName = "paramInt"; break;
+                        case "powerabs": fieldName = "paramInt"; break;
+                        case "minpower": fieldName = "paramMinInt"; break;
+                        case "maxpower": fieldName = "paramMaxInt"; break;
+                        default: fieldName = "param" + char.ToUpper(property[0]) + property.Substring(1); break;
+                    }
+
+                    var field = effectType.GetField(fieldName, bindFlags);
+                    if (field != null)
+                    {
+                        var value = field.GetValue(effect);
+                        if (property == "powerabs" && value is int intVal)
+                            return Math.Abs(intVal).ToString();
+                        return value?.ToString() ?? match.Value;
+                    }
+
+                    return match.Value;
+                });
+
+                // Also handle {[trait0.power]} patterns (less common in triggers but possible)
+                var traitRegex = new System.Text.RegularExpressions.Regex(@"\{\[#?trait(\d+)\.(\w+)\]\}");
+                if (traitRegex.IsMatch(text))
+                {
+                    // Traits are on the parent card, not the trigger - just strip unresolved ones
+                    text = traitRegex.Replace(text, "");
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"ResolveTriggerEffectPlaceholders error: {ex.Message}");
+            }
+
+            return text;
         }
 
         /// <summary>

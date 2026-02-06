@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("MonsterTrainAccessibility")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+56f5046adb83fece9085cf0cacd7ed98171ba498")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+8270c2227935f67ed4747d4f53b1fc80ac7fa75e")]
 [assembly: System.Reflection.AssemblyProductAttribute("MonsterTrainAccessibility")]
 [assembly: System.Reflection.AssemblyTitleAttribute("MonsterTrainAccessibility")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
