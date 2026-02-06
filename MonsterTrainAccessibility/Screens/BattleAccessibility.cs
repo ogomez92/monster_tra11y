@@ -425,20 +425,22 @@ namespace MonsterTrainAccessibility.Screens
                     string cardType = GetCardType(card);
                     string clanName = GetCardClan(card);
                     string description = GetCardDescription(card);
+                    bool upgraded = HasCardUpgrades(card);
 
                     string playable = (currentEnergy >= 0 && cost > currentEnergy) ? ", unplayable" : "";
+                    string upgradeStr = upgraded ? " (upgraded)" : "";
 
                     // Build card announcement based on verbosity
                     if (verbosity == Core.VerbosityLevel.Minimal)
                     {
-                        sb.Append($"{i + 1}: {name}, {cost} ember{playable}. ");
+                        sb.Append($"{i + 1}: {name}{upgradeStr}, {cost} ember{playable}. ");
                     }
                     else
                     {
                         // Normal and Verbose include type, clan, and description
                         string typeStr = !string.IsNullOrEmpty(cardType) ? $" ({cardType})" : "";
                         string clanStr = !string.IsNullOrEmpty(clanName) ? $", {clanName}" : "";
-                        sb.Append($"{i + 1}: {name}{typeStr}{clanStr}, {cost} ember{playable}. ");
+                        sb.Append($"{i + 1}: {name}{upgradeStr}{typeStr}{clanStr}, {cost} ember{playable}. ");
 
                         if (!string.IsNullOrEmpty(description))
                         {
@@ -526,6 +528,39 @@ namespace MonsterTrainAccessibility.Screens
             }
             catch { }
             return 0;
+        }
+
+        /// <summary>
+        /// Check if a card has any upgrades applied
+        /// </summary>
+        private bool HasCardUpgrades(object cardState)
+        {
+            try
+            {
+                if (cardState == null) return false;
+                var type = cardState.GetType();
+                var bindingFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+
+                // Try GetUpgrades method
+                var getUpgradesMethod = type.GetMethod("GetUpgrades", Type.EmptyTypes);
+                if (getUpgradesMethod != null)
+                {
+                    var upgrades = getUpgradesMethod.Invoke(cardState, null) as System.Collections.IList;
+                    if (upgrades != null && upgrades.Count > 0) return true;
+                }
+
+                // Try upgrades field
+                var upgradesField = type.GetField("upgrades", bindingFlags) ??
+                                    type.GetField("_upgrades", bindingFlags) ??
+                                    type.GetField("appliedUpgrades", bindingFlags);
+                if (upgradesField != null)
+                {
+                    var upgrades = upgradesField.GetValue(cardState) as System.Collections.IList;
+                    if (upgrades != null && upgrades.Count > 0) return true;
+                }
+            }
+            catch { }
+            return false;
         }
 
         private string GetCardDescription(object cardState)
@@ -906,6 +941,13 @@ namespace MonsterTrainAccessibility.Screens
                         string capacityInfo = maxCapacity > 0 ? $" ({usedCapacity}/{maxCapacity} capacity)" : "";
                         string floorName = $"{RoomIndexToFloorName(roomIndex)}{capacityInfo}";
 
+                        // Get floor enchantments/modifiers
+                        string enchantments = GetFloorEnchantments(room);
+                        if (!string.IsNullOrEmpty(enchantments))
+                        {
+                            floorName += $". {enchantments}";
+                        }
+
                         if (units.Count == 0)
                         {
                             output?.Queue($"{floorName}: Empty");
@@ -947,12 +989,16 @@ namespace MonsterTrainAccessibility.Screens
         {
             string name = GetUnitName(unit);
             int hp = GetUnitHP(unit);
+            int maxHp = GetUnitMaxHP(unit);
             int attack = GetUnitAttack(unit);
             int size = GetUnitSize(unit);
             bool isEnemy = IsEnemyUnit(unit);
 
             var sb = new StringBuilder();
-            sb.Append($"{name} {attack}/{hp}");
+            sb.Append($"{name} {attack} attack, {hp}");
+            if (maxHp > 0 && maxHp != hp)
+                sb.Append($" of {maxHp}");
+            sb.Append(" health");
 
             // Add all status effects
             string statusEffects = GetUnitStatusEffects(unit);
@@ -1129,6 +1175,88 @@ namespace MonsterTrainAccessibility.Screens
         }
 
         /// <summary>
+        /// Get floor enchantments/modifiers from a room state
+        /// </summary>
+        private string GetFloorEnchantments(object room)
+        {
+            try
+            {
+                if (room == null) return null;
+                var roomType = room.GetType();
+                var bindingFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+                var enchantments = new List<string>();
+
+                // Try GetRoomStateModifiers or similar
+                var getModifiersMethod = roomType.GetMethod("GetRoomStateModifiers", Type.EmptyTypes) ??
+                                         roomType.GetMethod("GetModifiers", Type.EmptyTypes) ??
+                                         roomType.GetMethod("GetEnchantments", Type.EmptyTypes);
+
+                if (getModifiersMethod != null)
+                {
+                    var modifiers = getModifiersMethod.Invoke(room, null) as System.Collections.IList;
+                    if (modifiers != null && modifiers.Count > 0)
+                    {
+                        foreach (var modifier in modifiers)
+                        {
+                            if (modifier == null) continue;
+                            var modType = modifier.GetType();
+                            var getNameMethod = modType.GetMethod("GetName", Type.EmptyTypes);
+                            if (getNameMethod != null)
+                            {
+                                string name = getNameMethod.Invoke(modifier, null) as string;
+                                if (!string.IsNullOrEmpty(name))
+                                    enchantments.Add(StripRichTextTags(name));
+                            }
+                        }
+                    }
+                }
+
+                // Also check for status effects on the room itself
+                var statusField = roomType.GetField("statusEffects", bindingFlags) ??
+                                  roomType.GetField("_statusEffects", bindingFlags);
+                if (statusField != null)
+                {
+                    var effects = statusField.GetValue(room) as System.Collections.IList;
+                    if (effects != null)
+                    {
+                        foreach (var effect in effects)
+                        {
+                            if (effect == null) continue;
+                            var effectType = effect.GetType();
+                            string effectId = null;
+
+                            var getIdMethod = effectType.GetMethod("GetStatusId", Type.EmptyTypes);
+                            if (getIdMethod != null)
+                            {
+                                effectId = getIdMethod.Invoke(effect, null) as string;
+                            }
+                            else
+                            {
+                                var idField = effectType.GetField("statusId", bindingFlags);
+                                effectId = idField?.GetValue(effect) as string;
+                            }
+
+                            if (!string.IsNullOrEmpty(effectId) && !enchantments.Contains(effectId))
+                            {
+                                enchantments.Add(effectId);
+                            }
+                        }
+                    }
+                }
+
+                if (enchantments.Count > 0)
+                {
+                    return "Enchantments: " + string.Join(", ", enchantments);
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting floor enchantments: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
         /// Get the currently selected room index from the game state.
         /// Returns room index (0=bottom, 1=middle, 2=top, 3=pyre).
         /// Returns -1 if unable to determine.
@@ -1300,8 +1428,10 @@ namespace MonsterTrainAccessibility.Screens
                         {
                             string name = GetUnitName(unit);
                             int hp = GetUnitHP(unit);
+                            int maxHp = GetUnitMaxHP(unit);
                             int attack = GetUnitAttack(unit);
-                            enemies.Add($"{name} {attack}/{hp} on {RoomIndexToFloorName(roomIndex).ToLower()}");
+                            string hpText = (maxHp > 0 && maxHp != hp) ? $"{hp} of {maxHp}" : $"{hp}";
+                            enemies.Add($"{name} {attack} attack, {hpText} health on {RoomIndexToFloorName(roomIndex).ToLower()}");
                         }
                     }
                 }
@@ -1333,8 +1463,10 @@ namespace MonsterTrainAccessibility.Screens
                         {
                             string name = GetUnitName(unit);
                             int hp = GetUnitHP(unit);
+                            int maxHp = GetUnitMaxHP(unit);
                             int attack = GetUnitAttack(unit);
-                            friendlies.Add($"{name} {attack}/{hp} on {RoomIndexToFloorName(roomIndex).ToLower()}");
+                            string hpText = (maxHp > 0 && maxHp != hp) ? $"{hp} of {maxHp}" : $"{hp}";
+                            friendlies.Add($"{name} {attack} attack, {hpText} health on {RoomIndexToFloorName(roomIndex).ToLower()}");
                         }
                     }
                 }
@@ -1654,10 +1786,30 @@ namespace MonsterTrainAccessibility.Screens
                     sb.Append($"Pyre: {pyreHP} of {maxPyreHP}. ");
                 }
 
+                // Pyre armor and attack
+                int pyreArmor = GetPyreStatusEffect("armor");
+                if (pyreArmor > 0)
+                {
+                    sb.Append($"Pyre Armor: {pyreArmor}. ");
+                }
+
+                int pyreAttack = GetPyreStatusEffect("attack");
+                if (pyreAttack > 0)
+                {
+                    sb.Append($"Pyre Attack: {pyreAttack}. ");
+                }
+
                 var hand = GetHandCards();
                 if (hand != null)
                 {
-                    sb.Append($"Cards in hand: {hand.Count}.");
+                    sb.Append($"Cards in hand: {hand.Count}. ");
+                }
+
+                // Wave counter
+                string waveInfo = GetWaveInfo();
+                if (!string.IsNullOrEmpty(waveInfo))
+                {
+                    sb.Append(waveInfo);
                 }
 
                 MonsterTrainAccessibility.ScreenReader?.Speak(sb.ToString(), false);
@@ -1667,6 +1819,125 @@ namespace MonsterTrainAccessibility.Screens
                 MonsterTrainAccessibility.LogError($"Error announcing resources: {ex.Message}");
                 MonsterTrainAccessibility.ScreenReader?.Speak("Could not read resources", false);
             }
+        }
+
+        /// <summary>
+        /// Get wave info from the combat manager (current wave / total waves)
+        /// </summary>
+        private string GetWaveInfo()
+        {
+            try
+            {
+                if (_combatManager == null) return null;
+
+                var cmType = _combatManager.GetType();
+                var bindingFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+
+                // Try GetCurrentWaveIndex or similar
+                int currentWave = -1;
+                int totalWaves = -1;
+
+                var getCurrentWaveMethod = cmType.GetMethod("GetCurrentWaveIndex", Type.EmptyTypes) ??
+                                           cmType.GetMethod("GetCurrentWave", Type.EmptyTypes);
+                if (getCurrentWaveMethod != null)
+                {
+                    var result = getCurrentWaveMethod.Invoke(_combatManager, null);
+                    if (result is int w) currentWave = w;
+                }
+
+                // Try field access
+                if (currentWave < 0)
+                {
+                    var waveField = cmType.GetField("currentWaveIndex", bindingFlags) ??
+                                    cmType.GetField("_currentWaveIndex", bindingFlags) ??
+                                    cmType.GetField("currentWave", bindingFlags);
+                    if (waveField != null)
+                    {
+                        var val = waveField.GetValue(_combatManager);
+                        if (val is int w) currentWave = w;
+                    }
+                }
+
+                // Get total waves
+                var getTotalWavesMethod = cmType.GetMethod("GetNumWaves", Type.EmptyTypes) ??
+                                          cmType.GetMethod("GetTotalWaves", Type.EmptyTypes) ??
+                                          cmType.GetMethod("GetWaveCount", Type.EmptyTypes);
+                if (getTotalWavesMethod != null)
+                {
+                    var result = getTotalWavesMethod.Invoke(_combatManager, null);
+                    if (result is int w) totalWaves = w;
+                }
+
+                if (totalWaves < 0)
+                {
+                    var wavesField = cmType.GetField("numWaves", bindingFlags) ??
+                                     cmType.GetField("_numWaves", bindingFlags) ??
+                                     cmType.GetField("totalWaves", bindingFlags);
+                    if (wavesField != null)
+                    {
+                        var val = wavesField.GetValue(_combatManager);
+                        if (val is int w) totalWaves = w;
+                    }
+                }
+
+                if (currentWave >= 0 && totalWaves > 0)
+                {
+                    return $"Wave {currentWave + 1} of {totalWaves}. ";
+                }
+                else if (currentWave >= 0)
+                {
+                    return $"Wave {currentWave + 1}. ";
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting wave info: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Get a status effect value from the pyre (room index 3)
+        /// </summary>
+        private int GetPyreStatusEffect(string effectName)
+        {
+            try
+            {
+                var pyreRoom = GetRoom(3);
+                if (pyreRoom == null) return 0;
+
+                // Get pyre character from the room
+                var units = GetUnitsInRoom(pyreRoom);
+                foreach (var unit in units)
+                {
+                    int stacks = GetStatusEffectStacks(unit, effectName);
+                    if (stacks > 0) return stacks;
+                }
+            }
+            catch { }
+            return 0;
+        }
+
+        /// <summary>
+        /// Get status effect stacks on a unit
+        /// </summary>
+        private int GetStatusEffectStacks(object unit, string effectId)
+        {
+            try
+            {
+                if (unit == null) return 0;
+                var unitType = unit.GetType();
+
+                var getStacksMethod = unitType.GetMethod("GetStatusEffectStacks",
+                    new[] { typeof(string) });
+                if (getStacksMethod != null)
+                {
+                    var result = getStacksMethod.Invoke(unit, new object[] { effectId });
+                    if (result is int stacks) return stacks;
+                }
+            }
+            catch { }
+            return 0;
         }
 
         private int GetCurrentEnergy()

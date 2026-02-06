@@ -24,7 +24,7 @@ namespace MonsterTrainAccessibility.Core
         /// <summary>
         /// Currently browsed floor room index for Page Up/Down outside targeting mode
         /// </summary>
-        private int _browsingFloor = 2; // Start at bottom (Floor 1)
+        private int _browsingFloor = 0; // Start at bottom floor (room index 0)
 
         private void Update()
         {
@@ -253,12 +253,12 @@ namespace MonsterTrainAccessibility.Core
         /// </summary>
         private void BrowseFloor(bool up)
         {
-            // Room index 0 = top floor, 2 = bottom floor
-            // Page Up = go up = decrease room index, Page Down = go down = increase room index
+            // Room index 0 = bottom floor, 2 = top floor (matches game convention)
+            // Page Up = go up = increase room index, Page Down = go down = decrease room index
             if (up)
-                _browsingFloor = Mathf.Max(0, _browsingFloor - 1);
-            else
                 _browsingFloor = Mathf.Min(2, _browsingFloor + 1);
+            else
+                _browsingFloor = Mathf.Max(0, _browsingFloor - 1);
 
             var battle = MonsterTrainAccessibility.BattleHandler;
             string floorName = Screens.BattleAccessibility.RoomIndexToFloorName(_browsingFloor);

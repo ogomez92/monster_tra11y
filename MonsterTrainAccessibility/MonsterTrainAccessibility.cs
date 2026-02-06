@@ -108,12 +108,28 @@ namespace MonsterTrainAccessibility
             CompendiumScreenPatch.TryPatch(_harmony);
             ScreenManagerPatch.TryPatch(_harmony);
 
+            // New screen patches
+            RewardScreenPatch.TryPatch(_harmony);
+            RelicDraftScreenPatch.TryPatch(_harmony);
+            StoryEventScreenPatch.TryPatch(_harmony);
+            ChampionUpgradeScreenPatch.TryPatch(_harmony);
+            DeckScreenPatch.TryPatch(_harmony);
+            SynthesisScreenPatch.TryPatch(_harmony);
+            DialogScreenPatch.TryPatch(_harmony);
+            RunHistoryScreenPatch.TryPatch(_harmony);
+            ChallengeDetailsScreenPatch.TryPatch(_harmony);
+            ChallengeOverviewScreenPatch.TryPatch(_harmony);
+            MinimapScreenPatch.TryPatch(_harmony);
+            CreditsScreenPatch.TryPatch(_harmony);
+            KeyMappingScreenPatch.TryPatch(_harmony);
+
             // Combat event patches
             PlayerTurnStartPatch.TryPatch(_harmony);
             PlayerTurnEndPatch.TryPatch(_harmony);
             DamageAppliedPatch.TryPatch(_harmony);
             CharacterDamagePatch.TryPatch(_harmony);
             UnitDeathPatch.TryPatch(_harmony);
+            UpdateHpPatch.TryPatch(_harmony);
             StatusEffectPatch.TryPatch(_harmony);
             BattleVictoryPatch.TryPatch(_harmony);
             UnitSpawnPatch.TryPatch(_harmony);
@@ -162,14 +178,20 @@ namespace MonsterTrainAccessibility
                 new MainMenuHelp(),         // Priority 40
                 new ClanSelectionHelp(),    // Priority 50
                 new MapHelp(),              // Priority 60
+                new SynthesisHelp(),        // Priority 70 - unit synthesis (DLC)
                 new ShopHelp(),             // Priority 70
                 new EventHelp(),            // Priority 70
+                new RewardsHelp(),          // Priority 75 - post-battle rewards
+                new DeckScreenHelp(),       // Priority 75 - deck view/purge/upgrade
                 new CardDraftHelp(),        // Priority 80
+                new RelicDraftHelp(),       // Priority 80 - artifact draft
+                new ChampionUpgradeHelp(),  // Priority 80 - champion upgrade
                 new BattleIntroHelp(),      // Priority 85 - pre-battle screen
                 new BattleHelp(),           // Priority 90
                 new TutorialHelp(),         // Priority 95 - tutorial popups
                 new BattleTargetingHelp(),  // Priority 100 - floor targeting
-                new UnitTargetingHelp()     // Priority 101 - unit targeting (highest)
+                new UnitTargetingHelp(),    // Priority 101 - unit targeting (highest)
+                new DialogHelp()            // Priority 110 - dialog/popup (highest priority screen)
             );
             Log.LogInfo("Registered help contexts");
         }

@@ -2,8 +2,10 @@ using HarmonyLib;
 using MonsterTrainAccessibility.Core;
 using MonsterTrainAccessibility.Help;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Text;
 using UnityEngine;
 
 namespace MonsterTrainAccessibility.Patches
@@ -896,17 +898,104 @@ namespace MonsterTrainAccessibility.Patches
             try
             {
                 ScreenStateTracker.SetScreen(Help.GameScreen.CardDraft);
-                // Extract draft cards from __instance and call handler
-                // This would parse the actual CardDraftScreen to get card data
                 MonsterTrainAccessibility.LogInfo("Card draft screen detected");
-
-                // For now, announce generic draft entry
-                MonsterTrainAccessibility.ScreenReader?.AnnounceScreen("Card Draft. Press F1 for help.");
+                AutoReadCardDraft(__instance);
             }
             catch (Exception ex)
             {
                 MonsterTrainAccessibility.LogError($"Error in CardDraftScreen patch: {ex.Message}");
             }
+        }
+
+        private static void AutoReadCardDraft(object screen)
+        {
+            try
+            {
+                var sb = new System.Text.StringBuilder();
+                sb.Append("Card Draft. ");
+
+                var screenType = screen.GetType();
+                var bindingFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+
+                // Try to get draft card items or card data list
+                System.Collections.IList cards = null;
+
+                // Look for draftItems, cardChoices, etc.
+                string[] fieldNames = { "draftItems", "cardChoiceItems", "choices", "cardChoices", "_draftItems", "cards", "_cards" };
+                foreach (var fieldName in fieldNames)
+                {
+                    var field = screenType.GetField(fieldName, bindingFlags);
+                    if (field != null)
+                    {
+                        cards = field.GetValue(screen) as System.Collections.IList;
+                        if (cards != null && cards.Count > 0) break;
+                    }
+                }
+
+                if (cards != null && cards.Count > 0)
+                {
+                    sb.Append($"{cards.Count} cards: ");
+                    foreach (var card in cards)
+                    {
+                        if (card == null) continue;
+                        string name = GetCardName(card);
+                        if (!string.IsNullOrEmpty(name))
+                        {
+                            sb.Append($"{name}, ");
+                        }
+                    }
+                }
+
+                sb.Append("Left and Right to browse. Enter to select. Press F1 for help.");
+                MonsterTrainAccessibility.ScreenReader?.Speak(sb.ToString(), false);
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error auto-reading card draft: {ex.Message}");
+                MonsterTrainAccessibility.ScreenReader?.AnnounceScreen("Card Draft. Left and Right to browse. Enter to select. Press F1 for help.");
+            }
+        }
+
+        /// <summary>
+        /// Get card name from a CardData, CardState, or CardChoiceItem
+        /// </summary>
+        private static string GetCardName(object card)
+        {
+            if (card == null) return null;
+            try
+            {
+                var cardType = card.GetType();
+
+                // Try GetName first
+                var getNameMethod = cardType.GetMethod("GetName", Type.EmptyTypes);
+                if (getNameMethod != null)
+                {
+                    string name = getNameMethod.Invoke(card, null) as string;
+                    if (!string.IsNullOrEmpty(name)) return Screens.BattleAccessibility.StripRichTextTags(name);
+                }
+
+                // Try GetTitle
+                var getTitleMethod = cardType.GetMethod("GetTitle", Type.EmptyTypes);
+                if (getTitleMethod != null)
+                {
+                    string title = getTitleMethod.Invoke(card, null) as string;
+                    if (!string.IsNullOrEmpty(title)) return Screens.BattleAccessibility.StripRichTextTags(title);
+                }
+
+                // If it's a CardChoiceItem, get the CardData from it
+                var cardDataField = cardType.GetField("cardData", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance) ??
+                                    cardType.GetField("_cardData", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (cardDataField != null)
+                {
+                    var cardData = cardDataField.GetValue(card);
+                    if (cardData != null)
+                    {
+                        return GetCardName(cardData);
+                    }
+                }
+            }
+            catch { }
+            return null;
         }
     }
 
@@ -1053,12 +1142,106 @@ namespace MonsterTrainAccessibility.Patches
                     }
                 }
 
+                // Try to get available map nodes/paths
+                string pathInfo = GetAvailablePaths(mapScreen, type);
+                if (!string.IsNullOrEmpty(pathInfo))
+                {
+                    return $"Ring {currentRing} of {totalRings}. {pathInfo}";
+                }
+
                 return $"Ring {currentRing} of {totalRings}.";
             }
             catch (Exception ex)
             {
                 MonsterTrainAccessibility.LogError($"Error getting map progress: {ex.Message}");
             }
+            return null;
+        }
+
+        /// <summary>
+        /// Get descriptions of available map paths/nodes
+        /// </summary>
+        private static string GetAvailablePaths(object mapScreen, Type screenType)
+        {
+            try
+            {
+                var bindingFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+
+                // Try to get available nodes
+                var nodesField = screenType.GetField("availableNodes", bindingFlags) ??
+                                 screenType.GetField("selectableNodes", bindingFlags) ??
+                                 screenType.GetField("currentNodes", bindingFlags) ??
+                                 screenType.GetField("_availableNodes", bindingFlags);
+
+                if (nodesField != null)
+                {
+                    var nodes = nodesField.GetValue(mapScreen) as System.Collections.IList;
+                    if (nodes != null && nodes.Count > 0)
+                    {
+                        var nodeNames = new List<string>();
+                        foreach (var node in nodes)
+                        {
+                            if (node == null) continue;
+                            string nodeName = GetMapNodeName(node);
+                            if (!string.IsNullOrEmpty(nodeName))
+                            {
+                                nodeNames.Add(nodeName);
+                            }
+                        }
+
+                        if (nodeNames.Count > 0)
+                        {
+                            return $"{nodeNames.Count} paths: {string.Join(", ", nodeNames)}.";
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting map paths: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Get a readable name for a map node
+        /// </summary>
+        private static string GetMapNodeName(object node)
+        {
+            try
+            {
+                var nodeType = node.GetType();
+
+                // Try GetNodeData or similar
+                var getDataMethod = nodeType.GetMethod("GetMapNodeData", Type.EmptyTypes) ??
+                                    nodeType.GetMethod("GetNodeData", Type.EmptyTypes);
+
+                object nodeData = getDataMethod?.Invoke(node, null) ?? node;
+                var dataType = nodeData.GetType();
+                string typeName = dataType.Name;
+
+                // Map known node data types to readable names
+                if (typeName.Contains("Battle") || typeName.Contains("Combat")) return "Battle";
+                if (typeName.Contains("Merchant") || typeName.Contains("Shop")) return "Shop";
+                if (typeName.Contains("Event") || typeName.Contains("Story")) return "Event";
+                if (typeName.Contains("Relic") || typeName.Contains("Artifact")) return "Artifact";
+                if (typeName.Contains("Upgrade") || typeName.Contains("Enhancer")) return "Upgrade";
+                if (typeName.Contains("Purge")) return "Purge";
+                if (typeName.Contains("Pact") || typeName.Contains("Divine")) return "Divine";
+                if (typeName.Contains("Reward")) return "Reward";
+
+                // Try to get the name from the node data
+                var getNameMethod = dataType.GetMethod("GetName", Type.EmptyTypes);
+                if (getNameMethod != null)
+                {
+                    string name = getNameMethod.Invoke(nodeData, null) as string;
+                    if (!string.IsNullOrEmpty(name) && !name.Contains("_"))
+                        return Screens.BattleAccessibility.StripRichTextTags(name);
+                }
+
+                return typeName.Replace("MapNodeData", "").Replace("Data", "");
+            }
+            catch { }
             return null;
         }
     }
@@ -1098,21 +1281,84 @@ namespace MonsterTrainAccessibility.Patches
             }
         }
 
-        public static void Postfix()
+        public static void Postfix(object __instance)
         {
             try
             {
                 ScreenStateTracker.SetScreen(Help.GameScreen.Shop);
-
-                // Announce gold when entering shop
-                int gold = InputInterceptor.GetCurrentGold();
-                string goldText = gold >= 0 ? $"You have {gold} gold." : "";
-
-                MonsterTrainAccessibility.ScreenReader?.AnnounceScreen($"Shop. {goldText} Press F1 for help.");
+                AutoReadShop(__instance);
             }
             catch (Exception ex)
             {
                 MonsterTrainAccessibility.LogError($"Error in MerchantScreen patch: {ex.Message}");
+            }
+        }
+
+        private static void AutoReadShop(object screen)
+        {
+            try
+            {
+                var sb = new System.Text.StringBuilder();
+                sb.Append("Shop. ");
+
+                // Announce gold
+                int gold = InputInterceptor.GetCurrentGold();
+                if (gold >= 0)
+                {
+                    sb.Append($"You have {gold} gold. ");
+                }
+
+                // Try to count shop items by category
+                if (screen != null)
+                {
+                    var screenType = screen.GetType();
+                    var bindingFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+
+                    // Try to get merchant goods list
+                    var goodsField = screenType.GetField("merchantGoods", bindingFlags) ??
+                                     screenType.GetField("_merchantGoods", bindingFlags) ??
+                                     screenType.GetField("goods", bindingFlags);
+
+                    if (goodsField != null)
+                    {
+                        var goods = goodsField.GetValue(screen) as System.Collections.IList;
+                        if (goods != null && goods.Count > 0)
+                        {
+                            int cards = 0, relics = 0, upgrades = 0, other = 0;
+                            foreach (var good in goods)
+                            {
+                                if (good == null) continue;
+                                string typeName = good.GetType().Name.ToLower();
+                                if (typeName.Contains("card")) cards++;
+                                else if (typeName.Contains("relic")) relics++;
+                                else if (typeName.Contains("enhancer") || typeName.Contains("upgrade")) upgrades++;
+                                else other++;
+                            }
+
+                            var itemParts = new System.Collections.Generic.List<string>();
+                            if (cards > 0) itemParts.Add($"{cards} cards");
+                            if (relics > 0) itemParts.Add($"{relics} artifacts");
+                            if (upgrades > 0) itemParts.Add($"{upgrades} upgrades");
+                            if (other > 0) itemParts.Add($"{other} other items");
+
+                            if (itemParts.Count > 0)
+                            {
+                                sb.Append(string.Join(", ", itemParts));
+                                sb.Append(" available. ");
+                            }
+                        }
+                    }
+                }
+
+                sb.Append("Press F1 for help.");
+                MonsterTrainAccessibility.ScreenReader?.Speak(sb.ToString(), false);
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error auto-reading shop: {ex.Message}");
+                int gold = InputInterceptor.GetCurrentGold();
+                string goldText = gold >= 0 ? $"You have {gold} gold." : "";
+                MonsterTrainAccessibility.ScreenReader?.AnnounceScreen($"Shop. {goldText} Press F1 for help.");
             }
         }
     }
@@ -2132,6 +2378,912 @@ namespace MonsterTrainAccessibility.Patches
             catch (Exception ex)
             {
                 MonsterTrainAccessibility.LogError($"Error in ScreenManager patch: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Detect reward screen (post-battle rewards)
+    /// </summary>
+    public static class RewardScreenPatch
+    {
+        public static void TryPatch(Harmony harmony)
+        {
+            try
+            {
+                var targetType = AccessTools.TypeByName("RewardScreen");
+                if (targetType != null)
+                {
+                    var method = AccessTools.Method(targetType, "Initialize") ??
+                                 AccessTools.Method(targetType, "Setup") ??
+                                 AccessTools.Method(targetType, "Show");
+                    if (method != null)
+                    {
+                        var postfix = new HarmonyMethod(typeof(RewardScreenPatch).GetMethod(nameof(Postfix)));
+                        harmony.Patch(method, postfix: postfix);
+                        MonsterTrainAccessibility.LogInfo($"Patched RewardScreen.{method.Name}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Failed to patch RewardScreen: {ex.Message}");
+            }
+        }
+
+        public static void Postfix(object __instance)
+        {
+            try
+            {
+                ScreenStateTracker.SetScreen(Help.GameScreen.Rewards);
+                AutoReadRewards(__instance);
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in RewardScreen patch: {ex.Message}");
+            }
+        }
+
+        private static void AutoReadRewards(object screen)
+        {
+            try
+            {
+                var sb = new StringBuilder();
+                sb.Append("Rewards. ");
+
+                var screenType = screen.GetType();
+                var bindingFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+
+                // Try to get reward list
+                var rewardsField = screenType.GetField("rewards", bindingFlags) ??
+                                   screenType.GetField("_rewards", bindingFlags) ??
+                                   screenType.GetField("rewardStates", bindingFlags);
+
+                if (rewardsField != null)
+                {
+                    var rewards = rewardsField.GetValue(screen) as System.Collections.IList;
+                    if (rewards != null && rewards.Count > 0)
+                    {
+                        sb.Append($"{rewards.Count} rewards: ");
+                        foreach (var reward in rewards)
+                        {
+                            string rewardName = GetRewardDisplayName(reward);
+                            if (!string.IsNullOrEmpty(rewardName))
+                            {
+                                sb.Append($"{rewardName}, ");
+                            }
+                        }
+                    }
+                }
+
+                sb.Append("Navigate with arrows. Enter to collect.");
+                MonsterTrainAccessibility.ScreenReader?.Speak(sb.ToString(), false);
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error auto-reading rewards: {ex.Message}");
+                MonsterTrainAccessibility.ScreenReader?.Speak("Rewards. Navigate with arrows. Enter to collect.", false);
+            }
+        }
+
+        private static string GetRewardDisplayName(object reward)
+        {
+            if (reward == null) return null;
+
+            try
+            {
+                var rewardType = reward.GetType();
+
+                // Try to get reward data from RewardState
+                var getDataMethod = rewardType.GetMethod("GetRewardData") ??
+                                    rewardType.GetMethod("GetData");
+                object rewardData = getDataMethod?.Invoke(reward, null) ?? reward;
+
+                var dataType = rewardData.GetType();
+                string typeName = dataType.Name;
+
+                // Map type names to readable names
+                if (typeName.Contains("Gold")) return "Gold";
+                if (typeName.Contains("Health")) return "Pyre Health";
+                if (typeName.Contains("Crystal")) return "Crystals";
+                if (typeName.Contains("RelicDraft") || typeName.Contains("RelicPool")) return "Artifact Choice";
+                if (typeName.Contains("Relic")) return "Artifact";
+                if (typeName.Contains("CardPool") || typeName.Contains("Draft")) return "Card Draft";
+                if (typeName.Contains("Card")) return "Card";
+                if (typeName.Contains("Enhancer") || typeName.Contains("Upgrade")) return "Upgrade";
+                if (typeName.Contains("Purge")) return "Card Purge";
+                if (typeName.Contains("Synthesis")) return "Unit Synthesis";
+                if (typeName.Contains("ChampionUpgrade")) return "Champion Upgrade";
+                if (typeName.Contains("Merchant")) return "Shop";
+                if (typeName.Contains("MapSkip")) return "Map Skip";
+
+                // Try GetTitle for any other type
+                var getTitleMethod = dataType.GetMethod("GetTitle", Type.EmptyTypes);
+                if (getTitleMethod != null)
+                {
+                    string title = getTitleMethod.Invoke(rewardData, null) as string;
+                    if (!string.IsNullOrEmpty(title) && !title.Contains("_"))
+                        return title;
+                }
+
+                // Fallback: clean up type name
+                return typeName.Replace("RewardData", "").Replace("RewardState", "").Replace("Data", "");
+            }
+            catch
+            {
+                return "Reward";
+            }
+        }
+    }
+
+    /// <summary>
+    /// Detect artifact/relic draft screen
+    /// </summary>
+    public static class RelicDraftScreenPatch
+    {
+        public static void TryPatch(Harmony harmony)
+        {
+            try
+            {
+                var targetType = AccessTools.TypeByName("RelicDraftScreen");
+                if (targetType != null)
+                {
+                    var method = AccessTools.Method(targetType, "Setup") ??
+                                 AccessTools.Method(targetType, "Initialize") ??
+                                 AccessTools.Method(targetType, "Show");
+                    if (method != null)
+                    {
+                        var postfix = new HarmonyMethod(typeof(RelicDraftScreenPatch).GetMethod(nameof(Postfix)));
+                        harmony.Patch(method, postfix: postfix);
+                        MonsterTrainAccessibility.LogInfo($"Patched RelicDraftScreen.{method.Name}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Failed to patch RelicDraftScreen: {ex.Message}");
+            }
+        }
+
+        public static void Postfix(object __instance)
+        {
+            try
+            {
+                ScreenStateTracker.SetScreen(Help.GameScreen.RelicDraft);
+                AutoReadRelicDraft(__instance);
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in RelicDraftScreen patch: {ex.Message}");
+            }
+        }
+
+        private static void AutoReadRelicDraft(object screen)
+        {
+            try
+            {
+                var sb = new StringBuilder();
+                sb.Append("Artifact Draft. ");
+
+                var screenType = screen.GetType();
+                var bindingFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+
+                // Try to get relic choices
+                var relicsField = screenType.GetField("relicChoices", bindingFlags) ??
+                                  screenType.GetField("relics", bindingFlags) ??
+                                  screenType.GetField("_relics", bindingFlags) ??
+                                  screenType.GetField("draftRelics", bindingFlags);
+
+                if (relicsField != null)
+                {
+                    var relics = relicsField.GetValue(screen) as System.Collections.IList;
+                    if (relics != null && relics.Count > 0)
+                    {
+                        sb.Append($"{relics.Count} artifacts: ");
+                        foreach (var relic in relics)
+                        {
+                            string name = GetRelicName(relic);
+                            if (!string.IsNullOrEmpty(name))
+                            {
+                                sb.Append($"{name}, ");
+                            }
+                        }
+                    }
+                }
+
+                sb.Append("Left and Right to browse. Enter to select. Escape to skip.");
+                MonsterTrainAccessibility.ScreenReader?.Speak(sb.ToString(), false);
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error auto-reading relic draft: {ex.Message}");
+                MonsterTrainAccessibility.ScreenReader?.Speak("Artifact Draft. Left and Right to browse. Enter to select.", false);
+            }
+        }
+
+        private static string GetRelicName(object relic)
+        {
+            if (relic == null) return null;
+            try
+            {
+                var relicType = relic.GetType();
+                var getNameMethod = relicType.GetMethod("GetName", Type.EmptyTypes);
+                if (getNameMethod != null)
+                {
+                    return getNameMethod.Invoke(relic, null) as string;
+                }
+
+                // Try name field
+                var nameField = relicType.GetField("name", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                return nameField?.GetValue(relic) as string;
+            }
+            catch { return null; }
+        }
+    }
+
+    /// <summary>
+    /// Detect story event screen
+    /// </summary>
+    public static class StoryEventScreenPatch
+    {
+        public static void TryPatch(Harmony harmony)
+        {
+            try
+            {
+                var targetType = AccessTools.TypeByName("StoryEventScreen");
+                if (targetType != null)
+                {
+                    var method = AccessTools.Method(targetType, "Initialize") ??
+                                 AccessTools.Method(targetType, "Setup") ??
+                                 AccessTools.Method(targetType, "Show");
+                    if (method != null)
+                    {
+                        var postfix = new HarmonyMethod(typeof(StoryEventScreenPatch).GetMethod(nameof(Postfix)));
+                        harmony.Patch(method, postfix: postfix);
+                        MonsterTrainAccessibility.LogInfo($"Patched StoryEventScreen.{method.Name}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Failed to patch StoryEventScreen: {ex.Message}");
+            }
+        }
+
+        public static void Postfix(object __instance)
+        {
+            try
+            {
+                ScreenStateTracker.SetScreen(Help.GameScreen.Event);
+                MonsterTrainAccessibility.ScreenReader?.AnnounceScreen("Event. Navigate choices with arrows. Enter to select. Press F1 for help.");
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in StoryEventScreen patch: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Detect champion upgrade screen
+    /// </summary>
+    public static class ChampionUpgradeScreenPatch
+    {
+        public static void TryPatch(Harmony harmony)
+        {
+            try
+            {
+                var targetType = AccessTools.TypeByName("ChampionUpgradeScreen");
+                if (targetType != null)
+                {
+                    var method = AccessTools.Method(targetType, "Initialize") ??
+                                 AccessTools.Method(targetType, "Setup") ??
+                                 AccessTools.Method(targetType, "Show");
+                    if (method != null)
+                    {
+                        var postfix = new HarmonyMethod(typeof(ChampionUpgradeScreenPatch).GetMethod(nameof(Postfix)));
+                        harmony.Patch(method, postfix: postfix);
+                        MonsterTrainAccessibility.LogInfo($"Patched ChampionUpgradeScreen.{method.Name}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Failed to patch ChampionUpgradeScreen: {ex.Message}");
+            }
+        }
+
+        public static void Postfix(object __instance)
+        {
+            try
+            {
+                ScreenStateTracker.SetScreen(Help.GameScreen.ChampionUpgrade);
+                AutoReadChampionUpgrade(__instance);
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in ChampionUpgradeScreen patch: {ex.Message}");
+            }
+        }
+
+        private static void AutoReadChampionUpgrade(object screen)
+        {
+            try
+            {
+                var sb = new StringBuilder();
+                sb.Append("Champion Upgrade. ");
+
+                var screenType = screen.GetType();
+                var bindingFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+
+                // Try to get upgrade tree data
+                var treeField = screenType.GetField("upgradeTree", bindingFlags) ??
+                                screenType.GetField("upgradeTreeData", bindingFlags) ??
+                                screenType.GetField("_upgradeTreeData", bindingFlags);
+
+                if (treeField != null)
+                {
+                    var treeData = treeField.GetValue(screen);
+                    if (treeData != null)
+                    {
+                        // Try to get champion name
+                        var getNameMethod = treeData.GetType().GetMethod("GetName", Type.EmptyTypes);
+                        if (getNameMethod != null)
+                        {
+                            string name = getNameMethod.Invoke(treeData, null) as string;
+                            if (!string.IsNullOrEmpty(name))
+                            {
+                                sb.Append($"Champion: {name}. ");
+                            }
+                        }
+                    }
+                }
+
+                // Try to get upgrade choices count
+                var choicesField = screenType.GetField("upgradeChoices", bindingFlags) ??
+                                   screenType.GetField("choices", bindingFlags) ??
+                                   screenType.GetField("_choices", bindingFlags);
+
+                if (choicesField != null)
+                {
+                    var choices = choicesField.GetValue(screen) as System.Collections.IList;
+                    if (choices != null)
+                    {
+                        sb.Append($"{choices.Count} upgrade paths available. ");
+                    }
+                }
+
+                sb.Append("Left and Right to browse. Enter to select. Press F1 for help.");
+                MonsterTrainAccessibility.ScreenReader?.Speak(sb.ToString(), false);
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error auto-reading champion upgrade: {ex.Message}");
+                MonsterTrainAccessibility.ScreenReader?.Speak("Champion Upgrade. Left and Right to browse. Enter to select.", false);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Detect deck/card list screen (deck view, purge, upgrade, draw pile, discard pile)
+    /// </summary>
+    public static class DeckScreenPatch
+    {
+        public static void TryPatch(Harmony harmony)
+        {
+            try
+            {
+                var targetType = AccessTools.TypeByName("DeckScreen");
+                if (targetType != null)
+                {
+                    var method = AccessTools.Method(targetType, "Initialize") ??
+                                 AccessTools.Method(targetType, "Setup") ??
+                                 AccessTools.Method(targetType, "Show");
+                    if (method != null)
+                    {
+                        var postfix = new HarmonyMethod(typeof(DeckScreenPatch).GetMethod(nameof(Postfix)));
+                        harmony.Patch(method, postfix: postfix);
+                        MonsterTrainAccessibility.LogInfo($"Patched DeckScreen.{method.Name}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Failed to patch DeckScreen: {ex.Message}");
+            }
+        }
+
+        public static void Postfix(object __instance)
+        {
+            try
+            {
+                ScreenStateTracker.SetScreen(Help.GameScreen.DeckView);
+                AutoReadDeckScreen(__instance);
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in DeckScreen patch: {ex.Message}");
+            }
+        }
+
+        private static void AutoReadDeckScreen(object screen)
+        {
+            try
+            {
+                var screenType = screen.GetType();
+                var bindingFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+
+                // Try to determine the mode/source
+                string modeStr = null;
+                var modeField = screenType.GetField("mode", bindingFlags) ??
+                                screenType.GetField("_mode", bindingFlags) ??
+                                screenType.GetField("source", bindingFlags) ??
+                                screenType.GetField("_source", bindingFlags);
+
+                if (modeField != null)
+                {
+                    var modeValue = modeField.GetValue(screen);
+                    modeStr = modeValue?.ToString();
+                }
+
+                // Get card count
+                int cardCount = 0;
+                var cardsField = screenType.GetField("cards", bindingFlags) ??
+                                 screenType.GetField("_cards", bindingFlags) ??
+                                 screenType.GetField("cardStates", bindingFlags);
+
+                if (cardsField != null)
+                {
+                    var cards = cardsField.GetValue(screen) as System.Collections.IList;
+                    if (cards != null)
+                        cardCount = cards.Count;
+                }
+
+                // Build context-dependent announcement
+                string announcement;
+                if (!string.IsNullOrEmpty(modeStr))
+                {
+                    string modeLower = modeStr.ToLower();
+                    if (modeLower.Contains("purge") || modeLower.Contains("remove"))
+                        announcement = $"Card Purge. Select a card to remove. {cardCount} cards.";
+                    else if (modeLower.Contains("upgrade") || modeLower.Contains("enhance"))
+                        announcement = $"Card Upgrade. Select a card to enhance. {cardCount} cards.";
+                    else if (modeLower.Contains("draw"))
+                        announcement = $"Draw Pile. {cardCount} cards.";
+                    else if (modeLower.Contains("discard"))
+                        announcement = $"Discard Pile. {cardCount} cards.";
+                    else
+                        announcement = cardCount > 0 ? $"Deck. {cardCount} cards." : "Deck.";
+                }
+                else
+                {
+                    announcement = cardCount > 0 ? $"Deck. {cardCount} cards." : "Deck.";
+                }
+
+                announcement += " Arrow keys to browse cards. Press F1 for help.";
+                MonsterTrainAccessibility.ScreenReader?.Speak(announcement, false);
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error auto-reading deck screen: {ex.Message}");
+                MonsterTrainAccessibility.ScreenReader?.Speak("Deck. Arrow keys to browse cards.", false);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Detect unit synthesis screen (DLC)
+    /// </summary>
+    public static class SynthesisScreenPatch
+    {
+        public static void TryPatch(Harmony harmony)
+        {
+            try
+            {
+                var targetType = AccessTools.TypeByName("SynthesisScreen");
+                if (targetType == null)
+                {
+                    // DLC type may not be present
+                    MonsterTrainAccessibility.LogInfo("SynthesisScreen not found (DLC may not be installed)");
+                    return;
+                }
+
+                var method = AccessTools.Method(targetType, "Initialize") ??
+                             AccessTools.Method(targetType, "Setup") ??
+                             AccessTools.Method(targetType, "Show");
+                if (method != null)
+                {
+                    var postfix = new HarmonyMethod(typeof(SynthesisScreenPatch).GetMethod(nameof(Postfix)));
+                    harmony.Patch(method, postfix: postfix);
+                    MonsterTrainAccessibility.LogInfo($"Patched SynthesisScreen.{method.Name}");
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Failed to patch SynthesisScreen: {ex.Message}");
+            }
+        }
+
+        public static void Postfix(object __instance)
+        {
+            try
+            {
+                ScreenStateTracker.SetScreen(Help.GameScreen.Synthesis);
+                MonsterTrainAccessibility.ScreenReader?.AnnounceScreen("Unit Synthesis. Arrow keys to browse units. Enter to select. Press F1 for help.");
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in SynthesisScreen patch: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Detect dialog/popup screen
+    /// </summary>
+    public static class DialogScreenPatch
+    {
+        public static void TryPatch(Harmony harmony)
+        {
+            try
+            {
+                var targetType = AccessTools.TypeByName("DialogScreen");
+                if (targetType == null)
+                {
+                    targetType = AccessTools.TypeByName("DialogPopup");
+                }
+
+                if (targetType != null)
+                {
+                    var method = AccessTools.Method(targetType, "ShowDialog") ??
+                                 AccessTools.Method(targetType, "Show") ??
+                                 AccessTools.Method(targetType, "Initialize");
+                    if (method != null)
+                    {
+                        var postfix = new HarmonyMethod(typeof(DialogScreenPatch).GetMethod(nameof(Postfix)));
+                        harmony.Patch(method, postfix: postfix);
+                        MonsterTrainAccessibility.LogInfo($"Patched {targetType.Name}.{method.Name}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Failed to patch DialogScreen: {ex.Message}");
+            }
+        }
+
+        public static void Postfix(object __instance)
+        {
+            try
+            {
+                ScreenStateTracker.SetScreen(Help.GameScreen.Dialog);
+                AutoReadDialog(__instance);
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in DialogScreen patch: {ex.Message}");
+            }
+        }
+
+        private static void AutoReadDialog(object screen)
+        {
+            try
+            {
+                var screenType = screen.GetType();
+                var bindingFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+
+                var sb = new StringBuilder();
+                sb.Append("Dialog. ");
+
+                // Try to get dialog content text
+                string[] textFieldNames = { "contentText", "messageText", "bodyText", "dialogText", "content", "_content", "message", "_message" };
+                foreach (var fieldName in textFieldNames)
+                {
+                    var field = screenType.GetField(fieldName, bindingFlags);
+                    if (field != null)
+                    {
+                        var value = field.GetValue(screen);
+                        if (value != null)
+                        {
+                            // Could be a TMP_Text component or a string
+                            string text = null;
+                            if (value is string str)
+                            {
+                                text = str;
+                            }
+                            else
+                            {
+                                var textProp = value.GetType().GetProperty("text");
+                                if (textProp != null)
+                                {
+                                    text = textProp.GetValue(value) as string;
+                                }
+                            }
+
+                            if (!string.IsNullOrEmpty(text))
+                            {
+                                sb.Append(Screens.BattleAccessibility.StripRichTextTags(text));
+                                sb.Append(" ");
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                sb.Append("Press Enter to confirm or Escape to cancel.");
+                MonsterTrainAccessibility.ScreenReader?.Speak(sb.ToString(), false);
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error auto-reading dialog: {ex.Message}");
+                MonsterTrainAccessibility.ScreenReader?.Speak("Dialog. Press Enter to confirm or Escape to cancel.", false);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Detect run history screen
+    /// </summary>
+    public static class RunHistoryScreenPatch
+    {
+        public static void TryPatch(Harmony harmony)
+        {
+            try
+            {
+                var targetNames = new[] { "RunHistoryScreen", "RunLogScreen", "PastRunsScreen" };
+                foreach (var name in targetNames)
+                {
+                    var targetType = AccessTools.TypeByName(name);
+                    if (targetType != null)
+                    {
+                        var method = AccessTools.Method(targetType, "Setup") ??
+                                     AccessTools.Method(targetType, "Show");
+                        if (method != null)
+                        {
+                            var postfix = new HarmonyMethod(typeof(RunHistoryScreenPatch).GetMethod(nameof(Postfix)));
+                            harmony.Patch(method, postfix: postfix);
+                            MonsterTrainAccessibility.LogInfo($"Patched {name}.{method.Name}");
+                            return;
+                        }
+                    }
+                }
+                MonsterTrainAccessibility.LogInfo("RunHistoryScreen not found");
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Failed to patch RunHistoryScreen: {ex.Message}");
+            }
+        }
+
+        public static void Postfix()
+        {
+            try
+            {
+                ScreenStateTracker.SetScreen(Help.GameScreen.RunHistory);
+                MonsterTrainAccessibility.ScreenReader?.AnnounceScreen("Run History. Use arrows to browse runs.");
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in RunHistoryScreen patch: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Detect challenge details screen
+    /// </summary>
+    public static class ChallengeDetailsScreenPatch
+    {
+        public static void TryPatch(Harmony harmony)
+        {
+            try
+            {
+                var targetType = AccessTools.TypeByName("ChallengeDetailsScreen");
+                if (targetType != null)
+                {
+                    var method = AccessTools.Method(targetType, "Initialize") ??
+                                 AccessTools.Method(targetType, "Setup") ??
+                                 AccessTools.Method(targetType, "Show");
+                    if (method != null)
+                    {
+                        var postfix = new HarmonyMethod(typeof(ChallengeDetailsScreenPatch).GetMethod(nameof(Postfix)));
+                        harmony.Patch(method, postfix: postfix);
+                        MonsterTrainAccessibility.LogInfo($"Patched ChallengeDetailsScreen.{method.Name}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Failed to patch ChallengeDetailsScreen: {ex.Message}");
+            }
+        }
+
+        public static void Postfix()
+        {
+            try
+            {
+                ScreenStateTracker.SetScreen(Help.GameScreen.ChallengeDetails);
+                MonsterTrainAccessibility.ScreenReader?.AnnounceScreen("Challenge Details.");
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in ChallengeDetailsScreen patch: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Detect challenge overview screen
+    /// </summary>
+    public static class ChallengeOverviewScreenPatch
+    {
+        public static void TryPatch(Harmony harmony)
+        {
+            try
+            {
+                var targetType = AccessTools.TypeByName("ChallengeOverviewScreen");
+                if (targetType != null)
+                {
+                    var method = AccessTools.Method(targetType, "Initialize") ??
+                                 AccessTools.Method(targetType, "Setup") ??
+                                 AccessTools.Method(targetType, "Show");
+                    if (method != null)
+                    {
+                        var postfix = new HarmonyMethod(typeof(ChallengeOverviewScreenPatch).GetMethod(nameof(Postfix)));
+                        harmony.Patch(method, postfix: postfix);
+                        MonsterTrainAccessibility.LogInfo($"Patched ChallengeOverviewScreen.{method.Name}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Failed to patch ChallengeOverviewScreen: {ex.Message}");
+            }
+        }
+
+        public static void Postfix()
+        {
+            try
+            {
+                ScreenStateTracker.SetScreen(Help.GameScreen.ChallengeOverview);
+                MonsterTrainAccessibility.ScreenReader?.AnnounceScreen("Challenges.");
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in ChallengeOverviewScreen patch: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Detect minimap screen
+    /// </summary>
+    public static class MinimapScreenPatch
+    {
+        public static void TryPatch(Harmony harmony)
+        {
+            try
+            {
+                var targetType = AccessTools.TypeByName("MinimapScreen");
+                if (targetType != null)
+                {
+                    var method = AccessTools.Method(targetType, "Initialize") ??
+                                 AccessTools.Method(targetType, "Show");
+                    if (method != null)
+                    {
+                        var postfix = new HarmonyMethod(typeof(MinimapScreenPatch).GetMethod(nameof(Postfix)));
+                        harmony.Patch(method, postfix: postfix);
+                        MonsterTrainAccessibility.LogInfo($"Patched MinimapScreen.{method.Name}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Failed to patch MinimapScreen: {ex.Message}");
+            }
+        }
+
+        public static void Postfix()
+        {
+            try
+            {
+                ScreenStateTracker.SetScreen(Help.GameScreen.Minimap);
+                MonsterTrainAccessibility.ScreenReader?.AnnounceScreen("Minimap.");
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in MinimapScreen patch: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Detect credits screen
+    /// </summary>
+    public static class CreditsScreenPatch
+    {
+        public static void TryPatch(Harmony harmony)
+        {
+            try
+            {
+                var targetType = AccessTools.TypeByName("CreditsScreen");
+                if (targetType != null)
+                {
+                    var method = AccessTools.Method(targetType, "Initialize") ??
+                                 AccessTools.Method(targetType, "Show");
+                    if (method != null)
+                    {
+                        var postfix = new HarmonyMethod(typeof(CreditsScreenPatch).GetMethod(nameof(Postfix)));
+                        harmony.Patch(method, postfix: postfix);
+                        MonsterTrainAccessibility.LogInfo($"Patched CreditsScreen.{method.Name}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Failed to patch CreditsScreen: {ex.Message}");
+            }
+        }
+
+        public static void Postfix()
+        {
+            try
+            {
+                ScreenStateTracker.SetScreen(Help.GameScreen.Credits);
+                MonsterTrainAccessibility.ScreenReader?.AnnounceScreen("Credits. Press Escape to return.");
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in CreditsScreen patch: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Detect key mapping screen
+    /// </summary>
+    public static class KeyMappingScreenPatch
+    {
+        public static void TryPatch(Harmony harmony)
+        {
+            try
+            {
+                var targetNames = new[] { "KeyMappingScreen", "KeyBindingsScreen", "ControlsScreen", "InputMappingScreen" };
+                foreach (var name in targetNames)
+                {
+                    var targetType = AccessTools.TypeByName(name);
+                    if (targetType != null)
+                    {
+                        var method = AccessTools.Method(targetType, "Initialize") ??
+                                     AccessTools.Method(targetType, "Show") ??
+                                     AccessTools.Method(targetType, "Setup");
+                        if (method != null)
+                        {
+                            var postfix = new HarmonyMethod(typeof(KeyMappingScreenPatch).GetMethod(nameof(Postfix)));
+                            harmony.Patch(method, postfix: postfix);
+                            MonsterTrainAccessibility.LogInfo($"Patched {name}.{method.Name}");
+                            return;
+                        }
+                    }
+                }
+                MonsterTrainAccessibility.LogInfo("KeyMappingScreen not found");
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Failed to patch KeyMappingScreen: {ex.Message}");
+            }
+        }
+
+        public static void Postfix()
+        {
+            try
+            {
+                ScreenStateTracker.SetScreen(Help.GameScreen.KeyMapping);
+                MonsterTrainAccessibility.ScreenReader?.AnnounceScreen("Key Mapping. Use arrows to navigate.");
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in KeyMappingScreen patch: {ex.Message}");
             }
         }
     }

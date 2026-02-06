@@ -19,7 +19,19 @@ namespace MonsterTrainAccessibility.Help
         Settings,
         Compendium,
         Victory,
-        Defeat
+        Defeat,
+        ChampionUpgrade,
+        DeckView,
+        RelicDraft,
+        Synthesis,
+        Dialog,
+        RunHistory,
+        ChallengeDetails,
+        ChallengeOverview,
+        Minimap,
+        Credits,
+        KeyMapping,
+        Loading
     }
 
     /// <summary>

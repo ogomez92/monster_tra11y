@@ -13010,7 +13010,7 @@ namespace MonsterTrainAccessibility.Screens
                     }
                 }
 
-                // Fallback: read basic stats from BattleAccessibility
+                // Fallback: read basic stats from BattleAccessibility and SaveManager
                 var battle = MonsterTrainAccessibility.BattleHandler;
                 if (battle != null)
                 {
@@ -13039,6 +13039,9 @@ namespace MonsterTrainAccessibility.Screens
                         sb.Append($"Deck size: {deckSize} cards. ");
                     }
 
+                    // Get additional stats from SaveManager via reflection
+                    AppendSaveManagerStats(sb);
+
                     string result = sb.ToString();
                     if (result.Length > 14) // More than just "Train Stats: "
                     {
@@ -13053,6 +13056,58 @@ namespace MonsterTrainAccessibility.Screens
             {
                 MonsterTrainAccessibility.LogError($"Error reading train stats: {ex.Message}");
                 MonsterTrainAccessibility.ScreenReader?.Speak("Could not read train stats", false);
+            }
+        }
+
+        /// <summary>
+        /// Append additional stats from SaveManager (covenant, crystals, etc.)
+        /// </summary>
+        private void AppendSaveManagerStats(StringBuilder sb)
+        {
+            try
+            {
+                // Find SaveManager instance
+                Type saveManagerType = null;
+                foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    saveManagerType = assembly.GetType("SaveManager");
+                    if (saveManagerType != null) break;
+                }
+
+                if (saveManagerType == null) return;
+
+                object saveManager = FindObjectOfType(saveManagerType);
+                if (saveManager == null) return;
+
+                var bindingFlags = System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance;
+
+                // Covenant/Ascension level
+                var getAscensionMethod = saveManagerType.GetMethod("GetAscensionLevel", bindingFlags);
+                if (getAscensionMethod != null && getAscensionMethod.GetParameters().Length == 0)
+                {
+                    var result = getAscensionMethod.Invoke(saveManager, null);
+                    if (result is int covenant && covenant > 0)
+                    {
+                        sb.Append($"Covenant {covenant}. ");
+                    }
+                }
+
+                // Crystal/Shard count (DLC)
+                var getCrystalsMethod = saveManagerType.GetMethod("GetPactCrystalCount", bindingFlags) ??
+                                        saveManagerType.GetMethod("GetCrystalCount", bindingFlags) ??
+                                        saveManagerType.GetMethod("GetShardCount", bindingFlags);
+                if (getCrystalsMethod != null && getCrystalsMethod.GetParameters().Length == 0)
+                {
+                    var result = getCrystalsMethod.Invoke(saveManager, null);
+                    if (result is int crystals && crystals > 0)
+                    {
+                        sb.Append($"Crystals: {crystals}. ");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting SaveManager stats: {ex.Message}");
             }
         }
 
