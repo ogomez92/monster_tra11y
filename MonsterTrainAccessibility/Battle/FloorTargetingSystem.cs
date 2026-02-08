@@ -188,7 +188,19 @@ namespace MonsterTrainAccessibility.Battle
         {
             IsTargeting = false;
             var callback = _onConfirm;
-            var floor = SelectedFloor;
+
+            // Re-read floor from game state for accuracy (cached value may be stale)
+            int floor = SelectedFloor;
+            var battleHandler = MonsterTrainAccessibility.BattleHandler;
+            if (battleHandler != null)
+            {
+                int gameFloor = battleHandler.GetSelectedFloor();
+                MonsterTrainAccessibility.LogInfo($"ConfirmSelection: cached={SelectedFloor}, game={gameFloor}");
+                if (gameFloor >= 0 && gameFloor <= 2)
+                {
+                    floor = gameFloor;
+                }
+            }
 
             _pendingCard = null;
             _onConfirm = null;

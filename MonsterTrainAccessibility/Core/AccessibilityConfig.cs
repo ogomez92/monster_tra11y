@@ -33,6 +33,9 @@ namespace MonsterTrainAccessibility.Core
         public ConfigEntry<KeyCode> ToggleVerbosityKey { get; private set; }
         public ConfigEntry<KeyCode> HelpKey { get; private set; }
 
+        // Map keys
+        public ConfigEntry<KeyCode> ReadMapNodeKey { get; private set; }
+
         // Action keys
         public ConfigEntry<KeyCode> EndTurnKey { get; private set; }
 
@@ -185,6 +188,14 @@ namespace MonsterTrainAccessibility.Core
                 "Help",
                 KeyCode.F1,
                 "Key to show context-sensitive help for current screen"
+            );
+
+            // ========== Map Keys ==========
+            ReadMapNodeKey = config.Bind(
+                "Keys.Information",
+                "ReadMapNode",
+                KeyCode.M,
+                "Key to re-read current map node with coordinates (on map screen)"
             );
 
             // ========== Action Keys ==========

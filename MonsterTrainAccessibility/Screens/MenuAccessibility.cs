@@ -37,6 +37,10 @@ namespace MonsterTrainAccessibility.Screens
         // Track last screen to clear dialog cache when screen changes
         private Help.GameScreen _lastTrackedScreen = Help.GameScreen.Unknown;
 
+        // Covenant level tracking - to detect value changes on same focused element
+        private int _lastCovenantLevel = -1;
+        private Component _lastCovenantUI = null;
+
         // Blacklist of panel names that should be ignored when scanning for text
         private static readonly HashSet<string> _panelBlacklist = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -102,6 +106,9 @@ namespace MonsterTrainAccessibility.Screens
                     }
                 }
 
+                // Check for covenant level changes (value changes without focus change)
+                CheckForCovenantLevelChange();
+
                 // Also check for any new large text panels appearing
                 CheckForNewTextPanels();
             }
@@ -109,6 +116,87 @@ namespace MonsterTrainAccessibility.Screens
             {
                 MonsterTrainAccessibility.LogError($"Error checking text changes: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Check if the covenant level has changed while the same element stays focused.
+        /// The game changes the level on Left/Right but doesn't change focus.
+        /// </summary>
+        private void CheckForCovenantLevelChange()
+        {
+            try
+            {
+                if (_lastSelectedObject == null) return;
+
+                // Find CovenantSelectionUI on or above the focused element
+                Component covenantUI = FindCovenantUI(_lastSelectedObject);
+                if (covenantUI == null)
+                {
+                    _lastCovenantUI = null;
+                    _lastCovenantLevel = -1;
+                    return;
+                }
+
+                // Read current level via GetLevel() method or currentLevel field
+                int currentLevel = -1;
+                var uiType = covenantUI.GetType();
+
+                var getLevelMethod = uiType.GetMethod("GetLevel", Type.EmptyTypes);
+                if (getLevelMethod != null)
+                {
+                    var result = getLevelMethod.Invoke(covenantUI, null);
+                    if (result is int lvl) currentLevel = lvl;
+                }
+
+                if (currentLevel < 0)
+                {
+                    var levelField = uiType.GetField("currentLevel", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                    if (levelField != null)
+                    {
+                        var val = levelField.GetValue(covenantUI);
+                        if (val != null) currentLevel = Convert.ToInt32(val);
+                    }
+                }
+
+                // If the level changed, announce
+                if (currentLevel >= 0 && (covenantUI != _lastCovenantUI || currentLevel != _lastCovenantLevel))
+                {
+                    if (_lastCovenantUI != null && _lastCovenantLevel >= 0 && _lastCovenantLevel != currentLevel)
+                    {
+                        // Read the full covenant text and announce
+                        string text = GetCovenantSelectorText(_lastSelectedObject);
+                        if (!string.IsNullOrEmpty(text))
+                        {
+                            text = CleanSpriteTagsForSpeech(text);
+                            MonsterTrainAccessibility.ScreenReader?.Speak(text, false);
+                        }
+                    }
+                    _lastCovenantUI = covenantUI;
+                    _lastCovenantLevel = currentLevel;
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error checking covenant level: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Find a CovenantSelectionUI component on or above the given GameObject
+        /// </summary>
+        private Component FindCovenantUI(GameObject go)
+        {
+            Transform current = go.transform;
+            while (current != null)
+            {
+                foreach (var component in current.GetComponents<Component>())
+                {
+                    if (component != null && component.GetType().Name.Contains("CovenantSelectionUI"))
+                        return component;
+                }
+                current = current.parent;
+            }
+            return null;
         }
 
         /// <summary>
@@ -1378,6 +1466,13 @@ namespace MonsterTrainAccessibility.Screens
                 return text;
             }
 
+            // 2.4. Check for DLC toggle (Last Divinity / Hellforged) - before generic toggle
+            text = GetDLCToggleText(go);
+            if (!string.IsNullOrEmpty(text))
+            {
+                return text;
+            }
+
             // 2.5. Check for toggle/checkbox components
             text = GetToggleText(go);
             if (!string.IsNullOrEmpty(text))
@@ -1457,13 +1552,6 @@ namespace MonsterTrainAccessibility.Screens
 
             // 3.7 Check for covenant selector UI
             text = GetCovenantSelectorText(go);
-            if (!string.IsNullOrEmpty(text))
-            {
-                return text;
-            }
-
-            // 3.8 Check for DLC toggle (Last Divinity / Hellforged)
-            text = GetDLCToggleText(go);
             if (!string.IsNullOrEmpty(text))
             {
                 return text;
@@ -4656,8 +4744,8 @@ namespace MonsterTrainAccessibility.Screens
                             }
                         }
 
-                        // Resolve effect placeholders like {[effect0.power]} using the relic's effects
-                        if (!string.IsNullOrEmpty(relicDescription) && relicDescription.Contains("{[effect"))
+                        // Resolve effect placeholders like {[effect0.power]} or {[#effect0.power]}
+                        if (!string.IsNullOrEmpty(relicDescription) && relicDescription.Contains("{["))
                         {
                             relicDescription = ResolveRelicEffectPlaceholders(relicDescription, relicData, dataType);
                         }
@@ -5015,8 +5103,8 @@ namespace MonsterTrainAccessibility.Screens
                                 }
                             }
                         }
-                        // Match patterns like {[effect0.power]} or {[effect0.status0.power]}
-                        var regex = new System.Text.RegularExpressions.Regex(@"\{\[effect(\d+)\.(?:status(\d+)\.)?(\w+)\]\}");
+                        // Match patterns like {[effect0.power]}, {[effect0.status0.power]}, {[#effect0.power]}
+                        var regex = new System.Text.RegularExpressions.Regex(@"\{\[#?effect(\d+)\.(?:status(\d+)\.)?(\w+)\]\}");
                         text = regex.Replace(text, match =>
                         {
                             int effectIndex = int.Parse(match.Groups[1].Value);
@@ -5043,9 +5131,9 @@ namespace MonsterTrainAccessibility.Screens
                                                 var statusEffect = statusEffects.GetValue(statusIndex);
                                                 if (statusEffect != null)
                                                 {
-                                                    // StatusEffectStackData has 'count' field for the power
+                                                    // StatusEffectStackData has public 'count' field for the power
                                                     var countField = statusEffect.GetType().GetField("count",
-                                                        BindingFlags.Public | BindingFlags.Instance);
+                                                        BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
                                                     if (countField != null)
                                                     {
                                                         var count = countField.GetValue(statusEffect);
@@ -5058,15 +5146,14 @@ namespace MonsterTrainAccessibility.Screens
                                     else
                                     {
                                         // Map placeholder property names to actual field names
-                                        // "power" in placeholders maps to "paramInt" in the effect data
                                         string fieldName;
-                                        if (property.ToLower() == "power")
+                                        switch (property.ToLower())
                                         {
-                                            fieldName = "paramInt";
-                                        }
-                                        else
-                                        {
-                                            fieldName = "param" + char.ToUpper(property[0]) + property.Substring(1);
+                                            case "power": fieldName = "paramInt"; break;
+                                            case "powerabs": fieldName = "paramInt"; break;
+                                            case "minpower": fieldName = "paramMinInt"; break;
+                                            case "maxpower": fieldName = "paramMaxInt"; break;
+                                            default: fieldName = "param" + char.ToUpper(property[0]) + property.Substring(1); break;
                                         }
 
                                         var propField = effectType.GetField(fieldName,
@@ -5074,6 +5161,8 @@ namespace MonsterTrainAccessibility.Screens
                                         if (propField != null)
                                         {
                                             var value = propField.GetValue(effect);
+                                            if (property.ToLower() == "powerabs" && value is int intVal)
+                                                return Math.Abs(intVal).ToString();
                                             MonsterTrainAccessibility.LogInfo($"Resolved {match.Value} -> {value} (field: {fieldName})");
                                             return value?.ToString() ?? match.Value;
                                         }
@@ -5082,6 +5171,10 @@ namespace MonsterTrainAccessibility.Screens
                             }
                             return match.Value;
                         });
+
+                        // Strip any remaining unresolved placeholders to avoid reading raw variables
+                        var unresolvedRegex = new System.Text.RegularExpressions.Regex(@"\{\[[^\]]*\]\}");
+                        text = unresolvedRegex.Replace(text, "");
                     }
                 }
             }
@@ -8629,7 +8722,21 @@ namespace MonsterTrainAccessibility.Screens
                     var btnType = buyButton.GetType();
                     var fields = btnType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
 
-                    // Look for cost field
+                    // Check for crystal currency (alternateText is set when currency is crystals)
+                    var altTextField = fields.FirstOrDefault(f => f.Name == "alternateText");
+                    if (altTextField != null)
+                    {
+                        var altText = altTextField.GetValue(buyButton) as string;
+                        if (!string.IsNullOrEmpty(altText))
+                        {
+                            // alternateText contains the localized crystal cost string
+                            string cleanText = BattleAccessibility.StripRichTextTags(altText);
+                            if (!string.IsNullOrEmpty(cleanText))
+                                return cleanText;
+                        }
+                    }
+
+                    // Look for gold cost field
                     var costField = fields.FirstOrDefault(f => f.Name == "cost");
                     if (costField != null)
                     {
@@ -8637,6 +8744,27 @@ namespace MonsterTrainAccessibility.Screens
                         if (costValue is int cost && cost > 0)
                         {
                             return $"{cost} gold";
+                        }
+                    }
+
+                    // Fallback: read the label TMP text directly (has the formatted price)
+                    var labelField = fields.FirstOrDefault(f => f.Name == "label");
+                    if (labelField != null)
+                    {
+                        var label = labelField.GetValue(buyButton);
+                        if (label != null)
+                        {
+                            var textProp = label.GetType().GetProperty("text");
+                            if (textProp != null)
+                            {
+                                string labelText = textProp.GetValue(label) as string;
+                                if (!string.IsNullOrEmpty(labelText))
+                                {
+                                    string cleanLabel = BattleAccessibility.StripRichTextTags(labelText);
+                                    if (!string.IsNullOrEmpty(cleanLabel))
+                                        return cleanLabel;
+                                }
+                            }
                         }
                     }
                 }
@@ -12170,12 +12298,21 @@ namespace MonsterTrainAccessibility.Screens
 
                 var buttonType = championButton.GetType();
 
-                // Check for locked tooltip key - if this exists and has a value, the champion is locked
-                string lockedTooltipKey = null;
-                var lockedKeyField = buttonType.GetField("lockedTooltipTitleKey", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                if (lockedKeyField != null)
+                // Check if this specific button is actually locked by checking lockedTooltipProvider.enabled
+                // (The game sets lockedTooltipProvider.enabled = locked in ChampionChoiceButton.SetState)
+                bool isButtonLocked = false;
+                var tooltipProviderField = buttonType.GetField("lockedTooltipProvider", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (tooltipProviderField != null)
                 {
-                    lockedTooltipKey = lockedKeyField.GetValue(championButton) as string;
+                    var provider = tooltipProviderField.GetValue(championButton);
+                    if (provider != null)
+                    {
+                        var enabledProp = provider.GetType().GetProperty("enabled");
+                        if (enabledProp != null)
+                        {
+                            isButtonLocked = (bool)enabledProp.GetValue(provider);
+                        }
+                    }
                 }
 
                 // Try to find ChampionSelectionUI in parent to get champion data
@@ -12344,10 +12481,10 @@ namespace MonsterTrainAccessibility.Screens
                             }
                         }
 
-                        if (isLocked)
+                        if (isLocked || isButtonLocked)
                             sb.Append(" (Locked)");
 
-                        MonsterTrainAccessibility.LogInfo($"Champion name: {championName}, locked: {isLocked}");
+                        MonsterTrainAccessibility.LogInfo($"Champion name: {championName}, locked: {isLocked}, buttonLocked: {isButtonLocked}");
                         return sb.ToString();
                     }
                 }
@@ -12367,7 +12504,7 @@ namespace MonsterTrainAccessibility.Screens
                     if (meaningfulTexts.Count > 0)
                     {
                         string result = "Champion: " + string.Join(". ", meaningfulTexts);
-                        if (isLocked)
+                        if (isLocked || isButtonLocked)
                             result += " (Locked)";
                         return result;
                     }
@@ -12377,22 +12514,14 @@ namespace MonsterTrainAccessibility.Screens
                 if (!string.IsNullOrEmpty(tooltipText))
                 {
                     string result = "Champion: " + tooltipText;
-                    if (isLocked)
+                    if (isLocked || isButtonLocked)
                         result += " (Locked)";
                     return result;
                 }
 
-                // Check if locked via tooltip key or isLocked flag
-                if (isLocked || !string.IsNullOrEmpty(lockedTooltipKey))
+                // Check if locked via per-button lock state
+                if (isButtonLocked)
                 {
-                    if (!string.IsNullOrEmpty(lockedTooltipKey))
-                    {
-                        string lockedText = LocalizeString(lockedTooltipKey);
-                        if (!string.IsNullOrEmpty(lockedText) && lockedText != lockedTooltipKey)
-                        {
-                            return "Champion: " + lockedText;
-                        }
-                    }
                     return "Champion: Locked. Win a run to unlock.";
                 }
 
@@ -12568,85 +12697,98 @@ namespace MonsterTrainAccessibility.Screens
         {
             try
             {
-                string goName = go.name.ToLower();
-
-                // Check if this is likely a DLC toggle by name or parent name
-                bool isDLCToggle = goName.Contains("dlc") || goName.Contains("divinity") ||
-                                   goName.Contains("hellforged") || goName.Contains("pact") ||
-                                   goName.Contains("expansion");
-
-                if (!isDLCToggle && go.transform.parent != null)
+                // Check ancestors for DLC toggle indicators - walk up to 4 levels
+                bool isDLCToggle = false;
+                Component dlcToggleComponent = null;
+                Transform current = go.transform;
+                for (int i = 0; i < 5 && current != null; i++)
                 {
-                    string parentName = go.transform.parent.name.ToLower();
-                    isDLCToggle = parentName.Contains("dlc") || parentName.Contains("divinity") ||
-                                  parentName.Contains("hellforged") || parentName.Contains("pact") ||
-                                  parentName.Contains("expansion");
-                }
+                    string name = current.name.ToLower();
+                    if (name.Contains("dlc") || name.Contains("divinity") ||
+                        name.Contains("hellforged") || name.Contains("pact") ||
+                        name.Contains("expansion"))
+                    {
+                        isDLCToggle = true;
+                    }
 
-                // Also check grandparent
-                if (!isDLCToggle && go.transform.parent?.parent != null)
-                {
-                    string grandparentName = go.transform.parent.parent.name.ToLower();
-                    isDLCToggle = grandparentName.Contains("dlc") || grandparentName.Contains("divinity") ||
-                                  grandparentName.Contains("hellforged") || grandparentName.Contains("pact");
+                    // Also check for DLCToggle component
+                    if (dlcToggleComponent == null)
+                    {
+                        foreach (var comp in current.GetComponents<Component>())
+                        {
+                            if (comp != null && comp.GetType().Name == "DLCToggle")
+                            {
+                                isDLCToggle = true;
+                                dlcToggleComponent = comp;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (isDLCToggle) break;
+                    current = current.parent;
                 }
 
                 if (!isDLCToggle)
                     return null;
 
-                MonsterTrainAccessibility.LogInfo($"Found DLC toggle: {go.name}");
-
-                // Check for toggle state
+                // Get the checkbox state from GameUISelectableCheckbox on the focused element
                 bool? isOn = null;
-
-                // Check Unity UI Toggle
-                var unityToggle = go.GetComponent<Toggle>();
-                if (unityToggle != null)
+                foreach (var component in go.GetComponents<Component>())
                 {
-                    isOn = unityToggle.isOn;
+                    if (component == null) continue;
+                    var type = component.GetType();
+                    string typeName = type.Name;
+
+                    if (typeName.Contains("Checkbox") || typeName.Contains("Toggle"))
+                    {
+                        // Try isChecked property (GameUISelectableCheckbox has this)
+                        var isCheckedProp = type.GetProperty("isChecked");
+                        if (isCheckedProp != null)
+                        {
+                            isOn = (bool)isCheckedProp.GetValue(component);
+                            break;
+                        }
+
+                        // Try _isChecked field
+                        var isCheckedField = type.GetField("_isChecked", BindingFlags.NonPublic | BindingFlags.Instance);
+                        if (isCheckedField != null && isCheckedField.FieldType == typeof(bool))
+                        {
+                            isOn = (bool)isCheckedField.GetValue(component);
+                            break;
+                        }
+
+                        // Try isOn property
+                        var isOnProp = type.GetProperty("isOn");
+                        if (isOnProp != null && isOnProp.PropertyType == typeof(bool))
+                        {
+                            isOn = (bool)isOnProp.GetValue(component);
+                            break;
+                        }
+                    }
                 }
 
-                // Check for game-specific toggles via reflection
-                if (isOn == null)
+                // If still no state, try getting it from the DLCToggle component's checkboxButton field
+                if (!isOn.HasValue && dlcToggleComponent != null)
                 {
-                    foreach (var component in go.GetComponents<Component>())
+                    var cbField = dlcToggleComponent.GetType().GetField("checkboxButton",
+                        BindingFlags.NonPublic | BindingFlags.Instance);
+                    if (cbField != null)
                     {
-                        if (component == null) continue;
-                        var type = component.GetType();
-                        string typeName = type.Name;
-
-                        if (typeName.Contains("Toggle") || typeName.Contains("Checkbox") || typeName.Contains("Button"))
+                        var checkbox = cbField.GetValue(dlcToggleComponent);
+                        if (checkbox != null)
                         {
-                            // Try to get isOn or isChecked property
-                            var isOnProp = type.GetProperty("isOn") ?? type.GetProperty("IsOn");
-                            if (isOnProp != null && isOnProp.PropertyType == typeof(bool))
+                            var isCheckedProp = checkbox.GetType().GetProperty("isChecked");
+                            if (isCheckedProp != null)
                             {
-                                isOn = (bool)isOnProp.GetValue(component);
-                                break;
-                            }
-
-                            var isCheckedProp = type.GetProperty("isChecked") ?? type.GetProperty("IsChecked");
-                            if (isCheckedProp != null && isCheckedProp.PropertyType == typeof(bool))
-                            {
-                                isOn = (bool)isCheckedProp.GetValue(component);
-                                break;
-                            }
-
-                            // Try field
-                            var isOnField = type.GetField("m_IsOn", BindingFlags.NonPublic | BindingFlags.Instance) ??
-                                           type.GetField("isOn", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                            if (isOnField != null && isOnField.FieldType == typeof(bool))
-                            {
-                                isOn = (bool)isOnField.GetValue(component);
-                                break;
+                                isOn = (bool)isCheckedProp.GetValue(checkbox);
                             }
                         }
                     }
                 }
 
-                // Build the announcement
                 string state = isOn.HasValue ? (isOn.Value ? "enabled" : "disabled") : "toggle";
-                return $"Last Divinity DLC: {state}";
+                return $"The Last Divinity: {state}";
             }
             catch (Exception ex)
             {

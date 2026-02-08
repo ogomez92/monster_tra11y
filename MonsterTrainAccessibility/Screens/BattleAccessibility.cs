@@ -922,57 +922,85 @@ namespace MonsterTrainAccessibility.Screens
 
                 // Monster Train has 3 playable floors + pyre room
                 // Room indices: 0=bottom, 1=middle, 2=top, 3=pyre room
-                for (int roomIndex = 0; roomIndex <= 2; roomIndex++)
+                for (int roomIndex = 0; roomIndex <= 3; roomIndex++)
                 {
                     var room = GetRoom(roomIndex);
                     if (room != null)
                     {
-                        // Get floor capacity info
-                        int usedCapacity = 0;
-                        int maxCapacity = GetFloorCapacity(room);
-                        var units = GetUnitsInRoom(room);
-
-                        // Calculate used capacity from unit sizes
-                        foreach (var unit in units)
+                        if (roomIndex == 3)
                         {
-                            usedCapacity += GetUnitSize(unit);
-                        }
-
-                        string capacityInfo = maxCapacity > 0 ? $" ({usedCapacity}/{maxCapacity} capacity)" : "";
-                        string floorName = $"{RoomIndexToFloorName(roomIndex)}{capacityInfo}";
-
-                        // Get floor enchantments/modifiers
-                        string enchantments = GetFloorEnchantments(room);
-                        if (!string.IsNullOrEmpty(enchantments))
-                        {
-                            floorName += $". {enchantments}";
-                        }
-
-                        if (units.Count == 0)
-                        {
-                            output?.Queue($"{floorName}: Empty");
+                            // Pyre room - show pyre health and any units
+                            var pyreUnits = GetUnitsInRoom(room);
+                            int pyreHP = GetPyreHealth();
+                            int maxPyreHP = GetMaxPyreHealth();
+                            var sb = new System.Text.StringBuilder();
+                            sb.Append("Pyre room");
+                            if (pyreHP >= 0)
+                            {
+                                sb.Append($": Pyre {pyreHP} of {maxPyreHP} health");
+                            }
+                            if (pyreUnits.Count > 0)
+                            {
+                                var unitDescs = new List<string>();
+                                foreach (var unit in pyreUnits)
+                                {
+                                    string unitDesc = GetUnitBriefDescription(unit);
+                                    bool isEnemy = IsEnemyUnit(unit);
+                                    string prefix = isEnemy ? "Enemy " : "";
+                                    unitDescs.Add($"{prefix}{unitDesc}");
+                                }
+                                sb.Append($". {string.Join(", ", unitDescs)}");
+                            }
+                            output?.Queue(sb.ToString());
                         }
                         else
                         {
-                            var descriptions = new List<string>();
+                            // Regular floor - show capacity and units
+                            int usedCapacity = 0;
+                            int maxCapacity = GetFloorCapacity(room);
+                            var units = GetUnitsInRoom(room);
+
+                            // Calculate used capacity from unit sizes
                             foreach (var unit in units)
                             {
-                                string unitDesc = GetUnitBriefDescription(unit);
-                                bool isEnemy = IsEnemyUnit(unit);
-                                string prefix = isEnemy ? "Enemy " : "";
-                                descriptions.Add($"{prefix}{unitDesc}");
+                                usedCapacity += GetUnitSize(unit);
                             }
-                            output?.Queue($"{floorName}: {string.Join(", ", descriptions)}");
+
+                            string capacityInfo = maxCapacity > 0 ? $" ({usedCapacity}/{maxCapacity} capacity)" : "";
+                            string floorName = $"{RoomIndexToFloorName(roomIndex)}{capacityInfo}";
+
+                            // Get floor corruption (DLC)
+                            string corruption = GetFloorCorruption(room);
+                            if (!string.IsNullOrEmpty(corruption))
+                            {
+                                floorName += $". {corruption}";
+                            }
+
+                            // Get floor enchantments/modifiers
+                            string enchantments = GetFloorEnchantments(room);
+                            if (!string.IsNullOrEmpty(enchantments))
+                            {
+                                floorName += $". {enchantments}";
+                            }
+
+                            if (units.Count == 0)
+                            {
+                                output?.Queue($"{floorName}: Empty");
+                            }
+                            else
+                            {
+                                var descriptions = new List<string>();
+                                foreach (var unit in units)
+                                {
+                                    string unitDesc = GetUnitBriefDescription(unit);
+                                    bool isEnemy = IsEnemyUnit(unit);
+                                    string prefix = isEnemy ? "Enemy " : "";
+                                    descriptions.Add($"{prefix}{unitDesc}");
+                                }
+                                output?.Queue($"{floorName}: {string.Join(", ", descriptions)}");
+                            }
                         }
                     }
-                }
-
-                // Announce pyre health
-                int pyreHP = GetPyreHealth();
-                int maxPyreHP = GetMaxPyreHealth();
-                if (pyreHP >= 0)
-                {
-                    output?.Queue($"Pyre: {pyreHP} of {maxPyreHP} health");
                 }
             }
             catch (Exception ex)
@@ -1014,6 +1042,13 @@ namespace MonsterTrainAccessibility.Screens
                 sb.Append($". {abilities}");
             }
 
+            // Add keyword explanations for status effects and abilities
+            string keywordExplanations = GetUnitKeywordExplanations(statusEffects, abilities);
+            if (!string.IsNullOrEmpty(keywordExplanations))
+            {
+                sb.Append($". Keywords: {keywordExplanations}");
+            }
+
             // Add intent for enemies
             if (isEnemy)
             {
@@ -1030,6 +1065,46 @@ namespace MonsterTrainAccessibility.Screens
             }
 
             return sb.ToString();
+        }
+
+        /// <summary>
+        /// Look up keyword explanations for status effect and ability names found on a unit.
+        /// </summary>
+        private string GetUnitKeywordExplanations(string statusEffects, string abilities)
+        {
+            var keywords = Core.KeywordManager.GetKeywords();
+            if (keywords == null || keywords.Count == 0) return null;
+
+            var explanations = new List<string>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            // Extract individual keyword names from the comma-separated status effects
+            // Format is like "Relentless, Hunter 3, Immune" - strip stack counts
+            void CheckText(string text)
+            {
+                if (string.IsNullOrEmpty(text)) return;
+                foreach (var part in text.Split(','))
+                {
+                    // Trim and remove trailing stack count (e.g. "Armor 5" -> "Armor")
+                    string trimmed = part.Trim();
+                    if (string.IsNullOrEmpty(trimmed)) continue;
+
+                    // Remove trailing number (stack count)
+                    string keyName = System.Text.RegularExpressions.Regex.Replace(trimmed, @"\s+\d+$", "").Trim();
+                    if (string.IsNullOrEmpty(keyName) || seen.Contains(keyName)) continue;
+                    seen.Add(keyName);
+
+                    if (keywords.TryGetValue(keyName, out string explanation))
+                    {
+                        explanations.Add(explanation);
+                    }
+                }
+            }
+
+            CheckText(statusEffects);
+            CheckText(abilities);
+
+            return explanations.Count > 0 ? string.Join(". ", explanations) + "." : null;
         }
 
         /// <summary>
@@ -1172,6 +1247,61 @@ namespace MonsterTrainAccessibility.Screens
             }
             catch { }
             return 7; // Default floor capacity in Monster Train
+        }
+
+        /// <summary>
+        /// Get floor corruption info from a room state (Last Divinity DLC).
+        /// Returns e.g. "Corruption: 2/4" or null if corruption is not active.
+        /// </summary>
+        private string GetFloorCorruption(object room)
+        {
+            try
+            {
+                if (room == null) return null;
+                var roomType = room.GetType();
+
+                // Check if corruption is enabled on this room
+                var enabledField = roomType.GetField("corruptionEnabled",
+                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (enabledField != null)
+                {
+                    bool enabled = (bool)enabledField.GetValue(room);
+                    if (!enabled) return null;
+                }
+
+                // Get current and max corruption
+                var getCurrentMethod = roomType.GetMethod("GetCurrentNonPreviewCorruption", Type.EmptyTypes);
+                var getMaxMethod = roomType.GetMethod("GetMaxCorruption", Type.EmptyTypes);
+
+                if (getCurrentMethod != null && getMaxMethod != null)
+                {
+                    int current = (int)getCurrentMethod.Invoke(room, null);
+                    int max = (int)getMaxMethod.Invoke(room, null);
+
+                    if (max > 0)
+                    {
+                        // Also check permanent corruption
+                        var getPermanentMethod = roomType.GetMethod("GetPermanentCorruption", Type.EmptyTypes);
+                        int permanent = 0;
+                        if (getPermanentMethod != null)
+                        {
+                            permanent = (int)getPermanentMethod.Invoke(room, null);
+                        }
+
+                        string info = $"Corruption: {current}/{max}";
+                        if (permanent > 0)
+                        {
+                            info += $" ({permanent} permanent)";
+                        }
+                        return info;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting floor corruption: {ex.Message}");
+            }
+            return null;
         }
 
         /// <summary>
@@ -1339,7 +1469,7 @@ namespace MonsterTrainAccessibility.Screens
 
         /// <summary>
         /// Get a text summary of what's on a specific floor (for floor targeting).
-        /// Takes room index directly (0=bottom, 1=middle, 2=top).
+        /// Takes room index directly (0=bottom, 1=middle, 2=top, 3=pyre room).
         /// </summary>
         public string GetFloorSummary(int roomIndex)
         {
@@ -1351,7 +1481,30 @@ namespace MonsterTrainAccessibility.Screens
                     return $"{RoomIndexToFloorName(roomIndex)}: Unknown";
                 }
 
-                // Get capacity info
+                // Pyre room - special handling
+                if (roomIndex == 3)
+                {
+                    int pyreHP = GetPyreHealth();
+                    int maxPyreHP = GetMaxPyreHealth();
+                    var pyreParts = new List<string>();
+                    if (pyreHP >= 0)
+                    {
+                        pyreParts.Add($"Pyre {pyreHP} of {maxPyreHP} health");
+                    }
+                    var pyreUnits = GetUnitsInRoom(room);
+                    if (pyreUnits.Count > 0)
+                    {
+                        foreach (var unit in pyreUnits)
+                        {
+                            string desc = GetUnitBriefDescription(unit);
+                            bool isEnemy = IsEnemyUnit(unit);
+                            pyreParts.Add($"{(isEnemy ? "Enemy " : "")}{desc}");
+                        }
+                    }
+                    return pyreParts.Count > 0 ? string.Join(". ", pyreParts) : "Empty";
+                }
+
+                // Regular floor - get capacity info
                 int maxCapacity = GetFloorCapacity(room);
                 int usedCapacity = 0;
 
@@ -1365,9 +1518,15 @@ namespace MonsterTrainAccessibility.Screens
 
                 string capacityInfo = $"{usedCapacity} of {maxCapacity} capacity";
 
+                // Add corruption info (DLC)
+                string corruptionInfo = GetFloorCorruption(room);
+
                 if (units.Count == 0)
                 {
-                    return $"Empty. {capacityInfo}";
+                    string emptyInfo = $"Empty. {capacityInfo}";
+                    if (!string.IsNullOrEmpty(corruptionInfo))
+                        emptyInfo += $". {corruptionInfo}";
+                    return emptyInfo;
                 }
 
                 var friendlyUnits = new List<string>();
@@ -1390,6 +1549,8 @@ namespace MonsterTrainAccessibility.Screens
 
                 var parts = new List<string>();
                 parts.Add(capacityInfo);
+                if (!string.IsNullOrEmpty(corruptionInfo))
+                    parts.Add(corruptionInfo);
                 if (friendlyUnits.Count > 0)
                 {
                     parts.Add($"Your units: {string.Join(", ", friendlyUnits)}");
@@ -1805,6 +1966,13 @@ namespace MonsterTrainAccessibility.Screens
                     sb.Append($"Cards in hand: {hand.Count}. ");
                 }
 
+                // Crystals and threat level (DLC)
+                string crystalInfo = GetCrystalAndThreatInfo();
+                if (!string.IsNullOrEmpty(crystalInfo))
+                {
+                    sb.Append($"{crystalInfo}. ");
+                }
+
                 // Wave counter
                 string waveInfo = GetWaveInfo();
                 if (!string.IsNullOrEmpty(waveInfo))
@@ -1818,6 +1986,158 @@ namespace MonsterTrainAccessibility.Screens
             {
                 MonsterTrainAccessibility.LogError($"Error announcing resources: {ex.Message}");
                 MonsterTrainAccessibility.ScreenReader?.Speak("Could not read resources", false);
+            }
+        }
+
+        /// <summary>
+        /// Get crystal count and threat level info (Last Divinity DLC).
+        /// Returns null if DLC is not active.
+        /// </summary>
+        private string GetCrystalAndThreatInfo()
+        {
+            try
+            {
+                if (_saveManager == null)
+                {
+                    FindManagers();
+                }
+                if (_saveManager == null) return null;
+
+                var saveType = _saveManager.GetType();
+
+                // Check if DLC crystals are shown (ShowPactCrystals)
+                var showMethod = saveType.GetMethod("ShowPactCrystals", Type.EmptyTypes);
+                if (showMethod != null)
+                {
+                    bool show = (bool)showMethod.Invoke(_saveManager, null);
+                    if (!show) return null;
+                }
+
+                // Get crystal count via GetDlcSaveData<HellforgedSaveData>
+                int crystals = -1;
+                var getDlcMethod = saveType.GetMethod("GetDlcSaveData");
+                if (getDlcMethod != null && getDlcMethod.IsGenericMethod)
+                {
+                    // Find HellforgedSaveData type
+                    Type hellforgedType = null;
+                    foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+                    {
+                        hellforgedType = asm.GetType("HellforgedSaveData");
+                        if (hellforgedType != null) break;
+                    }
+                    if (hellforgedType != null)
+                    {
+                        var genericMethod = getDlcMethod.MakeGenericMethod(hellforgedType);
+                        // DLC enum: Hellforged = 1
+                        var dlcEnum = typeof(int); // placeholder
+                        Type dlcType = null;
+                        foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+                        {
+                            dlcType = asm.GetType("DLC");
+                            if (dlcType != null && dlcType.IsEnum) break;
+                            dlcType = null;
+                        }
+                        if (dlcType != null)
+                        {
+                            var hellforgedValue = Enum.ToObject(dlcType, 1); // Hellforged = 1
+                            var dlcSaveData = genericMethod.Invoke(_saveManager, new object[] { hellforgedValue });
+                            if (dlcSaveData != null)
+                            {
+                                var getCrystalsMethod = dlcSaveData.GetType().GetMethod("GetCrystals", Type.EmptyTypes);
+                                if (getCrystalsMethod != null)
+                                {
+                                    crystals = (int)getCrystalsMethod.Invoke(dlcSaveData, null);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Fallback: try direct methods on SaveManager
+                if (crystals < 0)
+                {
+                    var getPactMethod = saveType.GetMethod("GetPactCrystalCount", Type.EmptyTypes) ??
+                                        saveType.GetMethod("GetCrystalCount", Type.EmptyTypes) ??
+                                        saveType.GetMethod("GetShardCount", Type.EmptyTypes);
+                    if (getPactMethod != null)
+                    {
+                        crystals = (int)getPactMethod.Invoke(_saveManager, null);
+                    }
+                }
+
+                if (crystals < 0) return null;
+
+                // Determine threat level based on crystal count
+                string threat = GetThreatLevelName(crystals);
+                if (!string.IsNullOrEmpty(threat))
+                {
+                    return $"Crystals: {crystals}. Threat: {threat}";
+                }
+                return $"Crystals: {crystals}";
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting crystal/threat info: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Get the threat level name based on crystal count.
+        /// Threat bands: 0=None, >0=Low, >=lowAmount=Moderate, >=warningAmount=Warning, >=dangerAmount=Danger
+        /// </summary>
+        private string GetThreatLevelName(int crystals)
+        {
+            try
+            {
+                if (crystals <= 0) return "None";
+
+                if (_saveManager == null) return "Low";
+                var saveType = _saveManager.GetType();
+
+                // Try to get threat level thresholds from BalanceData
+                var getBalanceMethod = saveType.GetMethod("GetBalanceData", Type.EmptyTypes);
+                if (getBalanceMethod != null)
+                {
+                    var balanceData = getBalanceMethod.Invoke(_saveManager, null);
+                    if (balanceData != null)
+                    {
+                        // GetHellforgedThreatLevelAtDistance returns a HellforgedThreatLevel with low/warning/danger amounts
+                        var getThreatMethod = balanceData.GetType().GetMethod("GetHellforgedThreatLevelAtDistance");
+                        if (getThreatMethod != null)
+                        {
+                            // Pass 0 for current distance - threat levels may vary by ring
+                            var threatData = getThreatMethod.Invoke(balanceData, new object[] { 0 });
+                            if (threatData != null)
+                            {
+                                var threatType = threatData.GetType();
+                                var lowField = threatType.GetField("lowAmount") ?? threatType.GetField("low");
+                                var warnField = threatType.GetField("warningAmount") ?? threatType.GetField("warning");
+                                var dangerField = threatType.GetField("dangerAmount") ?? threatType.GetField("danger");
+
+                                int low = lowField != null ? (int)lowField.GetValue(threatData) : 10;
+                                int warning = warnField != null ? (int)warnField.GetValue(threatData) : 50;
+                                int danger = dangerField != null ? (int)dangerField.GetValue(threatData) : 80;
+
+                                if (crystals >= danger) return "Danger";
+                                if (crystals >= warning) return "Warning";
+                                if (crystals >= low) return "Moderate";
+                                return "Low";
+                            }
+                        }
+                    }
+                }
+
+                // Fallback: rough estimate based on typical values
+                if (crystals >= 80) return "Danger";
+                if (crystals >= 50) return "Warning";
+                if (crystals >= 25) return "Moderate";
+                return "Low";
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting threat level: {ex.Message}");
+                return null;
             }
         }
 
@@ -2300,9 +2620,32 @@ namespace MonsterTrainAccessibility.Screens
                 // Get the localized trigger name (e.g. "Strike:", "On Death:")
                 string triggerName = null;
                 var getKeywordTextMethod = triggerType.GetMethod("GetKeywordText", Type.EmptyTypes);
+                if (getKeywordTextMethod == null)
+                {
+                    // CharacterTriggerData.GetKeywordText has optional bool param - find it
+                    foreach (var m in triggerType.GetMethods())
+                    {
+                        if (m.Name == "GetKeywordText" && m.GetParameters().Length <= 1)
+                        {
+                            getKeywordTextMethod = m;
+                            break;
+                        }
+                    }
+                }
                 if (getKeywordTextMethod != null)
                 {
-                    triggerName = getKeywordTextMethod.Invoke(trigger, null) as string;
+                    // Handle optional parameters
+                    var methodParams = getKeywordTextMethod.GetParameters();
+                    object[] callArgs;
+                    if (methodParams.Length == 0)
+                        callArgs = Array.Empty<object>();
+                    else
+                    {
+                        callArgs = new object[methodParams.Length];
+                        for (int i = 0; i < methodParams.Length; i++)
+                            callArgs[i] = methodParams[i].HasDefaultValue ? methodParams[i].DefaultValue : false;
+                    }
+                    triggerName = getKeywordTextMethod.Invoke(trigger, callArgs) as string;
                     if (!string.IsNullOrEmpty(triggerName))
                         triggerName = StripRichTextTags(triggerName).Trim().TrimEnd(':');
                 }
@@ -2505,6 +2848,10 @@ namespace MonsterTrainAccessibility.Screens
                     // Traits are on the parent card, not the trigger - just strip unresolved ones
                     text = traitRegex.Replace(text, "");
                 }
+
+                // Strip any remaining unresolved placeholders like {[...]} to avoid reading raw variables
+                var unresolvedRegex = new System.Text.RegularExpressions.Regex(@"\{\[[^\]]*\]\}");
+                text = unresolvedRegex.Replace(text, "");
             }
             catch (Exception ex)
             {
@@ -2523,15 +2870,38 @@ namespace MonsterTrainAccessibility.Screens
 
             switch (triggerType.ToLower())
             {
-                case "onturnbegin": return "On turn begin";
-                case "onturnend": return "On turn end";
+                case "ondeath": return "Extinguish";
+                case "postcombat": return "Resolve";
+                case "onspawn": return "Summon";
+                case "onspawnnotfromcard": return "Summon";
+                case "onattacking": return "Strike";
+                case "onkill": return "Slay";
                 case "onhit": return "On hit";
-                case "ondeath": return "On death";
-                case "onspawn": return "On spawn";
-                case "onslay": return "Slay";
-                case "onattack": return "On attack";
-                case "onheal": return "Heals allies";
-                case "oncastspell": return "On spell cast";
+                case "onheal": return "On heal";
+                case "onteamturnbegin": return "On team turn begin";
+                case "onturnbegin": return "On turn begin";
+                case "precombat": return "Pre-combat";
+                case "postascension": return "After ascending";
+                case "postdescension": return "After descending";
+                case "postcombatcharacterability":
+                case "postcombatheraling": return "After combat healing";
+                case "cardspellplayed": return "On spell played";
+                case "cardmonsterplayed": return "On unit played";
+                case "cardcorruptplayed": return "On corrupt played";
+                case "cardexhausted": return "On card consumed";
+                case "corruptionadded": return "On corruption added";
+                case "onarmoradded": return "On armor added";
+                case "onfoodspawn": return "On morsel spawn";
+                case "endturnprehanddiscard": return "End of turn";
+                case "onfeed": return "On feed";
+                case "oneaten": return "On eaten";
+                case "onburnout": return "On burnout";
+                case "onhatched": return "On hatched";
+                case "onendofcombat": return "End of combat";
+                case "afterspawnenchant": return "After spawn enchant";
+                case "onanyherodeathonfloor": return "On enemy death on floor";
+                case "onanymonsterdeathonfloor": return "On friendly death on floor";
+                case "onanyunitdeathonfloor": return "On any unit death on floor";
                 default:
                     // Convert camelCase to readable
                     return System.Text.RegularExpressions.Regex.Replace(triggerType, "(\\B[A-Z])", " $1");

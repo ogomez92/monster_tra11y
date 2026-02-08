@@ -297,6 +297,13 @@ namespace MonsterTrainAccessibility.Core
                 { "Soul", "Soul: Powers Devourer of Death's Extinguish ability" },
                 { "Shard", "Shard: Powers Solgard the Martyr's abilities" },
                 { "Buffet", "Buffet: Can be eaten multiple times" },
+                // Last Divinity DLC keywords
+                { "Corrupt", "Corrupt: Playing this card adds corruption to the floor" },
+                { "Corrupt Restricted", "Corrupt Restricted: Can only be played when floor has enough corruption. Reduces corruption when played" },
+                { "Purify", "Purify: Removes corruption from the floor" },
+                { "Echo", "Echo: Copies the next spell played on this floor" },
+                { "Charged Echo", "Charged Echo: Stored echo charge that copies the next spell played" },
+                { "Pyre Lock", "Pyre Lock: Prevents the Pyre from being healed" },
             };
 
             foreach (var kv in fallbacks)

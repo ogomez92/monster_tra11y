@@ -23,6 +23,7 @@ namespace MonsterTrainAccessibility.Help.Contexts
                    "Up/Down arrows: Move between rings. " +
                    "Left/Right arrows: Choose between left path, center battle, or right path. " +
                    "Enter: Select and go to the focused node. " +
+                   "M: Re-read current map node with coordinates. " +
                    "C: Re-read current node details. " +
                    "T: Read all available choices for this ring. " +
                    "Node types: Battle (required fight), Merchant (buy/sell cards), " +

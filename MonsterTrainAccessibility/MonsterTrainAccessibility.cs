@@ -154,6 +154,7 @@ namespace MonsterTrainAccessibility
             DeckShuffledPatch.TryPatch(_harmony);
             CardExhaustedPatch.TryPatch(_harmony);
             HandChangedPatch.TryPatch(_harmony);
+            CardSelectionErrorPatch.TryPatch(_harmony);
         }
 
         private void CreateHandlers()

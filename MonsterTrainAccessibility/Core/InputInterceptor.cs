@@ -132,6 +132,11 @@ namespace MonsterTrainAccessibility.Core
                 StartCoroutine(AnnounceSpeedChangeDelayed());
                 _inputCooldown = INPUT_COOLDOWN_TIME;
             }
+            else if (Input.GetKeyDown(config.ReadMapNodeKey.Value))
+            {
+                ReadMapNode();
+                _inputCooldown = INPUT_COOLDOWN_TIME;
+            }
             else if (Input.GetKeyDown(KeyCode.PageUp) || Input.GetKeyDown(KeyCode.PageDown))
             {
                 var battle = MonsterTrainAccessibility.BattleHandler;
@@ -253,10 +258,10 @@ namespace MonsterTrainAccessibility.Core
         /// </summary>
         private void BrowseFloor(bool up)
         {
-            // Room index 0 = bottom floor, 2 = top floor (matches game convention)
+            // Room index 0 = bottom floor, 2 = top floor, 3 = pyre room
             // Page Up = go up = increase room index, Page Down = go down = decrease room index
             if (up)
-                _browsingFloor = Mathf.Min(2, _browsingFloor + 1);
+                _browsingFloor = Mathf.Min(3, _browsingFloor + 1);
             else
                 _browsingFloor = Mathf.Max(0, _browsingFloor - 1);
 
@@ -265,6 +270,18 @@ namespace MonsterTrainAccessibility.Core
             string summary = battle?.GetFloorSummary(_browsingFloor) ?? "";
             string message = string.IsNullOrEmpty(summary) ? floorName : $"{floorName}. {summary}";
             MonsterTrainAccessibility.ScreenReader?.Speak(message, false);
+        }
+
+        /// <summary>
+        /// Read the current map node with coordinates (M key on map screen)
+        /// </summary>
+        private void ReadMapNode()
+        {
+            if (Help.ScreenStateTracker.CurrentScreen == Help.GameScreen.Map)
+            {
+                // Re-read the current selection which will include map coordinates
+                MonsterTrainAccessibility.MenuHandler?.RereadCurrentSelection();
+            }
         }
 
         /// <summary>

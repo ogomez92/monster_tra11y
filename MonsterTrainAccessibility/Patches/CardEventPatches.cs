@@ -399,4 +399,59 @@ namespace MonsterTrainAccessibility.Patches
             }
         }
     }
+
+    /// <summary>
+    /// Detect card selection errors (insufficient ember, room full, etc.)
+    /// Hooks HandUI.ShowCardSelectionErrorMessage to speak the error message.
+    /// This catches errors that occur BEFORE PlayCard is called (e.g., card rejected during selection).
+    /// </summary>
+    public static class CardSelectionErrorPatch
+    {
+        public static void TryPatch(Harmony harmony)
+        {
+            try
+            {
+                var handUIType = AccessTools.TypeByName("HandUI");
+                if (handUIType != null)
+                {
+                    var method = AccessTools.Method(handUIType, "ShowCardSelectionErrorMessage",
+                        new Type[] { typeof(string), typeof(bool) });
+                    if (method != null)
+                    {
+                        var postfix = new HarmonyMethod(typeof(CardSelectionErrorPatch).GetMethod(nameof(Postfix)));
+                        harmony.Patch(method, postfix: postfix);
+                        MonsterTrainAccessibility.LogInfo("Patched HandUI.ShowCardSelectionErrorMessage");
+                    }
+                    else
+                    {
+                        MonsterTrainAccessibility.LogWarning("CardSelectionErrorPatch: ShowCardSelectionErrorMessage method not found");
+                    }
+                }
+                else
+                {
+                    MonsterTrainAccessibility.LogWarning("CardSelectionErrorPatch: HandUI type not found");
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Failed to patch ShowCardSelectionErrorMessage: {ex.Message}");
+            }
+        }
+
+        public static void Postfix(string errorMessage)
+        {
+            try
+            {
+                if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    MonsterTrainAccessibility.ScreenReader?.Speak(errorMessage, false);
+                    MonsterTrainAccessibility.LogInfo($"Card selection error: {errorMessage}");
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in card selection error patch: {ex.Message}");
+            }
+        }
+    }
 }
