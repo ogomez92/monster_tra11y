@@ -2127,8 +2127,8 @@ namespace MonsterTrainAccessibility.Patches
             }
         }
 
-        // __0 = Phase enum value
-        public static void Postfix(object __0)
+        // __0 = Phase enum value, __instance = CombatManager
+        public static void Postfix(object __instance, object __0)
         {
             try
             {
@@ -2155,7 +2155,7 @@ namespace MonsterTrainAccessibility.Patches
                         break;
                     case "BossActionPreCombat":
                     case "BossActionPostCombat":
-                        announcement = "Boss action";
+                        announcement = GetBossActionAnnouncement(__instance);
                         break;
                 }
 
@@ -2167,6 +2167,83 @@ namespace MonsterTrainAccessibility.Patches
             catch (Exception ex)
             {
                 MonsterTrainAccessibility.LogError($"Error in combat phase change patch: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Read the boss's next action description from CombatManager → HeroManager → boss CharacterState → BossState
+        /// </summary>
+        private static string GetBossActionAnnouncement(object combatManager)
+        {
+            try
+            {
+                if (combatManager == null) return "Boss action";
+
+                // CombatManager.heroManager (private field)
+                var heroManagerField = combatManager.GetType().GetField("heroManager",
+                    BindingFlags.NonPublic | BindingFlags.Instance);
+                if (heroManagerField == null) return "Boss action";
+
+                var heroManager = heroManagerField.GetValue(combatManager);
+                if (heroManager == null) return "Boss action";
+
+                // HeroManager.GetOuterTrainBossCharacter()
+                var getBossMethod = heroManager.GetType().GetMethod("GetOuterTrainBossCharacter",
+                    Type.EmptyTypes);
+                if (getBossMethod == null) return "Boss action";
+
+                var bossCharacter = getBossMethod.Invoke(heroManager, null);
+                if (bossCharacter == null) return "Boss action";
+
+                // CharacterState.GetBossState()
+                var getBossStateMethod = bossCharacter.GetType().GetMethod("GetBossState", Type.EmptyTypes);
+                if (getBossStateMethod == null) return "Boss action";
+
+                var bossState = getBossStateMethod.Invoke(bossCharacter, null);
+                if (bossState == null) return "Boss action";
+
+                // BossState.GetNextBossAction() → BossActionState
+                var getNextActionMethod = bossState.GetType().GetMethod("GetNextBossAction", Type.EmptyTypes);
+                if (getNextActionMethod == null) return "Boss action";
+
+                var bossAction = getNextActionMethod.Invoke(bossState, null);
+                if (bossAction == null) return "Boss action";
+
+                var actionType = bossAction.GetType();
+                var parts = new List<string>();
+                parts.Add("Boss action");
+
+                // BossActionState.GetTooltipDescription() - the localized description
+                var getDescMethod = actionType.GetMethod("GetTooltipDescription", Type.EmptyTypes);
+                if (getDescMethod != null)
+                {
+                    string desc = getDescMethod.Invoke(bossAction, null) as string;
+                    if (!string.IsNullOrEmpty(desc))
+                    {
+                        parts.Add(Screens.BattleAccessibility.StripRichTextTags(desc).Trim());
+                    }
+                }
+
+                // BossActionState.GetTargetedRoomIndex() - which floor
+                var getTargetRoomMethod = actionType.GetMethod("GetTargetedRoomIndex", Type.EmptyTypes);
+                if (getTargetRoomMethod != null)
+                {
+                    var result = getTargetRoomMethod.Invoke(bossAction, null);
+                    if (result is int roomIndex && roomIndex >= 0 && roomIndex <= 2)
+                    {
+                        int floor = 3 - roomIndex;
+                        parts.Add($"Floor {floor}");
+                    }
+                }
+
+                string announcement = string.Join(". ", parts);
+                MonsterTrainAccessibility.LogInfo($"Boss action announcement: {announcement}");
+                return announcement;
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error reading boss action: {ex.Message}");
+                return "Boss action";
             }
         }
     }

@@ -132,6 +132,16 @@ namespace MonsterTrainAccessibility.Core
                 StartCoroutine(AnnounceSpeedChangeDelayed());
                 _inputCooldown = INPUT_COOLDOWN_TIME;
             }
+            else if (Input.GetKeyDown(config.ReadRunSummaryKey.Value))
+            {
+                if (Help.ScreenStateTracker.CurrentScreen == Help.GameScreen.Victory ||
+                    Help.ScreenStateTracker.CurrentScreen == Help.GameScreen.Defeat)
+                {
+                    MonsterTrainAccessibility.LogInfo("S key pressed - reading run summary");
+                    ReadAllScreenText();
+                    _inputCooldown = INPUT_COOLDOWN_TIME;
+                }
+            }
             else if (Input.GetKeyDown(config.ReadMapNodeKey.Value))
             {
                 ReadMapNode();

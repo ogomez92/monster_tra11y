@@ -1838,7 +1838,7 @@ namespace MonsterTrainAccessibility.Patches
                     }
                 }
 
-                sb.Append("Press R for run summary. ");
+                sb.Append("Press S for run summary. ");
 
                 // Announce
                 string announcement = sb.ToString().Trim();
@@ -1848,7 +1848,7 @@ namespace MonsterTrainAccessibility.Patches
             catch (Exception ex)
             {
                 MonsterTrainAccessibility.LogError($"Error in AutoReadGameOverScreen: {ex.Message}");
-                MonsterTrainAccessibility.ScreenReader?.Speak("Run complete. Press R for run summary.", false);
+                MonsterTrainAccessibility.ScreenReader?.Speak("Run complete. Press S for run summary.", false);
             }
         }
     }
@@ -2622,27 +2622,52 @@ namespace MonsterTrainAccessibility.Patches
     }
 
     /// <summary>
-    /// Detect story event screen
+    /// Detect story event screen and announce narrative text when choices/continue appear
     /// </summary>
     public static class StoryEventScreenPatch
     {
+        private static System.Reflection.FieldInfo _contentLabelField;
+        private static System.Reflection.PropertyInfo _textProperty;
+
         public static void TryPatch(Harmony harmony)
         {
             try
             {
                 var targetType = AccessTools.TypeByName("StoryEventScreen");
-                if (targetType != null)
-                {
-                    var method = AccessTools.Method(targetType, "Initialize") ??
+                if (targetType == null) return;
+
+                // Patch Initialize for screen transition announcement
+                var initMethod = AccessTools.Method(targetType, "Initialize") ??
                                  AccessTools.Method(targetType, "Setup") ??
                                  AccessTools.Method(targetType, "Show");
-                    if (method != null)
-                    {
-                        var postfix = new HarmonyMethod(typeof(StoryEventScreenPatch).GetMethod(nameof(Postfix)));
-                        harmony.Patch(method, postfix: postfix);
-                        MonsterTrainAccessibility.LogInfo($"Patched StoryEventScreen.{method.Name}");
-                    }
+                if (initMethod != null)
+                {
+                    var postfix = new HarmonyMethod(typeof(StoryEventScreenPatch).GetMethod(nameof(Postfix)));
+                    harmony.Patch(initMethod, postfix: postfix);
+                    MonsterTrainAccessibility.LogInfo($"Patched StoryEventScreen.{initMethod.Name}");
                 }
+
+                // Patch OnChoicesPresented to announce narrative text + choices
+                var choicesMethod = AccessTools.Method(targetType, "OnChoicesPresented");
+                if (choicesMethod != null)
+                {
+                    var postfix = new HarmonyMethod(typeof(StoryEventScreenPatch).GetMethod(nameof(OnChoicesPresentedPostfix)));
+                    harmony.Patch(choicesMethod, postfix: postfix);
+                    MonsterTrainAccessibility.LogInfo("Patched StoryEventScreen.OnChoicesPresented");
+                }
+
+                // Patch OnStoryFinished to announce narrative text + continue
+                var finishedMethod = AccessTools.Method(targetType, "OnStoryFinished");
+                if (finishedMethod != null)
+                {
+                    var postfix = new HarmonyMethod(typeof(StoryEventScreenPatch).GetMethod(nameof(OnStoryFinishedPostfix)));
+                    harmony.Patch(finishedMethod, postfix: postfix);
+                    MonsterTrainAccessibility.LogInfo("Patched StoryEventScreen.OnStoryFinished");
+                }
+
+                // Cache reflection for contentLabel
+                _contentLabelField = targetType.GetField("contentLabel",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             }
             catch (Exception ex)
             {
@@ -2661,6 +2686,64 @@ namespace MonsterTrainAccessibility.Patches
             {
                 MonsterTrainAccessibility.LogError($"Error in StoryEventScreen patch: {ex.Message}");
             }
+        }
+
+        public static void OnChoicesPresentedPostfix(object __instance)
+        {
+            try
+            {
+                string narrative = ReadContentLabel(__instance);
+                if (!string.IsNullOrEmpty(narrative))
+                {
+                    MonsterTrainAccessibility.LogInfo($"Event narrative (choices): {narrative}");
+                    MonsterTrainAccessibility.ScreenReader?.Speak(narrative);
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in OnChoicesPresented patch: {ex.Message}");
+            }
+        }
+
+        public static void OnStoryFinishedPostfix(object __instance)
+        {
+            try
+            {
+                string narrative = ReadContentLabel(__instance);
+                if (!string.IsNullOrEmpty(narrative))
+                {
+                    MonsterTrainAccessibility.LogInfo($"Event narrative (finished): {narrative}");
+                    MonsterTrainAccessibility.ScreenReader?.Speak(narrative + ". Continue.");
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in OnStoryFinished patch: {ex.Message}");
+            }
+        }
+
+        private static string ReadContentLabel(object screenInstance)
+        {
+            if (_contentLabelField == null) return null;
+
+            object contentLabel = _contentLabelField.GetValue(screenInstance);
+            if (contentLabel == null) return null;
+
+            // Get the text property from the TMP component
+            if (_textProperty == null)
+            {
+                _textProperty = contentLabel.GetType().GetProperty("text");
+            }
+            if (_textProperty == null) return null;
+
+            string text = _textProperty.GetValue(contentLabel) as string;
+            if (string.IsNullOrEmpty(text)) return null;
+
+            // Strip rich text tags
+            string stripped = Screens.BattleAccessibility.StripRichTextTags(text).Trim();
+            if (string.IsNullOrEmpty(stripped) || stripped.Length <= 2) return null;
+
+            return stripped;
         }
     }
 

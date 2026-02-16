@@ -161,7 +161,8 @@ namespace MonsterTrainAccessibility.Core
                     string name = TryLocalize(prefix + nameSuffix);
                     string tooltip = TryLocalize(prefix + tooltipSuffix);
 
-                    if (string.IsNullOrEmpty(name) || name == (prefix + nameSuffix))
+                    if (string.IsNullOrEmpty(name) || name == (prefix + nameSuffix)
+                        || name.Contains("KEY>>") || name.Contains("<<"))
                         continue;
 
                     name = Screens.BattleAccessibility.StripRichTextTags(name).Trim();

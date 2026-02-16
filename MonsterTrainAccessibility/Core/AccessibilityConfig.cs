@@ -35,6 +35,7 @@ namespace MonsterTrainAccessibility.Core
 
         // Map keys
         public ConfigEntry<KeyCode> ReadMapNodeKey { get; private set; }
+        public ConfigEntry<KeyCode> ReadRunSummaryKey { get; private set; }
 
         // Action keys
         public ConfigEntry<KeyCode> EndTurnKey { get; private set; }
@@ -196,6 +197,13 @@ namespace MonsterTrainAccessibility.Core
                 "ReadMapNode",
                 KeyCode.M,
                 "Key to re-read current map node with coordinates (on map screen)"
+            );
+
+            ReadRunSummaryKey = config.Bind(
+                "Keys.Information",
+                "ReadRunSummary",
+                KeyCode.S,
+                "Key to read run summary on the victory/defeat screen"
             );
 
             // ========== Action Keys ==========

@@ -1564,6 +1564,13 @@ namespace MonsterTrainAccessibility.Screens
                 return text;
             }
 
+            // 3.95 Check for event screen elements (Continue button, choice items)
+            text = GetEventScreenElementText(go);
+            if (!string.IsNullOrEmpty(text))
+            {
+                return text;
+            }
+
             // 4. Check for map branch choice elements
             text = GetBranchChoiceText(go);
             if (!string.IsNullOrEmpty(text))
@@ -1582,6 +1589,61 @@ namespace MonsterTrainAccessibility.Screens
             text = CleanGameObjectName(go.name);
 
             return text?.Trim();
+        }
+
+        /// <summary>
+        /// Handle elements on the StoryEventScreen: choice items and Continue button.
+        /// Uses direct reflection on StoryChoiceItem properties instead of generic TMP search.
+        /// Narrative text is announced separately by the OnChoicesPresented/OnStoryFinished patches.
+        /// </summary>
+        private string GetEventScreenElementText(GameObject go)
+        {
+            if (Help.ScreenStateTracker.CurrentScreen != Help.GameScreen.Event)
+                return null;
+
+            try
+            {
+                // Check if this GO has a StoryChoiceItem component
+                foreach (var comp in go.GetComponents<Component>())
+                {
+                    if (comp != null && comp.GetType().Name == "StoryChoiceItem")
+                    {
+                        return GetStoryChoiceText(go, comp);
+                    }
+                }
+
+                // Check if this element is on the StoryEventScreen (e.g. Continue button)
+                Component eventScreen = FindStoryEventScreenInHierarchy(go);
+                if (eventScreen != null)
+                {
+                    // Just announce "Continue" - narrative was already spoken by the patch
+                    return "Continue";
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in GetEventScreenElementText: {ex.Message}");
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Walk up the hierarchy to find a StoryEventScreen component
+        /// </summary>
+        private Component FindStoryEventScreenInHierarchy(GameObject go)
+        {
+            Transform current = go.transform;
+            while (current != null)
+            {
+                foreach (var comp in current.GetComponents<Component>())
+                {
+                    if (comp != null && comp.GetType().Name == "StoryEventScreen")
+                        return comp;
+                }
+                current = current.parent;
+            }
+            return null;
         }
 
         /// <summary>
@@ -1625,7 +1687,20 @@ namespace MonsterTrainAccessibility.Screens
 
                 MonsterTrainAccessibility.LogInfo($"Found map choice element: {go.name}");
 
-                // First, try to find the currently visible tooltip on screen
+                // Try to enumerate all nodes on this branch from the MapSection
+                string allNodes = GetAllBranchNodeTitles(go);
+                if (!string.IsNullOrEmpty(allNodes))
+                {
+                    string direction = "";
+                    if (goName.Contains("left"))
+                        direction = "Left path: ";
+                    else if (goName.Contains("right"))
+                        direction = "Right path: ";
+
+                    return direction + allNodes;
+                }
+
+                // Fallback: try to find the currently visible tooltip on screen
                 string visibleTooltip = GetVisibleMapTooltip();
                 if (!string.IsNullOrEmpty(visibleTooltip))
                 {
@@ -1678,101 +1753,203 @@ namespace MonsterTrainAccessibility.Screens
         }
 
         /// <summary>
+        /// Get all node titles for a branch path from the MapSection data.
+        /// Returns comma-separated list of node names (e.g. "Artifact, Gold, Card Draft").
+        /// </summary>
+        private string GetAllBranchNodeTitles(GameObject go)
+        {
+            try
+            {
+                bool isLeft = go.name.ToLower().Contains("left");
+                bool isRight = go.name.ToLower().Contains("right");
+                if (!isLeft && !isRight) return null;
+
+                // Find the MapSection component from parent hierarchy
+                Component mapSection = FindMapSectionComponent(go.transform);
+                if (mapSection == null) return null;
+
+                var sectionType = mapSection.GetType();
+
+                // Access the branch-specific node list (leftMapNodes or rightMapNodes)
+                string listFieldName = isLeft ? "leftMapNodes" : "rightMapNodes";
+                var listField = sectionType.GetField(listFieldName, BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public);
+                if (listField == null)
+                {
+                    MonsterTrainAccessibility.LogInfo($"Could not find field {listFieldName} on MapSection");
+                    return null;
+                }
+
+                var nodeList = listField.GetValue(mapSection) as System.Collections.IList;
+
+                // Also get shared nodes
+                var sharedField = sectionType.GetField("sharedMapNodes", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public);
+                var sharedList = sharedField?.GetValue(mapSection) as System.Collections.IList;
+
+                var titles = new List<string>();
+
+                // Collect titles from branch-specific nodes
+                if (nodeList != null)
+                {
+                    foreach (var node in nodeList)
+                    {
+                        string title = GetMapNodeUITitle(node);
+                        if (!string.IsNullOrEmpty(title))
+                            titles.Add(title);
+                    }
+                }
+
+                // Collect titles from shared nodes
+                if (sharedList != null)
+                {
+                    foreach (var node in sharedList)
+                    {
+                        string title = GetMapNodeUITitle(node);
+                        if (!string.IsNullOrEmpty(title))
+                            titles.Add(title);
+                    }
+                }
+
+                if (titles.Count == 0) return null;
+
+                MonsterTrainAccessibility.LogInfo($"Branch node titles: {string.Join(", ", titles)}");
+                return string.Join(", ", titles);
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting branch node titles: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Get the tooltip title from a MapNodeUI component.
+        /// Returns null if the node is inactive or has no data.
+        /// </summary>
+        private string GetMapNodeUITitle(object mapNodeUI)
+        {
+            try
+            {
+                if (mapNodeUI == null) return null;
+
+                var uiType = mapNodeUI.GetType();
+
+                // Check if the GameObject is active
+                var goProp = uiType.GetProperty("gameObject", BindingFlags.Public | BindingFlags.Instance);
+                if (goProp != null)
+                {
+                    var gameObj = goProp.GetValue(mapNodeUI) as GameObject;
+                    if (gameObj == null || !gameObj.activeInHierarchy) return null;
+                }
+
+                // Get the MapNodeData from the 'data' field
+                var dataField = uiType.GetField("data", BindingFlags.NonPublic | BindingFlags.Instance);
+                if (dataField == null) return null;
+
+                var data = dataField.GetValue(mapNodeUI);
+                if (data == null) return null;
+
+                var dataType = data.GetType();
+
+                // Try GetTooltipTitle() for localized name
+                var getTitleMethod = dataType.GetMethod("GetTooltipTitle", Type.EmptyTypes);
+                if (getTitleMethod != null)
+                {
+                    var result = getTitleMethod.Invoke(data, null);
+                    if (result is string title && !string.IsNullOrEmpty(title))
+                        return title;
+                }
+
+                // Fallback: use asset name, cleaned up
+                var nameProp = dataType.GetProperty("name", BindingFlags.Public | BindingFlags.Instance);
+                if (nameProp != null)
+                {
+                    var name = nameProp.GetValue(data) as string;
+                    if (!string.IsNullOrEmpty(name))
+                        return CleanAssetName(name);
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting MapNodeUI title: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
         /// Get text from StoryChoiceItem (random event choices like "The Doors. (Get Trap Chute.)")
         /// </summary>
         private string GetStoryChoiceText(GameObject go, Component storyChoiceComponent)
         {
             try
             {
-                var texts = new List<string>();
+                var componentType = storyChoiceComponent.GetType();
+                var parts = new List<string>();
 
-                // Look for TMP text components in children
-                foreach (var component in go.GetComponentsInChildren<Component>(true))
+                // Primary: use the choiceText property which returns the localized choice text
+                var choiceTextProp = componentType.GetProperty("choiceText", BindingFlags.Public | BindingFlags.Instance);
+                if (choiceTextProp != null)
                 {
-                    if (component == null) continue;
-                    string typeName = component.GetType().Name;
-                    if (typeName.Contains("TMP_Text") || typeName.Contains("TextMeshPro"))
+                    string choiceText = choiceTextProp.GetValue(storyChoiceComponent) as string;
+                    if (!string.IsNullOrEmpty(choiceText))
                     {
-                        if (!component.gameObject.activeInHierarchy) continue;
-                        var textProp = component.GetType().GetProperty("text");
-                        if (textProp != null)
+                        parts.Add(BattleAccessibility.StripRichTextTags(choiceText).Trim());
+                    }
+                }
+
+                // Fallback: read the label TMP field directly
+                if (parts.Count == 0)
+                {
+                    var labelField = componentType.GetField("label", BindingFlags.NonPublic | BindingFlags.Instance);
+                    if (labelField != null)
+                    {
+                        object labelObj = labelField.GetValue(storyChoiceComponent);
+                        string labelText = GetTMPTextFromObject(labelObj);
+                        if (!string.IsNullOrEmpty(labelText))
                         {
-                            string text = textProp.GetValue(component) as string;
-                            text = text?.Trim();
-                            // Filter out single characters and very short meaningless text
-                            if (!string.IsNullOrEmpty(text) && text.Length > 1 && !IsPlaceholderText(text) && !IsGarbageText(text))
+                            parts.Add(BattleAccessibility.StripRichTextTags(labelText).Trim());
+                        }
+                    }
+                }
+
+                // Read the optionalRewardLabel if active (shows reward info like "(Get Trap Chute.)")
+                var rewardLabelField = componentType.GetField("optionalRewardLabel", BindingFlags.NonPublic | BindingFlags.Instance);
+                if (rewardLabelField != null)
+                {
+                    object rewardLabelObj = rewardLabelField.GetValue(storyChoiceComponent);
+                    if (rewardLabelObj != null)
+                    {
+                        // Check if the reward label's GO is active
+                        var gameObjectProp = rewardLabelObj.GetType().GetProperty("gameObject");
+                        if (gameObjectProp != null)
+                        {
+                            var rewardGO = gameObjectProp.GetValue(rewardLabelObj) as GameObject;
+                            if (rewardGO != null && rewardGO.activeInHierarchy)
                             {
-                                // Skip if it looks like a single letter/symbol used for icons
-                                string stripped = BattleAccessibility.StripRichTextTags(text);
-                                if (stripped.Length > 1 || char.IsDigit(stripped[0]))
+                                string rewardText = GetTMPTextFromObject(rewardLabelObj);
+                                if (!string.IsNullOrEmpty(rewardText))
                                 {
-                                    texts.Add(stripped);
+                                    parts.Add(BattleAccessibility.StripRichTextTags(rewardText).Trim());
                                 }
                             }
                         }
                     }
                 }
 
-                if (texts.Count > 0)
+                // Also try the structured reward preview
+                string rewardPreviewText = GetStoryChoiceRewardPreview(go);
+                if (!string.IsNullOrEmpty(rewardPreviewText))
                 {
-                    // Remove duplicates and very short entries
-                    var uniqueTexts = texts.Distinct()
-                        .Where(t => t.Length > 2 || char.IsDigit(t[0]))
-                        .ToList();
-                    if (uniqueTexts.Count > 0)
-                    {
-                        string result = string.Join(". ", uniqueTexts);
-
-                        // Try to also read the reward preview (card/relic shown next to the choice)
-                        string rewardPreviewText = GetStoryChoiceRewardPreview(go);
-                        if (!string.IsNullOrEmpty(rewardPreviewText))
-                        {
-                            result += ". Reward: " + rewardPreviewText;
-                        }
-
-                        MonsterTrainAccessibility.LogInfo($"StoryChoiceItem text: {result}");
-                        return result;
-                    }
+                    parts.Add("Reward: " + rewardPreviewText);
                 }
 
-                // Try reflection to get choice data from the component
-                var componentType = storyChoiceComponent.GetType();
-
-                // Try to get title/name
-                var getTitleMethod = componentType.GetMethod("GetTitle") ??
-                                     componentType.GetMethod("GetName") ??
-                                     componentType.GetMethod("GetChoiceTitle");
-                if (getTitleMethod != null)
+                if (parts.Count > 0)
                 {
-                    var title = getTitleMethod.Invoke(storyChoiceComponent, null) as string;
-                    if (!string.IsNullOrEmpty(title))
-                    {
-                        texts.Add(title);
-                    }
+                    string result = string.Join(". ", parts);
+                    MonsterTrainAccessibility.LogInfo($"StoryChoiceItem text: {result}");
+                    return result;
                 }
 
-                // Try to get description
-                var getDescMethod = componentType.GetMethod("GetDescription") ??
-                                    componentType.GetMethod("GetResultDescription");
-                if (getDescMethod != null)
-                {
-                    var desc = getDescMethod.Invoke(storyChoiceComponent, null) as string;
-                    if (!string.IsNullOrEmpty(desc))
-                    {
-                        texts.Add($"({desc})");
-                    }
-                }
-
-                if (texts.Count > 0)
-                {
-                    return string.Join(" ", texts);
-                }
-
-                // Log available fields for debugging
-                var fields = componentType.GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                var fieldNames = fields.Select(f => f.Name).Take(20);
-                MonsterTrainAccessibility.LogInfo($"StoryChoiceItem fields: {string.Join(", ", fieldNames)}");
-
+                MonsterTrainAccessibility.LogInfo($"StoryChoiceItem: could not extract text from {go.name}");
                 return "Event choice";
             }
             catch (Exception ex)
@@ -7721,13 +7898,9 @@ namespace MonsterTrainAccessibility.Screens
                         string rewardInfo = ExtractRewardUIInfo(rewardUI);
                         if (!string.IsNullOrEmpty(rewardInfo))
                         {
-                            // Try to get price from parent BuyButton
+                            // Insert price after the first sentence (item name) so it's heard early
                             string price = GetPriceFromBuyButton(goodUI.gameObject);
-                            if (!string.IsNullOrEmpty(price))
-                            {
-                                return $"{rewardInfo}. {price}";
-                            }
-                            return rewardInfo;
+                            return InsertPriceAfterName(rewardInfo, price);
                         }
                     }
                 }
@@ -7745,11 +7918,7 @@ namespace MonsterTrainAccessibility.Screens
                             if (!string.IsNullOrEmpty(cardInfo))
                             {
                                 string price = GetPriceFromBuyButton(goodUI.gameObject);
-                                if (!string.IsNullOrEmpty(price))
-                                {
-                                    return $"{cardInfo}. {price}";
-                                }
-                                return cardInfo;
+                                return InsertPriceAfterName(cardInfo, price);
                             }
                         }
                     }
@@ -7761,6 +7930,27 @@ namespace MonsterTrainAccessibility.Screens
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Insert price after the first sentence (the item name) of a shop item description.
+        /// e.g. "Strengthstone. Upgrade. +10 Magic Power" + "20 gold"
+        ///   -> "Strengthstone. 20 gold. Upgrade. +10 Magic Power"
+        /// </summary>
+        private string InsertPriceAfterName(string itemText, string price)
+        {
+            if (string.IsNullOrEmpty(price))
+                return itemText;
+
+            int firstPeriod = itemText.IndexOf('.');
+            if (firstPeriod >= 0 && firstPeriod < itemText.Length - 1)
+            {
+                // Insert price after the first sentence
+                return $"{itemText.Substring(0, firstPeriod + 1)} {price}{itemText.Substring(firstPeriod + 1)}";
+            }
+
+            // No period found or it's at the end - just append
+            return $"{itemText}. {price}";
         }
 
         /// <summary>
@@ -9362,14 +9552,15 @@ namespace MonsterTrainAccessibility.Screens
 
                     List<string> parts = new List<string> { serviceName };
 
-                    if (!string.IsNullOrEmpty(serviceDesc) && serviceDesc != serviceName)
-                    {
-                        parts.Add(BattleAccessibility.StripRichTextTags(serviceDesc));
-                    }
-
+                    // Price right after name so it's heard early
                     if (!string.IsNullOrEmpty(price))
                     {
                         parts.Add(price);
+                    }
+
+                    if (!string.IsNullOrEmpty(serviceDesc) && serviceDesc != serviceName)
+                    {
+                        parts.Add(BattleAccessibility.StripRichTextTags(serviceDesc));
                     }
 
                     return string.Join(". ", parts);
@@ -9952,11 +10143,32 @@ namespace MonsterTrainAccessibility.Screens
                     MonsterTrainAccessibility.LogInfo($"GetCardText methods: {string.Join(", ", cardTextMethods.Select(m => $"{m.Name}({string.Join(", ", m.GetParameters().Select(p => p.ParameterType.Name))})"))}");
                 }
 
-                // Build announcement: Name (Type), Clan, Cost. Effect.
-                sb.Append(name);
-                if (!string.IsNullOrEmpty(cardType))
+                // Get rarity from CardState
+                string rarity = null;
+                var getRarityMethod = type.GetMethod("GetRarityType", Type.EmptyTypes);
+                if (getRarityMethod != null)
                 {
-                    sb.Append($" ({cardType})");
+                    var rarityResult = getRarityMethod.Invoke(cardState, null);
+                    if (rarityResult != null)
+                    {
+                        rarity = rarityResult.ToString();
+                    }
+                }
+
+                // Build announcement: Name (Rarity Type), Clan, Cost. Effect.
+                sb.Append(name);
+                if (!string.IsNullOrEmpty(cardType) || !string.IsNullOrEmpty(rarity))
+                {
+                    sb.Append(" (");
+                    if (!string.IsNullOrEmpty(rarity))
+                    {
+                        sb.Append(rarity);
+                        if (!string.IsNullOrEmpty(cardType))
+                            sb.Append(" ");
+                    }
+                    if (!string.IsNullOrEmpty(cardType))
+                        sb.Append(cardType);
+                    sb.Append(")");
                 }
                 if (!string.IsNullOrEmpty(clanName))
                 {

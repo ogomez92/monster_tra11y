@@ -2650,7 +2650,11 @@ namespace MonsterTrainAccessibility.Screens
                         triggerName = StripRichTextTags(triggerName).Trim().TrimEnd(':');
                 }
 
-                // Fall back to trigger enum name if keyword text was empty
+                // Detect unlocalized KEY>>...<<  format and discard it
+                if (!string.IsNullOrEmpty(triggerName) && IsUnlocalizedKey(triggerName))
+                    triggerName = null;
+
+                // Fall back to trigger enum name if keyword text was empty or unlocalized
                 if (string.IsNullOrEmpty(triggerName))
                 {
                     var getTriggerTypeMethod = triggerType.GetMethod("GetTrigger", Type.EmptyTypes);
@@ -2674,7 +2678,12 @@ namespace MonsterTrainAccessibility.Screens
                         // Extract just the tooltip part after the name
                         int colonIdx = keywordEntry.IndexOf(':');
                         if (colonIdx >= 0 && colonIdx < keywordEntry.Length - 1)
+                        {
                             triggerTooltip = keywordEntry.Substring(colonIdx + 1).Trim();
+                            // Also discard unlocalized tooltip values
+                            if (IsUnlocalizedKey(triggerTooltip))
+                                triggerTooltip = null;
+                        }
                     }
                 }
 
@@ -2687,14 +2696,22 @@ namespace MonsterTrainAccessibility.Screens
                     if (!string.IsNullOrEmpty(descKey))
                     {
                         var localized = KeywordManager.TryLocalize(descKey);
-                        if (!string.IsNullOrEmpty(localized))
+                        if (!string.IsNullOrEmpty(localized) && !IsUnlocalizedKey(localized))
                         {
                             // Resolve {[effect0.power]} etc. placeholders before stripping tags
                             if (localized.Contains("{["))
                                 localized = ResolveTriggerEffectPlaceholders(localized, trigger, triggerType);
                             description = StripRichTextTags(localized).Trim();
+                            if (IsUnlocalizedKey(description))
+                                description = null;
                         }
                     }
+                }
+
+                // If description is still null, try reading effect descriptions directly
+                if (string.IsNullOrEmpty(description))
+                {
+                    description = GetTriggerEffectDescriptions(trigger, triggerType);
                 }
 
                 // Combine: "Extinguish (triggers after combat): Gain 50 gold"
@@ -2714,6 +2731,85 @@ namespace MonsterTrainAccessibility.Screens
 
                 if (sb.Length > 0)
                     return sb.ToString();
+            }
+            catch { }
+            return null;
+        }
+
+        /// <summary>
+        /// Detect unlocalized key format: KEY>>...<<  or raw localization key patterns
+        /// </summary>
+        private static bool IsUnlocalizedKey(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return false;
+            return text.Contains("KEY>>") || text.Contains("<<");
+        }
+
+        /// <summary>
+        /// Try to get effect descriptions directly from a trigger's CardEffectData list.
+        /// Fallback when localized description keys fail.
+        /// </summary>
+        private string GetTriggerEffectDescriptions(object trigger, Type triggerType)
+        {
+            try
+            {
+                var getEffectsMethod = triggerType.GetMethod("GetEffects", Type.EmptyTypes);
+                if (getEffectsMethod == null)
+                {
+                    foreach (var m in triggerType.GetMethods())
+                    {
+                        if (m.Name == "GetEffects" && m.GetParameters().Length <= 1)
+                        {
+                            getEffectsMethod = m;
+                            break;
+                        }
+                    }
+                }
+                if (getEffectsMethod == null) return null;
+
+                var methodParams = getEffectsMethod.GetParameters();
+                object[] callArgs;
+                if (methodParams.Length == 0)
+                    callArgs = Array.Empty<object>();
+                else
+                {
+                    callArgs = new object[methodParams.Length];
+                    for (int i = 0; i < methodParams.Length; i++)
+                        callArgs[i] = methodParams[i].HasDefaultValue ? methodParams[i].DefaultValue : true;
+                }
+
+                var effects = getEffectsMethod.Invoke(trigger, callArgs) as System.Collections.IList;
+                if (effects == null || effects.Count == 0) return null;
+
+                var descriptions = new List<string>();
+                foreach (var effect in effects)
+                {
+                    if (effect == null) continue;
+                    var effectType = effect.GetType();
+
+                    // Try GetCardText() for CardEffectState / CardEffectData
+                    string effectText = null;
+                    var getCardTextMethod = effectType.GetMethod("GetCardText");
+                    if (getCardTextMethod != null)
+                    {
+                        var ctParams = getCardTextMethod.GetParameters();
+                        object[] ctArgs = new object[ctParams.Length];
+                        for (int i = 0; i < ctParams.Length; i++)
+                            ctArgs[i] = ctParams[i].HasDefaultValue ? ctParams[i].DefaultValue : null;
+
+                        effectText = getCardTextMethod.Invoke(effect, ctArgs) as string;
+                    }
+
+                    if (!string.IsNullOrEmpty(effectText))
+                    {
+                        effectText = StripRichTextTags(effectText).Trim();
+                        if (!string.IsNullOrEmpty(effectText) && !IsUnlocalizedKey(effectText))
+                            descriptions.Add(effectText);
+                    }
+                }
+
+                if (descriptions.Count > 0)
+                    return string.Join(". ", descriptions);
             }
             catch { }
             return null;
@@ -3362,7 +3458,7 @@ namespace MonsterTrainAccessibility.Screens
         }
 
         /// <summary>
-        /// Get the intent of a boss enemy
+        /// Get the intent of a boss enemy via BossState.GetNextBossAction() → BossActionState
         /// </summary>
         private string GetBossIntent(object bossState)
         {
@@ -3370,50 +3466,41 @@ namespace MonsterTrainAccessibility.Screens
             {
                 var bossType = bossState.GetType();
 
-                // Try to get the current action group
-                var getActionGroupMethod = bossType.GetMethod("GetCurrentActionGroup", Type.EmptyTypes) ??
-                                          bossType.GetMethod("GetActionGroup", Type.EmptyTypes);
-
-                object actionGroup = null;
-                if (getActionGroupMethod != null)
+                // BossState.GetNextBossAction() returns BossActionState
+                var getNextActionMethod = bossType.GetMethod("GetNextBossAction", Type.EmptyTypes);
+                if (getNextActionMethod != null)
                 {
-                    actionGroup = getActionGroupMethod.Invoke(bossState, null);
-                }
-
-                // Try via field if method not found
-                if (actionGroup == null)
-                {
-                    var actionGroupField = bossType.GetField("_actionGroup", BindingFlags.NonPublic | BindingFlags.Instance) ??
-                                          bossType.GetField("actionGroup", BindingFlags.NonPublic | BindingFlags.Instance);
-                    if (actionGroupField != null)
+                    var bossAction = getNextActionMethod.Invoke(bossState, null);
+                    if (bossAction != null)
                     {
-                        actionGroup = actionGroupField.GetValue(bossState);
-                    }
-                }
+                        var actionType = bossAction.GetType();
+                        var parts = new List<string>();
 
-                if (actionGroup != null)
-                {
-                    var agType = actionGroup.GetType();
-
-                    // Get next action
-                    var getNextActionMethod = agType.GetMethod("GetNextAction", Type.EmptyTypes);
-                    if (getNextActionMethod != null)
-                    {
-                        var nextAction = getNextActionMethod.Invoke(actionGroup, null);
-                        if (nextAction != null)
+                        // BossActionState.GetTooltipDescription() - localized description
+                        var getDescMethod = actionType.GetMethod("GetTooltipDescription", Type.EmptyTypes);
+                        if (getDescMethod != null)
                         {
-                            return GetBossActionDescription(nextAction);
+                            string desc = getDescMethod.Invoke(bossAction, null) as string;
+                            if (!string.IsNullOrEmpty(desc))
+                            {
+                                parts.Add(StripRichTextTags(desc).Trim());
+                            }
                         }
-                    }
 
-                    // Get all actions
-                    var getActionsMethod = agType.GetMethod("GetActions", Type.EmptyTypes);
-                    if (getActionsMethod != null)
-                    {
-                        var actions = getActionsMethod.Invoke(actionGroup, null) as System.Collections.IList;
-                        if (actions != null && actions.Count > 0)
+                        // BossActionState.GetTargetedRoomIndex()
+                        var getTargetRoomMethod = actionType.GetMethod("GetTargetedRoomIndex", Type.EmptyTypes);
+                        if (getTargetRoomMethod != null)
                         {
-                            return GetBossActionDescription(actions[0]);
+                            var result = getTargetRoomMethod.Invoke(bossAction, null);
+                            if (result is int roomIndex && roomIndex >= 0 && roomIndex <= 2)
+                            {
+                                parts.Add($"targeting {RoomIndexToFloorName(roomIndex).ToLower()}");
+                            }
+                        }
+
+                        if (parts.Count > 0)
+                        {
+                            return string.Join(", ", parts);
                         }
                     }
                 }
