@@ -454,4 +454,132 @@ namespace MonsterTrainAccessibility.Patches
             }
         }
     }
+
+    /// <summary>
+    /// Announce when a card upgrade is applied (e.g., +25 health from shop enhancer)
+    /// Patches CardState.Upgrade(CardUpgradeState, SaveManager, bool)
+    /// </summary>
+    public static class CardUpgradePatch
+    {
+        public static void TryPatch(Harmony harmony)
+        {
+            try
+            {
+                var cardStateType = AccessTools.TypeByName("CardState");
+                if (cardStateType == null)
+                {
+                    MonsterTrainAccessibility.LogWarning("CardUpgradePatch: CardState type not found");
+                    return;
+                }
+
+                // Find Upgrade method - Upgrade(CardUpgradeState, SaveManager, bool)
+                System.Reflection.MethodInfo upgradeMethod = null;
+                foreach (var method in cardStateType.GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance))
+                {
+                    if (method.Name != "Upgrade") continue;
+                    var parameters = method.GetParameters();
+                    if (parameters.Length >= 2)
+                    {
+                        upgradeMethod = method;
+                        MonsterTrainAccessibility.LogInfo($"Found CardState.Upgrade with {parameters.Length} params: {string.Join(", ", parameters.Select(p => $"{p.ParameterType.Name} {p.Name}"))}");
+                        break;
+                    }
+                }
+
+                if (upgradeMethod != null)
+                {
+                    var postfix = new HarmonyMethod(typeof(CardUpgradePatch).GetMethod(nameof(Postfix)));
+                    harmony.Patch(upgradeMethod, postfix: postfix);
+                    MonsterTrainAccessibility.LogInfo("Patched CardState.Upgrade for upgrade announcements");
+                }
+                else
+                {
+                    MonsterTrainAccessibility.LogWarning("CardUpgradePatch: Upgrade method not found on CardState");
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Failed to patch CardState.Upgrade: {ex.Message}");
+            }
+        }
+
+        public static void Postfix(object __instance, object upgradeState)
+        {
+            try
+            {
+                if (__instance == null || upgradeState == null) return;
+
+                // Get card name
+                string cardName = "Card";
+                var cardType = __instance.GetType();
+                var getTitleMethod = cardType.GetMethod("GetTitle", Type.EmptyTypes);
+                if (getTitleMethod != null)
+                {
+                    cardName = getTitleMethod.Invoke(__instance, null) as string ?? "Card";
+                }
+
+                // Get upgrade description from CardUpgradeState
+                var upgradeStateType = upgradeState.GetType();
+
+                // Try to get the underlying CardUpgradeData
+                string upgradeDesc = null;
+                var getUpgradeDataMethod = upgradeStateType.GetMethod("GetCardUpgradeData", Type.EmptyTypes)
+                                        ?? upgradeStateType.GetMethod("GetUpgradeData", Type.EmptyTypes);
+                if (getUpgradeDataMethod != null)
+                {
+                    var upgradeData = getUpgradeDataMethod.Invoke(upgradeState, null);
+                    if (upgradeData != null)
+                    {
+                        upgradeDesc = DeckScreenPatch.DescribeUpgradeData(upgradeData);
+                    }
+                }
+
+                // Fallback: build description from CardUpgradeState stats directly
+                if (string.IsNullOrEmpty(upgradeDesc))
+                {
+                    var statParts = new List<string>();
+
+                    var getHP = upgradeStateType.GetMethod("GetAdditionalHP");
+                    if (getHP != null)
+                    {
+                        var val = getHP.Invoke(upgradeState, null);
+                        if (val is int hp && hp != 0) statParts.Add($"{(hp > 0 ? "+" : "")}{hp} health");
+                    }
+
+                    var getAttack = upgradeStateType.GetMethod("GetAttackDamage");
+                    if (getAttack != null)
+                    {
+                        var val = getAttack.Invoke(upgradeState, null);
+                        if (val is int atk && atk != 0) statParts.Add($"{(atk > 0 ? "+" : "")}{atk} attack");
+                    }
+
+                    var getCost = upgradeStateType.GetMethod("GetCostReduction");
+                    if (getCost != null)
+                    {
+                        var val = getCost.Invoke(upgradeState, null);
+                        if (val is int cost && cost != 0) statParts.Add($"-{cost} ember cost");
+                    }
+
+                    if (statParts.Count > 0)
+                        upgradeDesc = string.Join(", ", statParts);
+                }
+
+                if (!string.IsNullOrEmpty(upgradeDesc))
+                {
+                    string announcement = $"{cardName} upgraded: {upgradeDesc}";
+                    MonsterTrainAccessibility.ScreenReader?.Speak(announcement, false);
+                    MonsterTrainAccessibility.LogInfo($"Card upgrade applied: {announcement}");
+                }
+                else
+                {
+                    MonsterTrainAccessibility.ScreenReader?.Speak($"{cardName} upgraded", false);
+                    MonsterTrainAccessibility.LogInfo($"Card upgrade applied to {cardName} (no description available)");
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in card upgrade patch: {ex.Message}");
+            }
+        }
+    }
 }

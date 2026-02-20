@@ -9849,9 +9849,12 @@ namespace MonsterTrainAccessibility.Screens
                 // Format the card details
                 string cardDetails = FormatCardDetails(cardState);
 
+                var currentScreen = Help.ScreenStateTracker.CurrentScreen;
+
                 // Look for an upgrade path name/title above the card (e.g., "Wrathful", "Brawler")
-                // Only do this outside of battle (e.g., on Dark Forge screen)
-                if (Help.ScreenStateTracker.CurrentScreen != Help.GameScreen.Battle)
+                // Only on champion upgrade and clan selection screens
+                if (currentScreen == Help.GameScreen.ChampionUpgrade ||
+                    currentScreen == Help.GameScreen.ClanSelection)
                 {
                     string upgradePath = FindUpgradePathName(cardUIComponent);
 
@@ -9860,6 +9863,39 @@ namespace MonsterTrainAccessibility.Screens
                     {
                         return upgradePath + ": " + cardDetails;
                     }
+                }
+
+                // On deck view, add card position (e.g., "Card 3 of 20")
+                if (currentScreen == Help.GameScreen.DeckView && !string.IsNullOrEmpty(cardDetails))
+                {
+                    try
+                    {
+                        Transform cardTransform = cardUIComponent.transform;
+                        Transform parent = cardTransform.parent;
+                        if (parent != null)
+                        {
+                            int siblingIndex = cardTransform.GetSiblingIndex();
+                            // Count only active children (visible cards)
+                            int totalCards = 0;
+                            for (int i = 0; i < parent.childCount; i++)
+                            {
+                                if (parent.GetChild(i).gameObject.activeSelf)
+                                    totalCards++;
+                            }
+                            // Calculate position among active siblings
+                            int position = 0;
+                            for (int i = 0; i <= siblingIndex && i < parent.childCount; i++)
+                            {
+                                if (parent.GetChild(i).gameObject.activeSelf)
+                                    position++;
+                            }
+                            if (totalCards > 0)
+                            {
+                                cardDetails = $"Card {position} of {totalCards}. {cardDetails}";
+                            }
+                        }
+                    }
+                    catch { }
                 }
 
                 return cardDetails;
@@ -9993,9 +10029,10 @@ namespace MonsterTrainAccessibility.Screens
                     }
                 }
 
-                // Get ember cost
+                // Get ember cost (GetCostWithoutTraits includes upgrade cost reductions)
                 int cost = 0;
-                var getCostMethod = type.GetMethod("GetCostWithoutAnyModifications", Type.EmptyTypes)
+                var getCostMethod = type.GetMethod("GetCostWithoutTraits", Type.EmptyTypes)
+                                  ?? type.GetMethod("GetCostWithoutAnyModifications", Type.EmptyTypes)
                                   ?? type.GetMethod("GetCost", Type.EmptyTypes);
                 if (getCostMethod != null)
                 {
@@ -10195,8 +10232,10 @@ namespace MonsterTrainAccessibility.Screens
                     int health = -1;
 
                     // Try to get stats from CardState
-                    var getAttackMethod = type.GetMethod("GetAttackDamage", Type.EmptyTypes);
-                    MonsterTrainAccessibility.LogInfo($"GetAttackDamage on CardState: {(getAttackMethod != null ? "found" : "not found")}");
+                    // CardState has GetTotalAttackDamage() (not GetAttackDamage) which includes upgrades
+                    var getAttackMethod = type.GetMethod("GetTotalAttackDamage", Type.EmptyTypes)
+                                       ?? type.GetMethod("GetAttackDamage", Type.EmptyTypes);
+                    MonsterTrainAccessibility.LogInfo($"GetAttack on CardState: {(getAttackMethod != null ? getAttackMethod.Name : "not found")}");
                     if (getAttackMethod != null)
                     {
                         var attackResult = getAttackMethod.Invoke(cardState, null);
@@ -10204,14 +10243,16 @@ namespace MonsterTrainAccessibility.Screens
                         MonsterTrainAccessibility.LogInfo($"Attack from CardState: {attack}");
                     }
 
-                    var getHPMethod = type.GetMethod("GetHP", Type.EmptyTypes)
-                                   ?? type.GetMethod("GetHealth", Type.EmptyTypes)
+                    // CardState.GetHealth() returns float (includes upgrades), not int
+                    var getHPMethod = type.GetMethod("GetHealth", Type.EmptyTypes)
+                                   ?? type.GetMethod("GetHP", Type.EmptyTypes)
                                    ?? type.GetMethod("GetMaxHP", Type.EmptyTypes);
                     MonsterTrainAccessibility.LogInfo($"GetHP/Health on CardState: {(getHPMethod != null ? getHPMethod.Name : "not found")}");
                     if (getHPMethod != null)
                     {
                         var hpResult = getHPMethod.Invoke(cardState, null);
                         if (hpResult is int h) health = h;
+                        else if (hpResult is float f) health = (int)f;
                         MonsterTrainAccessibility.LogInfo($"Health from CardState: {health}");
                     }
 

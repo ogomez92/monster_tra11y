@@ -904,14 +904,25 @@ namespace MonsterTrainAccessibility.Patches
                     System.Reflection.MethodInfo method = null;
 
                     // Get all methods named AddStatusEffect
+                    // We must patch the 3-param overload (string, int, AddStatusEffectParams)
+                    // because that's what the game calls directly from card effects.
+                    // The 2-param overload is just a wrapper that's rarely called.
                     var methods = characterType.GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
                     foreach (var m in methods)
                     {
                         if (m.Name == "AddStatusEffect")
                         {
                             var parameters = m.GetParameters();
-                            // Prefer the simplest overload
-                            if (method == null || parameters.Length < method.GetParameters().Length)
+                            // Prefer the 3-param overload (string statusId, int numStacks, AddStatusEffectParams)
+                            if (parameters.Length == 3 &&
+                                parameters[0].ParameterType == typeof(string) &&
+                                parameters[1].ParameterType == typeof(int))
+                            {
+                                method = m;
+                                break;
+                            }
+                            // Fall back to any overload if we can't find the 3-param one
+                            if (method == null)
                             {
                                 method = m;
                             }
@@ -965,8 +976,8 @@ namespace MonsterTrainAccessibility.Patches
                 _lastAnnouncedEffect = effectKey;
                 _lastAnnouncedTime = currentTime;
 
-                // Make the status ID more readable (e.g., "armor" instead of "Armor_StatusId")
-                string effectName = CleanStatusName(statusId);
+                // Get localized name (e.g., "poison" → "Frostbite", "armor" → "Armor")
+                string effectName = CharacterStateHelper.CleanStatusName(statusId);
 
                 MonsterTrainAccessibility.BattleHandler?.OnStatusEffectApplied(unitName, effectName, numStacks);
             }

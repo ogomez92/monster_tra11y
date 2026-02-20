@@ -180,7 +180,8 @@ namespace MonsterTrainAccessibility.Screens
                 if (cardStateType != null)
                 {
                     _getTitleMethod = cardStateType.GetMethod("GetTitle", Type.EmptyTypes);
-                    _getCostMethod = cardStateType.GetMethod("GetCostWithoutAnyModifications", Type.EmptyTypes)
+                    _getCostMethod = cardStateType.GetMethod("GetCostWithoutTraits", Type.EmptyTypes)
+                                  ?? cardStateType.GetMethod("GetCostWithoutAnyModifications", Type.EmptyTypes)
                                   ?? cardStateType.GetMethod("GetCost", Type.EmptyTypes);
                 }
             }
@@ -521,7 +522,8 @@ namespace MonsterTrainAccessibility.Screens
                 if (_getCostMethod == null)
                 {
                     var type = cardState.GetType();
-                    _getCostMethod = type.GetMethod("GetCostWithoutAnyModifications");
+                    _getCostMethod = type.GetMethod("GetCostWithoutTraits")
+                                  ?? type.GetMethod("GetCostWithoutAnyModifications");
                 }
                 var result = _getCostMethod?.Invoke(cardState, null);
                 if (result is int cost) return cost;
@@ -1312,64 +1314,82 @@ namespace MonsterTrainAccessibility.Screens
             try
             {
                 if (room == null) return null;
-                var roomType = room.GetType();
-                var bindingFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
                 var enchantments = new List<string>();
 
-                // Try GetRoomStateModifiers or similar
-                var getModifiersMethod = roomType.GetMethod("GetRoomStateModifiers", Type.EmptyTypes) ??
-                                         roomType.GetMethod("GetModifiers", Type.EmptyTypes) ??
-                                         roomType.GetMethod("GetEnchantments", Type.EmptyTypes);
-
-                if (getModifiersMethod != null)
+                // Room modifiers live on units (CharacterState.GetRoomStateModifiers()),
+                // not on RoomState itself. Iterate all units on this floor.
+                var units = GetUnitsInRoom(room);
+                foreach (var unit in units)
                 {
-                    var modifiers = getModifiersMethod.Invoke(room, null) as System.Collections.IList;
-                    if (modifiers != null && modifiers.Count > 0)
+                    if (unit == null) continue;
+                    var unitType = unit.GetType();
+                    var getModifiersMethod = unitType.GetMethod("GetRoomStateModifiers", Type.EmptyTypes);
+                    if (getModifiersMethod == null) continue;
+
+                    var modifiers = getModifiersMethod.Invoke(unit, null) as System.Collections.IList;
+                    if (modifiers == null || modifiers.Count == 0) continue;
+
+                    foreach (var modifier in modifiers)
                     {
-                        foreach (var modifier in modifiers)
+                        if (modifier == null) continue;
+                        var modType = modifier.GetType();
+
+                        // Try GetDescriptionKeyInPlay first (active description), then GetDescriptionKey
+                        string description = null;
+                        var getDescInPlayMethod = modType.GetMethod("GetDescriptionKeyInPlay", Type.EmptyTypes);
+                        if (getDescInPlayMethod != null)
                         {
-                            if (modifier == null) continue;
-                            var modType = modifier.GetType();
-                            var getNameMethod = modType.GetMethod("GetName", Type.EmptyTypes);
-                            if (getNameMethod != null)
+                            string descKey = getDescInPlayMethod.Invoke(modifier, null) as string;
+                            if (!string.IsNullOrEmpty(descKey))
+                                description = KeywordManager.TryLocalize(descKey);
+                        }
+
+                        if (string.IsNullOrEmpty(description) || description.Contains("_"))
+                        {
+                            var getDescMethod = modType.GetMethod("GetDescriptionKey", Type.EmptyTypes);
+                            if (getDescMethod != null)
                             {
-                                string name = getNameMethod.Invoke(modifier, null) as string;
-                                if (!string.IsNullOrEmpty(name))
-                                    enchantments.Add(StripRichTextTags(name));
+                                string descKey = getDescMethod.Invoke(modifier, null) as string;
+                                if (!string.IsNullOrEmpty(descKey))
+                                {
+                                    string localized = KeywordManager.TryLocalize(descKey);
+                                    if (!string.IsNullOrEmpty(localized) && !localized.Contains("_"))
+                                        description = localized;
+                                }
                             }
                         }
-                    }
-                }
 
-                // Also check for status effects on the room itself
-                var statusField = roomType.GetField("statusEffects", bindingFlags) ??
-                                  roomType.GetField("_statusEffects", bindingFlags);
-                if (statusField != null)
-                {
-                    var effects = statusField.GetValue(room) as System.Collections.IList;
-                    if (effects != null)
-                    {
-                        foreach (var effect in effects)
+                        // Try tooltip title as a shorter label
+                        if (string.IsNullOrEmpty(description) || description.Contains("_"))
                         {
-                            if (effect == null) continue;
-                            var effectType = effect.GetType();
-                            string effectId = null;
+                            var getTitleMethod = modType.GetMethod("GetExtraTooltipTitleKey", Type.EmptyTypes);
+                            if (getTitleMethod != null)
+                            {
+                                string titleKey = getTitleMethod.Invoke(modifier, null) as string;
+                                if (!string.IsNullOrEmpty(titleKey))
+                                {
+                                    string localized = KeywordManager.TryLocalize(titleKey);
+                                    if (!string.IsNullOrEmpty(localized) && !localized.Contains("_"))
+                                        description = localized;
+                                }
+                            }
+                        }
 
-                            var getIdMethod = effectType.GetMethod("GetStatusId", Type.EmptyTypes);
-                            if (getIdMethod != null)
-                            {
-                                effectId = getIdMethod.Invoke(effect, null) as string;
-                            }
-                            else
-                            {
-                                var idField = effectType.GetField("statusId", bindingFlags);
-                                effectId = idField?.GetValue(effect) as string;
-                            }
+                        // Fallback: use the modifier class name in a readable format
+                        if (string.IsNullOrEmpty(description) || description.Contains("_"))
+                        {
+                            string className = modType.Name;
+                            // Convert "RoomStateEnergyModifier" -> "Energy Modifier"
+                            className = className.Replace("RoomState", "").Replace("Modifier", "");
+                            if (!string.IsNullOrEmpty(className))
+                                description = System.Text.RegularExpressions.Regex.Replace(className, "([a-z])([A-Z])", "$1 $2");
+                        }
 
-                            if (!string.IsNullOrEmpty(effectId) && !enchantments.Contains(effectId))
-                            {
-                                enchantments.Add(effectId);
-                            }
+                        if (!string.IsNullOrEmpty(description))
+                        {
+                            string cleaned = StripRichTextTags(description);
+                            if (!enchantments.Contains(cleaned))
+                                enchantments.Add(cleaned);
                         }
                     }
                 }
@@ -1521,11 +1541,16 @@ namespace MonsterTrainAccessibility.Screens
                 // Add corruption info (DLC)
                 string corruptionInfo = GetFloorCorruption(room);
 
+                // Add floor enchantments (Emberdrain, etc.)
+                string enchantmentInfo = GetFloorEnchantments(room);
+
                 if (units.Count == 0)
                 {
                     string emptyInfo = $"Empty. {capacityInfo}";
                     if (!string.IsNullOrEmpty(corruptionInfo))
                         emptyInfo += $". {corruptionInfo}";
+                    if (!string.IsNullOrEmpty(enchantmentInfo))
+                        emptyInfo += $". {enchantmentInfo}";
                     return emptyInfo;
                 }
 
@@ -1551,6 +1576,8 @@ namespace MonsterTrainAccessibility.Screens
                 parts.Add(capacityInfo);
                 if (!string.IsNullOrEmpty(corruptionInfo))
                     parts.Add(corruptionInfo);
+                if (!string.IsNullOrEmpty(enchantmentInfo))
+                    parts.Add(enchantmentInfo);
                 if (friendlyUnits.Count > 0)
                 {
                     parts.Add($"Your units: {string.Join(", ", friendlyUnits)}");
@@ -2500,6 +2527,13 @@ namespace MonsterTrainAccessibility.Screens
                     sb.Append($". Status: {statusEffects}");
                 }
 
+                // Add keyword explanations for status effects and abilities
+                string keywordExplanations = GetUnitKeywordExplanations(statusEffects, abilities);
+                if (!string.IsNullOrEmpty(keywordExplanations))
+                {
+                    sb.Append($". Keywords: {keywordExplanations}");
+                }
+
                 // Get intent (for bosses or units with visible intent)
                 string intent = GetUnitIntent(unit);
                 if (!string.IsNullOrEmpty(intent))
@@ -3179,7 +3213,9 @@ namespace MonsterTrainAccessibility.Screens
                 }
 
                 // Alternative: try to get individual status effects by common IDs
-                var commonStatuses = new[] { "armor", "damage shield", "rage", "quick", "multistrike", "regen", "sap", "dazed", "rooted", "spell weakness" };
+                var commonStatuses = new[] { "armor", "damage shield", "rage", "haste", "multistrike", "regen",
+                    "poison", "sap", "dazed", "rooted", "spell weakness", "spikes", "lifesteal", "stealth",
+                    "fragile", "endless", "quick", "trample", "sweep", "melee weakness" };
                 var foundEffects = new List<string>();
 
                 var getStacksMethod = type.GetMethod("GetStatusEffectStacks", new[] { typeof(string) });
@@ -3192,7 +3228,7 @@ namespace MonsterTrainAccessibility.Screens
                             var result = getStacksMethod.Invoke(characterState, new object[] { statusId });
                             if (result is int stacks && stacks > 0)
                             {
-                                string displayName = FormatStatusName(statusId);
+                                string displayName = Patches.CharacterStateHelper.CleanStatusName(statusId);
                                 if (stacks > 1)
                                     foundEffects.Add($"{displayName} {stacks}");
                                 else
@@ -3233,26 +3269,27 @@ namespace MonsterTrainAccessibility.Screens
                     {
                         var stateType = state.GetType();
 
-                        // Try GetStatusId
+                        // Use GetDisplayName() first - it calls StatusEffectManager.GetLocalizedName()
+                        // which properly maps internal IDs to display names (e.g., "poison" → "Frostbite")
+                        var getDisplayNameMethod = stateType.GetMethod("GetDisplayName");
+                        if (getDisplayNameMethod != null)
+                        {
+                            var args = new object[] { false }; // inBold = false
+                            var displayName = getDisplayNameMethod.Invoke(state, args) as string;
+                            if (!string.IsNullOrEmpty(displayName))
+                            {
+                                return StripRichTextTags(displayName);
+                            }
+                        }
+
+                        // Fallback: use GetStatusId with localization via CharacterStateHelper
                         var getIdMethod = stateType.GetMethod("GetStatusId", Type.EmptyTypes);
                         if (getIdMethod != null)
                         {
                             var id = getIdMethod.Invoke(state, null) as string;
                             if (!string.IsNullOrEmpty(id))
                             {
-                                return FormatStatusName(id);
-                            }
-                        }
-
-                        // Try GetName or similar
-                        var getNameMethod = stateType.GetMethod("GetName", Type.EmptyTypes) ??
-                                           stateType.GetMethod("GetDisplayName", Type.EmptyTypes);
-                        if (getNameMethod != null)
-                        {
-                            var name = getNameMethod.Invoke(state, null) as string;
-                            if (!string.IsNullOrEmpty(name))
-                            {
-                                return StripRichTextTags(name);
+                                return Patches.CharacterStateHelper.CleanStatusName(id);
                             }
                         }
                     }
@@ -3636,7 +3673,16 @@ namespace MonsterTrainAccessibility.Screens
             if (!MonsterTrainAccessibility.AccessibilitySettings.AnnounceStatusEffects.Value)
                 return;
 
-            MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName} gains {effectName} {stacks}");
+            string message = $"{unitName} gains {effectName} {stacks}";
+
+            // Add keyword description if available
+            var keywords = Core.KeywordManager.GetKeywords();
+            if (keywords != null && keywords.TryGetValue(effectName, out string explanation))
+            {
+                message += $". {explanation}";
+            }
+
+            MonsterTrainAccessibility.ScreenReader?.Queue(message);
         }
 
         /// <summary>
