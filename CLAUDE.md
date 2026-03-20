@@ -30,6 +30,7 @@ All game data access uses **runtime reflection** since there's no public API. Ga
   - **IMPORTANT: Never use `interrupt = true`** - it cuts off previous announcements. Always use `Speak(text, false)` or just `Speak(text)`.
 - **InputInterceptor**: Unity MonoBehaviour that handles accessibility hotkeys (F1, C, T, H, L, N, R, V). Navigation is handled by the game's native EventSystem.
 - **AccessibilityConfig**: BepInEx configuration - verbosity levels, keybindings, announcement settings.
+- **KeywordManager**: Centralized keyword dictionary built from game localization data at runtime. Sources: `StatusEffectManager.StatusIdToLocalizationExpression`, `CharacterTriggerData.TriggerToLocalizationExpression`, known card trait names, plus a hardcoded fallback dict for mechanics not in the game's formal systems. Used by both BattleAccessibility and MenuAccessibility.
 
 ### Help System (MonsterTrainAccessibility/Help/)
 
@@ -86,6 +87,14 @@ Context-sensitive help that announces available keys based on current game scree
 | R | Read resources (ember, pyre, cards) |
 
 Note: F, E, and N are avoided because they conflict with game shortcuts (F = Toggle Unit Details, E = End Turn, N = Combat Speed Toggle).
+
+#### Combat Log
+
+All battle events (damage, deaths, status effects, spawns, card draws/plays, turn changes, etc.) are written to a plain text log file at:
+```
+BepInEx\plugins\accessibility_combat_log.txt
+```
+The file is overwritten each time the game launches.
 
 #### Floor Targeting Keys (when playing a card)
 | Key | Action |
@@ -181,7 +190,7 @@ Monster Train uses a `Localize` extension method for all text localization.
 
 **Method Location:**
 - Class: `LocalizationExtensions` (static class in `Assembly-CSharp`)
-- Method: `Localize(this string key, bool toUpper = false)`
+- Method: `Localize(this string key, ILocalizationParameterContext context = null)`
 - Returns: Localized string
 
 **Key Format:**
@@ -243,6 +252,9 @@ string localized = (string)_localizeMethod.Invoke(null, args);
 2. If those return keys (contain `-` and `_`), use `GetDescriptionKey()` and localize the result
 3. Fall back to type-name-based display names if localization fails
 
+**`KEY>>...<<` Pattern:**
+The game wraps unresolved localization keys as `KEY>>keyName<<` when its `LocalizeInk` method fails. The regular `Localize` method often succeeds for the same key. `MenuAccessibility.ResolveInlineKeys()` handles this by extracting the key and calling `KeywordManager.TryLocalize()`. This runs in `CleanSpriteTagsForSpeech()` so all speech output is cleaned automatically.
+
 ## Floor/Room Index Mapping
 
 The game's internal room indices are **reversed** from user-facing floor numbers:
@@ -258,50 +270,14 @@ Room Index 3 = Pyre Room
 
 ## Keyword Dictionaries
 
-Keywords (status effects, card mechanics) need explanations for screen reader users. The mod maintains dictionaries mapping keyword names to explanations.
+Keywords (status effects, card mechanics) need explanations for screen reader users. Keywords are centralized in `Core/KeywordManager.cs` which builds a dictionary from the game's own localization data at runtime (~107 keywords: 41 status effects, 27 triggers, 19 traits, 20 fallbacks).
 
-**Keyword Dictionary Locations:**
-- `MenuAccessibility.cs`: `ExtractKeywordsFromDescription()` method (~line 8653)
-- `BattleAccessibility.cs`: `knownKeywords` dictionary (~line 746)
-
-**Current Keywords:**
-```csharp
-{ "Armor", "Armor: Reduces damage taken by the armor amount" },
-{ "Rage", "Rage: Increases attack damage by the rage amount" },
-{ "Regen", "Regen: Restores health each turn equal to regen amount" },
-{ "Frostbite", "Frostbite: Deals damage at end of turn, then decreases by 1" },
-{ "Sap", "Sap: Reduces attack by the sap amount" },
-{ "Dazed", "Dazed: Unit cannot attack this turn" },
-{ "Rooted", "Rooted: Unit cannot move to another floor" },
-{ "Quick", "Quick: Attacks before other units" },
-{ "Multistrike", "Multistrike: Attacks multiple times" },
-{ "Sweep", "Sweep: Attacks all enemies on floor" },
-{ "Trample", "Trample: Excess damage hits the next enemy" },
-{ "Lifesteal", "Lifesteal: Heals for damage dealt" },
-{ "Spikes", "Spikes: Deals damage to attackers" },
-{ "Damage Shield", "Damage Shield: Blocks damage from next attack" },
-{ "Stealth", "Stealth: Cannot be targeted until it attacks" },
-{ "Burnout", "Burnout: Dies at end of turn" },
-{ "Endless", "Endless: Returns to hand when killed" },
-{ "Fragile", "Fragile: Dies when damaged" },
-{ "Heartless", "Heartless: Cannot be healed" },
-{ "Consume", "Consume: Removed from deck after playing" },
-{ "Holdover", "Holdover: Returns to hand at end of turn" },
-{ "Purge", "Purge: Removed from deck permanently" },
-{ "Intrinsic", "Intrinsic: Always drawn on first turn" },
-{ "Spell Weakness", "Spell Weakness: Takes extra damage from spells" },
-// ... and more
-```
+Both `MenuAccessibility.ExtractKeywordsFromDescription()` and `BattleAccessibility` call `Core.KeywordManager.GetKeywords()`.
 
 **Adding New Keywords:**
-1. Search log for unrecognized keywords (text in `<b>tags</b>` that isn't explained)
-2. Add to BOTH dictionaries in MenuAccessibility.cs and BattleAccessibility.cs
-3. Format: `{ "KeywordName", "KeywordName: Brief explanation" }`
-
-**Where Keywords Are Used:**
-- Cards: `GetCardUIText()` calls `ExtractKeywordsFromDescription()`
-- Artifacts: `GetRelicInfoText()` calls `ExtractKeywordsFromDescription()`
-- Battle units: `BattleAccessibility` uses its own keyword dictionary
+- Add fallback entries to `KeywordManager.LoadFallbackKeywords()` for mechanics not in the game's status/trigger/trait systems
+- Format: `{ "KeywordName", "KeywordName: Brief explanation" }`
+- Keywords from the game's localization are loaded automatically; only add to fallbacks what the game doesn't provide
 
 ## Debugging UI Text Extraction
 
@@ -388,7 +364,7 @@ The `game/` folder contains decompiled game source classes from `Assembly-CSharp
 | `SinsData` | Trial modifier | Trial relics with special effects |
 | `ScenarioData` | Battle/boss definition | `GetBattleName()`, `GetBossIcon()`, `GetBossAtIndex(int)` |
 | `ClassData` | Clan definition | `GetTitle()`, `GetTitleKey()`, `GetDescription()`, `GetDescriptionKey()` |
-| `ChampionData` | Champion definition | Champion template |
+| `ChampionData` | Champion definition | Simple ScriptableObject: `championCardData` (CardData), `starterCardData` (CardData), `upgradeTree` (CardUpgradeTreeData). Get champion name via `championCardData.GetName()` |
 | `CovenantData` | Covenant/difficulty | Difficulty level definition |
 | `MutatorData` | Mutator definition | Game modifier definition |
 | `AllGameData` | Master data container | All cards, relics, classes, etc. |
@@ -476,7 +452,7 @@ All extend `StatusEffectState`. Named by mechanic:
 
 ### Currently Patched Methods
 
-These are the game methods the mod hooks via Harmony (see `Patches/`):
+The mod has 55+ Harmony patches. Key ones listed below; see `Patches/` directory and search for `TryPatch` calls for the complete list:
 
 | Patch | Target | Method |
 |-------|--------|--------|

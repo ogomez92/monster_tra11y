@@ -1911,24 +1911,65 @@ namespace MonsterTrainAccessibility.Screens
                     }
                 }
 
-                // Read the optionalRewardLabel if active (shows reward info like "(Get Trap Chute.)")
-                var rewardLabelField = componentType.GetField("optionalRewardLabel", BindingFlags.NonPublic | BindingFlags.Instance);
-                if (rewardLabelField != null)
+                // Read the optional reward text from the choice data (most reliable source)
+                // StoryChoiceItem.choice.optionalText has the localized, reward-name-replaced text
+                string optionalText = null;
+                var choiceDataField = componentType.GetField("choiceData", BindingFlags.NonPublic | BindingFlags.Instance);
+                if (choiceDataField != null)
                 {
-                    object rewardLabelObj = rewardLabelField.GetValue(storyChoiceComponent);
-                    if (rewardLabelObj != null)
+                    var choiceData = choiceDataField.GetValue(storyChoiceComponent);
+                    if (choiceData != null)
                     {
-                        // Check if the reward label's GO is active
-                        var gameObjectProp = rewardLabelObj.GetType().GetProperty("gameObject");
-                        if (gameObjectProp != null)
+                        var choiceProp = choiceData.GetType().GetProperty("choice", BindingFlags.Public | BindingFlags.Instance);
+                        if (choiceProp != null)
                         {
-                            var rewardGO = gameObjectProp.GetValue(rewardLabelObj) as GameObject;
-                            if (rewardGO != null && rewardGO.activeInHierarchy)
+                            var choice = choiceProp.GetValue(choiceData);
+                            if (choice != null)
                             {
-                                string rewardText = GetTMPTextFromObject(rewardLabelObj);
-                                if (!string.IsNullOrEmpty(rewardText))
+                                var optTextProp = choice.GetType().GetProperty("optionalText", BindingFlags.Public | BindingFlags.Instance)
+                                               ?? choice.GetType().GetProperty("optionalText", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                                if (optTextProp != null)
                                 {
-                                    parts.Add(BattleAccessibility.StripRichTextTags(rewardText).Trim());
+                                    optionalText = optTextProp.GetValue(choice) as string;
+                                }
+                                // Try field if property not found
+                                if (string.IsNullOrEmpty(optionalText))
+                                {
+                                    var optTextField = choice.GetType().GetField("optionalText", BindingFlags.Public | BindingFlags.Instance);
+                                    if (optTextField != null)
+                                    {
+                                        optionalText = optTextField.GetValue(choice) as string;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(optionalText))
+                {
+                    parts.Add("(" + BattleAccessibility.StripRichTextTags(optionalText).Trim() + ")");
+                }
+                else
+                {
+                    // Fallback: read from optionalRewardLabel TMP
+                    var rewardLabelField = componentType.GetField("optionalRewardLabel", BindingFlags.NonPublic | BindingFlags.Instance);
+                    if (rewardLabelField != null)
+                    {
+                        object rewardLabelObj = rewardLabelField.GetValue(storyChoiceComponent);
+                        if (rewardLabelObj != null)
+                        {
+                            var gameObjectProp = rewardLabelObj.GetType().GetProperty("gameObject");
+                            if (gameObjectProp != null)
+                            {
+                                var rewardGO = gameObjectProp.GetValue(rewardLabelObj) as GameObject;
+                                if (rewardGO != null && rewardGO.activeInHierarchy)
+                                {
+                                    string rewardText = GetTMPTextFromObject(rewardLabelObj);
+                                    if (!string.IsNullOrEmpty(rewardText))
+                                    {
+                                        parts.Add(BattleAccessibility.StripRichTextTags(rewardText).Trim());
+                                    }
                                 }
                             }
                         }
@@ -3197,6 +3238,41 @@ namespace MonsterTrainAccessibility.Screens
             catch { }
 
             return text;
+        }
+
+        /// <summary>
+        /// Resolve KEY>>...&lt;&lt; patterns in text by localizing the embedded key.
+        /// The game produces these when its own LocalizeInk fails at runtime,
+        /// but the regular Localize method often succeeds for the same key.
+        /// </summary>
+        private string ResolveInlineKeys(string text)
+        {
+            if (string.IsNullOrEmpty(text) || !text.Contains("KEY>>"))
+                return text;
+
+            try
+            {
+                // Replace each KEY>>keyName<< with the localized value
+                var result = System.Text.RegularExpressions.Regex.Replace(text, @"KEY>>([^<]+)<<", match =>
+                {
+                    string key = match.Groups[1].Value;
+                    // Use KeywordManager.TryLocalize which calls the game's Localize method directly
+                    string localized = Core.KeywordManager.TryLocalize(key);
+                    if (!string.IsNullOrEmpty(localized) && localized != key && !localized.Contains("KEY>>"))
+                        return localized;
+                    // Fallback: try MenuAccessibility's own TryLocalize
+                    localized = TryLocalize(key);
+                    if (!string.IsNullOrEmpty(localized) && localized != key && !localized.Contains("KEY>>"))
+                        return localized;
+                    // If localization fails, just return the key name without the KEY>>...<< wrapper
+                    return key;
+                });
+                return result;
+            }
+            catch
+            {
+                return text;
+            }
         }
 
         private void FindLocalizeMethod()
@@ -4486,20 +4562,11 @@ namespace MonsterTrainAccessibility.Screens
                             var bossDetailsUI = bossDetailsList[i];
                             if (bossDetailsUI == null) continue;
 
-                            MonsterTrainAccessibility.LogInfo($"Processing BossDetailsUI[{i}], type: {bossDetailsUI.GetType().Name}");
-
-                            // Log all fields of BossDetailsUI
-                            var uiType = bossDetailsUI.GetType();
-                            MonsterTrainAccessibility.LogInfo($"BossDetailsUI fields:");
-                            foreach (var field in uiType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
-                            {
-                                try
-                                {
-                                    var val = field.GetValue(bossDetailsUI);
-                                    MonsterTrainAccessibility.LogInfo($"  {field.Name} = {val?.GetType().Name ?? "null"}");
-                                }
-                                catch { }
-                            }
+                            // Add ring label: "Ring 1:", "Ring 2:", ..., last one is "Final Boss:"
+                            if (i < bossDetailsList.Count - 1)
+                                sb.Append($"Ring {i + 1}: ");
+                            else
+                                sb.Append("Final Boss: ");
 
                             string bossInfo = GetBossDetailsUIText(bossDetailsUI);
                             MonsterTrainAccessibility.LogInfo($"BossDetailsUI[{i}] text: '{bossInfo}'");
@@ -4637,20 +4704,6 @@ namespace MonsterTrainAccessibility.Screens
 
                             var ttType = tooltip.GetType();
 
-                            // Log all fields on the TooltipContent to understand its structure
-                            MonsterTrainAccessibility.LogInfo($"TooltipContent type: {ttType.Name}");
-                            foreach (var field in ttType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
-                            {
-                                try
-                                {
-                                    var val = field.GetValue(tooltip);
-                                    string valStr = val?.ToString() ?? "null";
-                                    if (valStr.Length > 200) valStr = valStr.Substring(0, 200) + "...";
-                                    MonsterTrainAccessibility.LogInfo($"  TooltipContent.{field.Name} = {valStr}");
-                                }
-                                catch { }
-                            }
-
                             // Try to get title
                             string title = null;
                             string[] titleFieldNames = { "title", "titleKey", "_title", "_titleKey", "TitleKey" };
@@ -4662,9 +4715,11 @@ namespace MonsterTrainAccessibility.Screens
                                     var titleVal = titleField.GetValue(tooltip) as string;
                                     if (!string.IsNullOrEmpty(titleVal))
                                     {
-                                        title = TryLocalize(titleVal);
-                                        if (string.IsNullOrEmpty(title) || title.Contains("_"))
+                                        title = ResolveInlineKeys(titleVal);
+                                        title = TryLocalize(title);
+                                        if (string.IsNullOrEmpty(title) || (title.Contains("_") && !title.Contains(" ")))
                                             title = titleVal;
+                                        title = ResolveInlineKeys(title);
                                         break;
                                     }
                                 }
@@ -4672,7 +4727,7 @@ namespace MonsterTrainAccessibility.Screens
 
                             // Try to get description/body
                             string description = null;
-                            string[] descFieldNames = { "description", "descriptionKey", "_description", "_descriptionKey", "body", "bodyKey", "text", "textKey", "DescriptionKey" };
+                            string[] descFieldNames = { "body", "description", "descriptionKey", "_description", "_descriptionKey", "bodyKey", "text", "textKey", "DescriptionKey" };
                             foreach (var fieldName in descFieldNames)
                             {
                                 var descField = ttType.GetField(fieldName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
@@ -4681,9 +4736,11 @@ namespace MonsterTrainAccessibility.Screens
                                     var descVal = descField.GetValue(tooltip) as string;
                                     if (!string.IsNullOrEmpty(descVal))
                                     {
-                                        description = TryLocalize(descVal);
-                                        if (string.IsNullOrEmpty(description) || description.Contains("_"))
-                                            description = descVal;
+                                        // Resolve KEY>>...<<  patterns first
+                                        description = ResolveInlineKeys(descVal);
+                                        // Then try full localization if it still looks like a key
+                                        if (description.Contains("_") && !description.Contains(" "))
+                                            description = TryLocalize(description) ?? description;
                                         // Clean up description
                                         if (!string.IsNullOrEmpty(description))
                                         {
@@ -5082,6 +5139,9 @@ namespace MonsterTrainAccessibility.Screens
         {
             if (string.IsNullOrEmpty(text))
                 return text;
+
+            // Resolve KEY>>localizationKey<< patterns (game's unresolved localization)
+            text = ResolveInlineKeys(text);
 
             // Log original text for debugging
             bool hadSpecialTags = text.Contains("sprite") || text.Contains("<gold") || text.Contains("power>") || text.Contains("Highlight>");
@@ -7799,6 +7859,16 @@ namespace MonsterTrainAccessibility.Screens
                     }
                 }
 
+                // Fallback: try to find relic info in the hierarchy (for artifact shops)
+                string relicText = GetRelicInfoText(go);
+                if (!string.IsNullOrEmpty(relicText))
+                {
+                    string price = GetPriceFromBuyButton(go);
+                    if (!string.IsNullOrEmpty(price))
+                        return InsertPriceAfterName(relicText, price);
+                    return relicText;
+                }
+
                 // Look for MerchantServiceUI (services/upgrades)
                 Component serviceUI = FindComponentInHierarchy(go, "MerchantServiceUI");
                 if (serviceUI != null)
@@ -7919,6 +7989,25 @@ namespace MonsterTrainAccessibility.Screens
                             {
                                 string price = GetPriceFromBuyButton(goodUI.gameObject);
                                 return InsertPriceAfterName(cardInfo, price);
+                            }
+                        }
+                    }
+                }
+
+                // Fallback: look for relic data fields
+                foreach (var field in fields)
+                {
+                    string fieldName = field.Name.ToLower();
+                    if (fieldName.Contains("relic") || fieldName.Contains("artifact"))
+                    {
+                        var value = field.GetValue(goodUI);
+                        if (value != null)
+                        {
+                            string relicInfo = ExtractRewardDataInfo(value);
+                            if (!string.IsNullOrEmpty(relicInfo))
+                            {
+                                string price = GetPriceFromBuyButton(goodUI.gameObject);
+                                return InsertPriceAfterName(relicInfo, price);
                             }
                         }
                     }
@@ -8213,6 +8302,22 @@ namespace MonsterTrainAccessibility.Screens
                         if (getDescMethod != null)
                         {
                             desc = getDescMethod.Invoke(data, null) as string;
+                        }
+
+                        // RelicState.GetDescription requires RelicManager param - try with null
+                        if (string.IsNullOrEmpty(desc))
+                        {
+                            var descMethods = dataType.GetMethods(BindingFlags.Public | BindingFlags.Instance)
+                                .Where(m => m.Name == "GetDescription" && m.GetParameters().Length == 1);
+                            foreach (var dm in descMethods)
+                            {
+                                try
+                                {
+                                    desc = dm.Invoke(data, new object[] { null }) as string;
+                                    if (!string.IsNullOrEmpty(desc)) break;
+                                }
+                                catch { }
+                            }
                         }
 
                         // If description looks like a key or is empty, try GetDescriptionKey and localize
@@ -8558,6 +8663,51 @@ namespace MonsterTrainAccessibility.Screens
                 var dataType = upgradeData.GetType();
                 var bonuses = new List<string>();
 
+                // Determine if this upgrade targets units or spells via filters
+                bool isUnitUpgrade = false;
+                var getFiltersMethod = dataType.GetMethod("GetFilters", Type.EmptyTypes);
+                if (getFiltersMethod != null)
+                {
+                    var filters = getFiltersMethod.Invoke(upgradeData, null) as System.Collections.IList;
+                    if (filters != null)
+                    {
+                        foreach (var filter in filters)
+                        {
+                            if (filter == null) continue;
+                            var cardTypeField = filter.GetType().GetField("cardType", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                            if (cardTypeField != null)
+                            {
+                                var cardTypeVal = cardTypeField.GetValue(filter);
+                                // CardType.Monster = 0 in the game enum
+                                if (cardTypeVal != null && cardTypeVal.ToString() == "Monster")
+                                {
+                                    isUnitUpgrade = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                // Also check HasUnitStatUpgrade() and bonusHP/bonusSize as heuristic
+                if (!isUnitUpgrade)
+                {
+                    var hasUnitStatMethod = dataType.GetMethod("HasUnitStatUpgrade", Type.EmptyTypes);
+                    if (hasUnitStatMethod != null)
+                    {
+                        var result = hasUnitStatMethod.Invoke(upgradeData, null);
+                        if (result is bool hasUnit && hasUnit)
+                        {
+                            // If it has HP or size bonuses, it's likely a unit upgrade
+                            var hpMethod = dataType.GetMethod("GetBonusHP", Type.EmptyTypes);
+                            var sizeMethod = dataType.GetMethod("GetBonusSize", Type.EmptyTypes);
+                            bool hasHP = hpMethod != null && hpMethod.Invoke(upgradeData, null) is int hp && hp != 0;
+                            bool hasSize = sizeMethod != null && sizeMethod.Invoke(upgradeData, null) is int sz && sz != 0;
+                            if (hasHP || hasSize)
+                                isUnitUpgrade = true;
+                        }
+                    }
+                }
+
                 // Check common bonus methods/fields
                 var getBonusDamageMethod = dataType.GetMethod("GetBonusDamage", Type.EmptyTypes);
                 if (getBonusDamageMethod != null)
@@ -8565,7 +8715,8 @@ namespace MonsterTrainAccessibility.Screens
                     var damage = getBonusDamageMethod.Invoke(upgradeData, null);
                     if (damage is int d && d != 0)
                     {
-                        bonuses.Add($"{(d > 0 ? "+" : "")}{d} Magic Power");
+                        string label = isUnitUpgrade ? "Attack" : "Magic Power";
+                        bonuses.Add($"{(d > 0 ? "+" : "")}{d} {label}");
                     }
                 }
 
@@ -8585,19 +8736,11 @@ namespace MonsterTrainAccessibility.Screens
                     var reduction = getCostReductionMethod.Invoke(upgradeData, null);
                     if (reduction is int r && r != 0)
                     {
-                        bonuses.Add($"-{r} Ember cost");
-                    }
-                }
-
-                // Check for attack bonus
-                var getBonusAttackMethod = dataType.GetMethod("GetBonusAttack", Type.EmptyTypes)
-                                        ?? dataType.GetMethod("GetBonusDamage", Type.EmptyTypes);
-                if (getBonusAttackMethod != null && getBonusAttackMethod.Name != "GetBonusDamage") // Avoid duplicate with Magic Power
-                {
-                    var attackBonus = getBonusAttackMethod.Invoke(upgradeData, null);
-                    if (attackBonus is int a && a != 0)
-                    {
-                        bonuses.Add($"{(a > 0 ? "+" : "")}{a} Attack");
+                        // Positive costReduction = cost goes down, negative = cost goes up
+                        if (r > 0)
+                            bonuses.Add($"-{r} Ember cost");
+                        else
+                            bonuses.Add($"+{-r} Ember cost");
                     }
                 }
 
@@ -8692,6 +8835,27 @@ namespace MonsterTrainAccessibility.Screens
                     }
                 }
 
+                // Check for removed traits (e.g., Eternalstone removes Consume)
+                var getRemoveTraitsMethod = dataType.GetMethod("GetRemoveTraitUpgrades", Type.EmptyTypes);
+                if (getRemoveTraitsMethod != null)
+                {
+                    var removeTraits = getRemoveTraitsMethod.Invoke(upgradeData, null) as System.Collections.IList;
+                    if (removeTraits != null && removeTraits.Count > 0)
+                    {
+                        foreach (var traitName in removeTraits)
+                        {
+                            string name = traitName as string;
+                            if (!string.IsNullOrEmpty(name))
+                            {
+                                // Strip internal prefixes to get display name
+                                string displayName = name.Replace("CardTrait", "").Replace("State", "");
+                                displayName = MapTraitToDisplayName(displayName);
+                                bonuses.Add($"Remove {displayName}");
+                            }
+                        }
+                    }
+                }
+
                 if (bonuses.Count > 0)
                 {
                     return string.Join(" and ", bonuses);
@@ -8714,7 +8878,11 @@ namespace MonsterTrainAccessibility.Screens
             {
                 { "Juice", "Doublestack" },
                 { "DoubleStack", "Doublestack" },
-                // Add more mappings as discovered
+                { "Exhaust", "Consume" },
+                { "Intrinsic", "Innate" },
+                { "Retain", "Holdover" },
+                { "SelfPurge", "Purge" },
+                { "Freeze", "Permafrost" },
             };
 
             if (traitMappings.TryGetValue(internalName, out string displayName))
@@ -9584,6 +9752,26 @@ namespace MonsterTrainAccessibility.Screens
             try
             {
                 var itemType = shopItem.GetType();
+
+                // Try GoodState.Cost property first (works for MerchantServiceUI and MerchantGoodDetailsUI)
+                var goodStateProp = itemType.GetProperty("GoodState", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (goodStateProp != null)
+                {
+                    var goodState = goodStateProp.GetValue(shopItem);
+                    if (goodState != null)
+                    {
+                        var costProp = goodState.GetType().GetProperty("Cost", BindingFlags.Public | BindingFlags.Instance);
+                        if (costProp != null)
+                        {
+                            var costVal = costProp.GetValue(goodState);
+                            if (costVal is int cost && cost > 0)
+                            {
+                                return $"{cost} gold";
+                            }
+                        }
+                    }
+                }
+
                 var fields = itemType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
 
                 foreach (var field in fields)
@@ -9891,7 +10079,7 @@ namespace MonsterTrainAccessibility.Screens
                             }
                             if (totalCards > 0)
                             {
-                                cardDetails = $"Card {position} of {totalCards}. {cardDetails}";
+                                cardDetails = $"{cardDetails} Card {position} of {totalCards}.";
                             }
                         }
                     }
@@ -10007,14 +10195,22 @@ namespace MonsterTrainAccessibility.Screens
 
                 MonsterTrainAccessibility.LogInfo($"FormatCardDetails called for type: {type.Name}");
 
-                // Get card name
+                // Get card name - CardState uses GetTitle(), CardData uses GetName()
                 string name = "Unknown Card";
                 var getTitleMethod = type.GetMethod("GetTitle", Type.EmptyTypes);
                 if (getTitleMethod != null)
                 {
-                    name = getTitleMethod.Invoke(cardState, null) as string ?? "Unknown Card";
-                    MonsterTrainAccessibility.LogInfo($"Card name: {name}");
+                    name = getTitleMethod.Invoke(cardState, null) as string ?? name;
                 }
+                if (name == "Unknown Card")
+                {
+                    var getNameMethod = type.GetMethod("GetName", Type.EmptyTypes);
+                    if (getNameMethod != null)
+                    {
+                        name = getNameMethod.Invoke(cardState, null) as string ?? name;
+                    }
+                }
+                MonsterTrainAccessibility.LogInfo($"Card name: {name}");
 
                 // Get card type
                 string cardType = null;
@@ -10061,6 +10257,13 @@ namespace MonsterTrainAccessibility.Screens
                 {
                     cardData = getCardDataMethod.Invoke(cardState, null);
                     MonsterTrainAccessibility.LogInfo($"CardData result: {(cardData != null ? cardData.GetType().Name : "null")}");
+                }
+
+                // If we couldn't get CardData via method, the input might already be a CardData
+                if (cardData == null && type.Name == "CardData")
+                {
+                    cardData = cardState;
+                    MonsterTrainAccessibility.LogInfo("Input is already CardData, using directly");
                 }
 
                 if (cardData != null)
@@ -10192,7 +10395,31 @@ namespace MonsterTrainAccessibility.Screens
                     }
                 }
 
-                // Build announcement: Name (Rarity Type), Clan, Cost. Effect.
+                // Check if card has upgrades applied (CardState only, not CardData)
+                // Upgrades are in CardState.cardModifiers.GetCardUpgrades()
+                bool hasUpgrades = false;
+                if (type.Name == "CardState")
+                {
+                    var modifiersField = type.GetField("cardModifiers", BindingFlags.NonPublic | BindingFlags.Instance);
+                    if (modifiersField != null)
+                    {
+                        var modifiers = modifiersField.GetValue(cardState);
+                        if (modifiers != null)
+                        {
+                            var getCardUpgradesMethod = modifiers.GetType().GetMethod("GetCardUpgrades", Type.EmptyTypes);
+                            if (getCardUpgradesMethod != null)
+                            {
+                                var upgrades = getCardUpgradesMethod.Invoke(modifiers, null) as System.Collections.IList;
+                                if (upgrades != null && upgrades.Count > 0)
+                                    hasUpgrades = true;
+                            }
+                        }
+                    }
+                }
+
+                // Build announcement: [Upgraded] Name (Rarity Type), Clan, Cost. Effect.
+                if (hasUpgrades)
+                    sb.Append("Upgraded ");
                 sb.Append(name);
                 if (!string.IsNullOrEmpty(cardType) || !string.IsNullOrEmpty(rarity))
                 {
@@ -12519,6 +12746,8 @@ namespace MonsterTrainAccessibility.Screens
                     result.Append(BattleAccessibility.StripRichTextTags(clanDescription));
                 }
 
+                result.Append(". Use Left and Right arrows to change selection.");
+
                 return result.ToString();
             }
             catch (Exception ex)
@@ -12664,20 +12893,19 @@ namespace MonsterTrainAccessibility.Screens
                         .Select(m => m.Name).Distinct().Take(20);
                     MonsterTrainAccessibility.LogInfo($"ChampionData methods: {string.Join(", ", champMethods)}");
 
-                    // Try GetTitle or GetName methods
+                    // ChampionData is a simple ScriptableObject - get name from championCardData.GetName()
                     string championName = null;
-                    var getTitleMethod = champDataType.GetMethod("GetTitle", Type.EmptyTypes);
-                    if (getTitleMethod != null)
+                    var championCardDataField = champDataType.GetField("championCardData", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                    if (championCardDataField != null)
                     {
-                        championName = getTitleMethod.Invoke(championData, null) as string;
-                    }
-
-                    if (string.IsNullOrEmpty(championName))
-                    {
-                        var getNameMethod = champDataType.GetMethod("GetName", Type.EmptyTypes);
-                        if (getNameMethod != null)
+                        var cardData = championCardDataField.GetValue(championData);
+                        if (cardData != null)
                         {
-                            championName = getNameMethod.Invoke(championData, null) as string;
+                            var getNameMethod = cardData.GetType().GetMethod("GetName", Type.EmptyTypes);
+                            if (getNameMethod != null)
+                            {
+                                championName = getNameMethod.Invoke(cardData, null) as string;
+                            }
                         }
                     }
 
@@ -12687,55 +12915,67 @@ namespace MonsterTrainAccessibility.Screens
                         sb.Append("Champion: ");
                         sb.Append(championName);
 
-                        // Try to get champion description
-                        var getDescMethod = champDataType.GetMethod("GetDescription", Type.EmptyTypes);
-                        if (getDescMethod != null)
+                        // Get description and stats from championCardData
+                        if (championCardDataField != null)
                         {
-                            var desc = getDescMethod.Invoke(championData, null) as string;
-                            if (!string.IsNullOrEmpty(desc))
+                            var cardData = championCardDataField.GetValue(championData);
+                            if (cardData != null)
                             {
-                                sb.Append(". ");
-                                sb.Append(BattleAccessibility.StripRichTextTags(desc));
-                            }
-                        }
+                                var cardDataType = cardData.GetType();
 
-                        // Try to get stats from character data
-                        var getCharDataMethod = champDataType.GetMethod("GetCharacterData", Type.EmptyTypes);
-                        if (getCharDataMethod != null)
-                        {
-                            var charData = getCharDataMethod.Invoke(championData, null);
-                            if (charData != null)
-                            {
-                                var charDataType = charData.GetType();
-                                int attack = -1, health = -1;
-
-                                var attackMethod = charDataType.GetMethod("GetAttackDamage", Type.EmptyTypes);
-                                if (attackMethod != null)
+                                // Get card description
+                                var getDescMethod = cardDataType.GetMethod("GetDescription", Type.EmptyTypes);
+                                if (getDescMethod != null)
                                 {
-                                    var result = attackMethod.Invoke(charData, null);
-                                    if (result is int a) attack = a;
+                                    var desc = getDescMethod.Invoke(cardData, null) as string;
+                                    if (!string.IsNullOrEmpty(desc))
+                                    {
+                                        sb.Append(". ");
+                                        sb.Append(BattleAccessibility.StripRichTextTags(desc));
+                                    }
                                 }
 
-                                var healthMethod = charDataType.GetMethod("GetHealth", Type.EmptyTypes)
-                                                ?? charDataType.GetMethod("GetHP", Type.EmptyTypes);
-                                if (healthMethod != null)
+                                // Get stats from spawn character data
+                                var getCharDataMethod = cardDataType.GetMethod("GetSpawnCharacterData", Type.EmptyTypes);
+                                if (getCharDataMethod != null)
                                 {
-                                    var result = healthMethod.Invoke(charData, null);
-                                    if (result is int h) health = h;
-                                }
+                                    var charData = getCharDataMethod.Invoke(cardData, null);
+                                    if (charData != null)
+                                    {
+                                        var charDataType = charData.GetType();
+                                        int attack = -1, health = -1;
 
-                                if (attack >= 0 || health >= 0)
-                                {
-                                    sb.Append(". Stats: ");
-                                    if (attack >= 0) sb.Append($"{attack} attack");
-                                    if (attack >= 0 && health >= 0) sb.Append(", ");
-                                    if (health >= 0) sb.Append($"{health} health");
+                                        var attackMethod = charDataType.GetMethod("GetAttackDamage", Type.EmptyTypes);
+                                        if (attackMethod != null)
+                                        {
+                                            var result = attackMethod.Invoke(charData, null);
+                                            if (result is int a) attack = a;
+                                        }
+
+                                        var healthMethod = charDataType.GetMethod("GetHealth", Type.EmptyTypes)
+                                                        ?? charDataType.GetMethod("GetHP", Type.EmptyTypes);
+                                        if (healthMethod != null)
+                                        {
+                                            var result = healthMethod.Invoke(charData, null);
+                                            if (result is int h) health = h;
+                                        }
+
+                                        if (attack >= 0 || health >= 0)
+                                        {
+                                            sb.Append(". Stats: ");
+                                            if (attack >= 0) sb.Append($"{attack} attack");
+                                            if (attack >= 0 && health >= 0) sb.Append(", ");
+                                            if (health >= 0) sb.Append($"{health} health");
+                                        }
+                                    }
                                 }
                             }
                         }
 
                         if (isLocked || isButtonLocked)
                             sb.Append(" (Locked)");
+
+                        sb.Append(". Use Left and Right arrows to change champion.");
 
                         MonsterTrainAccessibility.LogInfo($"Champion name: {championName}, locked: {isLocked}, buttonLocked: {isButtonLocked}");
                         return sb.ToString();
@@ -13305,6 +13545,10 @@ namespace MonsterTrainAccessibility.Screens
             name = name.Replace("Btn", "");
             name = name.Trim();
 
+            // Fix known abbreviated names
+            if (name.StartsWith("SP ", StringComparison.OrdinalIgnoreCase))
+                name = "Special " + name.Substring(3);
+
             // Add spaces before capital letters (CamelCase to words)
             name = System.Text.RegularExpressions.Regex.Replace(name, "([a-z])([A-Z])", "$1 $2");
 
@@ -13487,18 +13731,61 @@ namespace MonsterTrainAccessibility.Screens
                     }
                 }
 
-                // Crystal/Shard count (DLC)
-                var getCrystalsMethod = saveManagerType.GetMethod("GetPactCrystalCount", bindingFlags) ??
-                                        saveManagerType.GetMethod("GetCrystalCount", bindingFlags) ??
-                                        saveManagerType.GetMethod("GetShardCount", bindingFlags);
-                if (getCrystalsMethod != null && getCrystalsMethod.GetParameters().Length == 0)
+                // Crystal/Shard count (DLC) - use GetDlcSaveData<HellforgedSaveData>(DLC.Hellforged).GetCrystals()
+                try
                 {
-                    var result = getCrystalsMethod.Invoke(saveManager, null);
-                    if (result is int crystals && crystals > 0)
+                    // Check if DLC crystals should be shown
+                    var showMethod = saveManagerType.GetMethod("ShowPactCrystals", Type.EmptyTypes);
+                    bool showCrystals = true;
+                    if (showMethod != null)
                     {
-                        sb.Append($"Crystals: {crystals}. ");
+                        showCrystals = (bool)showMethod.Invoke(saveManager, null);
+                    }
+
+                    if (showCrystals)
+                    {
+                        int crystals = -1;
+                        var getDlcMethod = saveManagerType.GetMethod("GetDlcSaveData");
+                        if (getDlcMethod != null && getDlcMethod.IsGenericMethod)
+                        {
+                            // Find HellforgedSaveData type and DLC enum
+                            Type hellforgedType = null;
+                            Type dlcType = null;
+                            foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+                            {
+                                if (hellforgedType == null)
+                                    hellforgedType = asm.GetType("HellforgedSaveData");
+                                if (dlcType == null)
+                                {
+                                    var t = asm.GetType("DLC");
+                                    if (t != null && t.IsEnum) dlcType = t;
+                                }
+                                if (hellforgedType != null && dlcType != null) break;
+                            }
+
+                            if (hellforgedType != null && dlcType != null)
+                            {
+                                var genericMethod = getDlcMethod.MakeGenericMethod(hellforgedType);
+                                var hellforgedValue = Enum.ToObject(dlcType, 1); // Hellforged = 1
+                                var dlcSaveData = genericMethod.Invoke(saveManager, new object[] { hellforgedValue });
+                                if (dlcSaveData != null)
+                                {
+                                    var getCrystalsMethod = dlcSaveData.GetType().GetMethod("GetCrystals", Type.EmptyTypes);
+                                    if (getCrystalsMethod != null)
+                                    {
+                                        crystals = (int)getCrystalsMethod.Invoke(dlcSaveData, null);
+                                    }
+                                }
+                            }
+                        }
+
+                        if (crystals > 0)
+                        {
+                            sb.Append($"Shards: {crystals}. ");
+                        }
                     }
                 }
+                catch { }
             }
             catch (Exception ex)
             {

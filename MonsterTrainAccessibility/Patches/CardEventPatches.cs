@@ -302,6 +302,7 @@ namespace MonsterTrainAccessibility.Patches
             try
             {
                 MonsterTrainAccessibility.ScreenReader?.Queue("Deck shuffled");
+                MonsterTrainAccessibility.ScreenReader?.LogCombatEvent("Deck shuffled");
             }
             catch (Exception ex)
             {

@@ -39,6 +39,9 @@ namespace MonsterTrainAccessibility.Screens
         private System.Reflection.MethodInfo _getCharacterNameMethod;
         private bool _roomManagerMethodsLogged = false;
 
+        // Track which keyword descriptions have already been announced this battle
+        private HashSet<string> _announcedKeywords = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         public BattleAccessibility()
         {
         }
@@ -257,17 +260,20 @@ namespace MonsterTrainAccessibility.Screens
         {
             var output = MonsterTrainAccessibility.ScreenReader;
             output?.Speak("Your turn", false);
+            output?.LogCombatEvent("Your turn");
 
             // Read actual ember from game
             int actualEmber = GetCurrentEnergy();
             if (actualEmber >= 0)
             {
                 output?.Queue($"{actualEmber} ember");
+                output?.LogCombatEvent($"{actualEmber} ember");
             }
 
             if (cardsDrawn > 0)
             {
                 output?.Queue($"Drew {cardsDrawn} cards");
+                output?.LogCombatEvent($"Drew {cardsDrawn} cards");
             }
         }
 
@@ -277,6 +283,7 @@ namespace MonsterTrainAccessibility.Screens
         public void OnTurnEnded()
         {
             MonsterTrainAccessibility.ScreenReader?.Speak("End turn. Combat phase.", false);
+            MonsterTrainAccessibility.ScreenReader?.LogCombatEvent("End turn. Combat phase.");
         }
 
         /// <summary>
@@ -429,19 +436,19 @@ namespace MonsterTrainAccessibility.Screens
                     bool upgraded = HasCardUpgrades(card);
 
                     string playable = (currentEnergy >= 0 && cost > currentEnergy) ? ", unplayable" : "";
-                    string upgradeStr = upgraded ? " (upgraded)" : "";
+                    string upgradePrefix = upgraded ? "Upgraded " : "";
 
                     // Build card announcement based on verbosity
                     if (verbosity == Core.VerbosityLevel.Minimal)
                     {
-                        sb.Append($"{i + 1}: {name}{upgradeStr}, {cost} ember{playable}. ");
+                        sb.Append($"{i + 1}: {upgradePrefix}{name}, {cost} ember{playable}. ");
                     }
                     else
                     {
                         // Normal and Verbose include type, clan, and description
                         string typeStr = !string.IsNullOrEmpty(cardType) ? $" ({cardType})" : "";
                         string clanStr = !string.IsNullOrEmpty(clanName) ? $", {clanName}" : "";
-                        sb.Append($"{i + 1}: {name}{upgradeStr}{typeStr}{clanStr}, {cost} ember{playable}. ");
+                        sb.Append($"{i + 1}: {upgradePrefix}{name}{typeStr}{clanStr}, {cost} ember{playable}. ");
 
                         if (!string.IsNullOrEmpty(description))
                         {
@@ -543,22 +550,20 @@ namespace MonsterTrainAccessibility.Screens
                 var type = cardState.GetType();
                 var bindingFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
 
-                // Try GetUpgrades method
-                var getUpgradesMethod = type.GetMethod("GetUpgrades", Type.EmptyTypes);
-                if (getUpgradesMethod != null)
+                // CardState stores upgrades in cardModifiers.GetCardUpgrades()
+                var modifiersField = type.GetField("cardModifiers", bindingFlags);
+                if (modifiersField != null)
                 {
-                    var upgrades = getUpgradesMethod.Invoke(cardState, null) as System.Collections.IList;
-                    if (upgrades != null && upgrades.Count > 0) return true;
-                }
-
-                // Try upgrades field
-                var upgradesField = type.GetField("upgrades", bindingFlags) ??
-                                    type.GetField("_upgrades", bindingFlags) ??
-                                    type.GetField("appliedUpgrades", bindingFlags);
-                if (upgradesField != null)
-                {
-                    var upgrades = upgradesField.GetValue(cardState) as System.Collections.IList;
-                    if (upgrades != null && upgrades.Count > 0) return true;
+                    var modifiers = modifiersField.GetValue(cardState);
+                    if (modifiers != null)
+                    {
+                        var getCardUpgradesMethod = modifiers.GetType().GetMethod("GetCardUpgrades", Type.EmptyTypes);
+                        if (getCardUpgradesMethod != null)
+                        {
+                            var upgrades = getCardUpgradesMethod.Invoke(modifiers, null) as System.Collections.IList;
+                            if (upgrades != null && upgrades.Count > 0) return true;
+                        }
+                    }
                 }
             }
             catch { }
@@ -802,14 +807,17 @@ namespace MonsterTrainAccessibility.Screens
             if (!MonsterTrainAccessibility.AccessibilitySettings.AnnounceCardDraws.Value)
                 return;
 
+            string message;
             if (cardNames.Count == 1)
             {
-                MonsterTrainAccessibility.ScreenReader?.Queue($"Drew {cardNames[0]}");
+                message = $"Drew {cardNames[0]}";
             }
             else
             {
-                MonsterTrainAccessibility.ScreenReader?.Queue($"Drew: {string.Join(", ", cardNames)}");
+                message = $"Drew: {string.Join(", ", cardNames)}";
             }
+            MonsterTrainAccessibility.ScreenReader?.Queue(message);
+            MonsterTrainAccessibility.ScreenReader?.LogCombatEvent(message);
         }
 
         /// <summary>
@@ -820,14 +828,19 @@ namespace MonsterTrainAccessibility.Screens
             if (!MonsterTrainAccessibility.AccessibilitySettings.AnnounceCardDraws.Value)
                 return;
 
+            string message;
             if (count == 1)
             {
-                MonsterTrainAccessibility.ScreenReader?.Queue("Drew 1 card");
+                message = "Drew 1 card";
             }
             else if (count > 1)
             {
-                MonsterTrainAccessibility.ScreenReader?.Queue($"Drew {count} cards");
+                message = $"Drew {count} cards";
             }
+            else return;
+
+            MonsterTrainAccessibility.ScreenReader?.Queue(message);
+            MonsterTrainAccessibility.ScreenReader?.LogCombatEvent(message);
         }
 
         /// <summary>
@@ -837,6 +850,7 @@ namespace MonsterTrainAccessibility.Screens
         {
             // The card was played successfully
             MonsterTrainAccessibility.ScreenReader?.Queue("Card played");
+            MonsterTrainAccessibility.ScreenReader?.LogCombatEvent("Card played");
         }
 
         /// <summary>
@@ -847,6 +861,7 @@ namespace MonsterTrainAccessibility.Screens
             if (!string.IsNullOrEmpty(cardName) && cardName != "Card")
             {
                 MonsterTrainAccessibility.ScreenReader?.Queue($"Discarded {cardName}");
+                MonsterTrainAccessibility.ScreenReader?.LogCombatEvent($"Discarded {cardName}");
             }
         }
 
@@ -958,15 +973,8 @@ namespace MonsterTrainAccessibility.Screens
                         else
                         {
                             // Regular floor - show capacity and units
-                            int usedCapacity = 0;
-                            int maxCapacity = GetFloorCapacity(room);
+                            var (usedCapacity, maxCapacity) = GetFloorCapacityInfo(room);
                             var units = GetUnitsInRoom(room);
-
-                            // Calculate used capacity from unit sizes
-                            foreach (var unit in units)
-                            {
-                                usedCapacity += GetUnitSize(unit);
-                            }
 
                             string capacityInfo = maxCapacity > 0 ? $" ({usedCapacity}/{maxCapacity} capacity)" : "";
                             string floorName = $"{RoomIndexToFloorName(roomIndex)}{capacityInfo}";
@@ -1216,39 +1224,47 @@ namespace MonsterTrainAccessibility.Screens
         }
 
         /// <summary>
-        /// Get the maximum capacity of a floor/room
+        /// Get the capacity info (used and max) for a floor/room from the game's CapacityInfo.
+        /// Returns (usedCapacity, maxCapacity). The game tracks player (Monsters) capacity.
         /// </summary>
-        private int GetFloorCapacity(object room)
+        private (int used, int max) GetFloorCapacityInfo(object room)
         {
             try
             {
                 var roomType = room.GetType();
 
-                // Try GetCapacity method
-                var getCapacityMethod = roomType.GetMethod("GetCapacity", Type.EmptyTypes);
-                if (getCapacityMethod != null)
+                var getCapacityInfoMethod = roomType.GetMethod("GetCapacityInfo");
+                if (getCapacityInfoMethod != null)
                 {
-                    var result = getCapacityMethod.Invoke(room, null);
-                    if (result is int capacity)
+                    var parameters = getCapacityInfoMethod.GetParameters();
+                    if (parameters.Length == 1 && parameters[0].ParameterType.IsEnum)
                     {
-                        return capacity;
-                    }
-                }
-
-                // Try capacity field
-                var capacityField = roomType.GetField("capacity", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
-                                 ?? roomType.GetField("_capacity", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                if (capacityField != null)
-                {
-                    var result = capacityField.GetValue(room);
-                    if (result is int capacity)
-                    {
-                        return capacity;
+                        // Team.Type.Monsters = 0
+                        var monstersValue = Enum.ToObject(parameters[0].ParameterType, 0);
+                        var capacityInfo = getCapacityInfoMethod.Invoke(room, new[] { monstersValue });
+                        if (capacityInfo != null)
+                        {
+                            var ciType = capacityInfo.GetType();
+                            int used = 0, max = 5;
+                            var countField = ciType.GetField("count");
+                            if (countField != null && countField.GetValue(capacityInfo) is int c)
+                                used = c;
+                            var maxField = ciType.GetField("max");
+                            if (maxField != null && maxField.GetValue(capacityInfo) is int m)
+                                max = m;
+                            return (used, max);
+                        }
                     }
                 }
             }
             catch { }
-            return 7; // Default floor capacity in Monster Train
+            return (0, 5); // Default floor capacity in Monster Train is 5
+        }
+
+        /// Get the maximum capacity of a floor/room
+        private int GetFloorCapacity(object room)
+        {
+            return GetFloorCapacityInfo(room).max;
         }
 
         /// <summary>
@@ -1524,17 +1540,9 @@ namespace MonsterTrainAccessibility.Screens
                     return pyreParts.Count > 0 ? string.Join(". ", pyreParts) : "Empty";
                 }
 
-                // Regular floor - get capacity info
-                int maxCapacity = GetFloorCapacity(room);
-                int usedCapacity = 0;
-
+                // Regular floor - get capacity info from game
+                var (usedCapacity, maxCapacity) = GetFloorCapacityInfo(room);
                 var units = GetUnitsInRoom(room);
-
-                // Calculate used capacity from unit sizes
-                foreach (var unit in units)
-                {
-                    usedCapacity += GetUnitSize(unit);
-                }
 
                 string capacityInfo = $"{usedCapacity} of {maxCapacity} capacity";
 
@@ -3649,7 +3657,9 @@ namespace MonsterTrainAccessibility.Screens
             if (!MonsterTrainAccessibility.AccessibilitySettings.AnnounceDamage.Value)
                 return;
 
-            MonsterTrainAccessibility.ScreenReader?.Queue($"{sourceName} deals {damage} to {targetName}");
+            string message = $"{sourceName} deals {damage} to {targetName}";
+            MonsterTrainAccessibility.ScreenReader?.Queue(message);
+            MonsterTrainAccessibility.ScreenReader?.LogCombatEvent(message);
         }
 
         /// <summary>
@@ -3662,7 +3672,9 @@ namespace MonsterTrainAccessibility.Screens
 
             string prefix = isEnemy ? "Enemy" : "Your";
             string floorInfo = roomIndex >= 0 ? $" on {RoomIndexToFloorName(roomIndex).ToLower()}" : "";
-            MonsterTrainAccessibility.ScreenReader?.Queue($"{prefix} {unitName} died{floorInfo}");
+            string message = $"{prefix} {unitName} died{floorInfo}";
+            MonsterTrainAccessibility.ScreenReader?.Queue(message);
+            MonsterTrainAccessibility.ScreenReader?.LogCombatEvent(message);
         }
 
         /// <summary>
@@ -3675,14 +3687,18 @@ namespace MonsterTrainAccessibility.Screens
 
             string message = $"{unitName} gains {effectName} {stacks}";
 
-            // Add keyword description if available
-            var keywords = Core.KeywordManager.GetKeywords();
-            if (keywords != null && keywords.TryGetValue(effectName, out string explanation))
+            // Add keyword description only the first time this keyword is seen in this battle
+            if (_announcedKeywords.Add(effectName))
             {
-                message += $". {explanation}";
+                var keywords = Core.KeywordManager.GetKeywords();
+                if (keywords != null && keywords.TryGetValue(effectName, out string explanation))
+                {
+                    message += $". {explanation}";
+                }
             }
 
             MonsterTrainAccessibility.ScreenReader?.Queue(message);
+            MonsterTrainAccessibility.ScreenReader?.LogCombatEvent(message);
         }
 
         /// <summary>
@@ -3713,14 +3729,17 @@ namespace MonsterTrainAccessibility.Screens
 
             string floorName = roomIndex >= 0 ? RoomIndexToFloorName(roomIndex).ToLower() : "the battlefield";
 
+            string message;
             if (isEnemy)
             {
-                MonsterTrainAccessibility.ScreenReader?.Queue($"Enemy {unitName} enters on {floorName}");
+                message = $"Enemy {unitName} enters on {floorName}";
             }
             else
             {
-                MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName} summoned on {floorName}");
+                message = $"{unitName} summoned on {floorName}";
             }
+            MonsterTrainAccessibility.ScreenReader?.Queue(message);
+            MonsterTrainAccessibility.ScreenReader?.LogCombatEvent(message);
         }
 
         /// <summary>
@@ -3732,6 +3751,7 @@ namespace MonsterTrainAccessibility.Screens
                 return;
 
             MonsterTrainAccessibility.ScreenReader?.Queue("Enemies ascend");
+            MonsterTrainAccessibility.ScreenReader?.LogCombatEvent("Enemies ascend");
         }
 
         /// <summary>
@@ -3742,7 +3762,9 @@ namespace MonsterTrainAccessibility.Screens
             if (!IsInBattle)
                 return;
 
-            MonsterTrainAccessibility.ScreenReader?.Queue($"{enemyName} ascends to {RoomIndexToFloorName(roomIndex).ToLower()}");
+            string message = $"{enemyName} ascends to {RoomIndexToFloorName(roomIndex).ToLower()}";
+            MonsterTrainAccessibility.ScreenReader?.Queue(message);
+            MonsterTrainAccessibility.ScreenReader?.LogCombatEvent(message);
         }
 
         /// <summary>
@@ -3753,7 +3775,9 @@ namespace MonsterTrainAccessibility.Screens
             if (!IsInBattle)
                 return;
 
-            MonsterTrainAccessibility.ScreenReader?.Queue($"Pyre takes {damage} damage! {remainingHP} health remaining");
+            string message = $"Pyre takes {damage} damage! {remainingHP} health remaining";
+            MonsterTrainAccessibility.ScreenReader?.Queue(message);
+            MonsterTrainAccessibility.ScreenReader?.LogCombatEvent(message);
         }
 
         /// <summary>
@@ -3769,7 +3793,9 @@ namespace MonsterTrainAccessibility.Screens
 
             if (!string.IsNullOrEmpty(text))
             {
-                MonsterTrainAccessibility.ScreenReader?.Queue($"Enemy says: {text}");
+                string message = $"Enemy says: {text}";
+                MonsterTrainAccessibility.ScreenReader?.Queue(message);
+                MonsterTrainAccessibility.ScreenReader?.LogCombatEvent(message);
             }
         }
 
@@ -3783,6 +3809,7 @@ namespace MonsterTrainAccessibility.Screens
 
             // Only announce if there are units to fight
             MonsterTrainAccessibility.ScreenReader?.Queue("Combat!");
+            MonsterTrainAccessibility.ScreenReader?.LogCombatEvent("Combat!");
         }
 
         /// <summary>
@@ -3796,7 +3823,9 @@ namespace MonsterTrainAccessibility.Screens
             if (!MonsterTrainAccessibility.AccessibilitySettings.AnnounceRelicTriggers.Value)
                 return;
 
-            MonsterTrainAccessibility.ScreenReader?.Queue($"{relicName} triggered");
+            string message = $"{relicName} triggered";
+            MonsterTrainAccessibility.ScreenReader?.Queue(message);
+            MonsterTrainAccessibility.ScreenReader?.LogCombatEvent(message);
         }
 
         /// <summary>
@@ -3807,7 +3836,9 @@ namespace MonsterTrainAccessibility.Screens
             if (!IsInBattle)
                 return;
 
-            MonsterTrainAccessibility.ScreenReader?.Queue($"{cardName} consumed");
+            string message = $"{cardName} consumed";
+            MonsterTrainAccessibility.ScreenReader?.Queue(message);
+            MonsterTrainAccessibility.ScreenReader?.LogCombatEvent(message);
         }
 
         /// <summary>
@@ -3818,7 +3849,9 @@ namespace MonsterTrainAccessibility.Screens
             if (!IsInBattle)
                 return;
 
-            MonsterTrainAccessibility.ScreenReader?.Queue($"Pyre healed for {amount}. {currentHP} health");
+            string message = $"Pyre healed for {amount}. {currentHP} health";
+            MonsterTrainAccessibility.ScreenReader?.Queue(message);
+            MonsterTrainAccessibility.ScreenReader?.LogCombatEvent(message);
         }
 
         /// <summary>
@@ -3834,6 +3867,7 @@ namespace MonsterTrainAccessibility.Screens
                 ? $"{unitName} loses {stacks} {effectName}"
                 : $"{unitName} loses {effectName}";
             MonsterTrainAccessibility.ScreenReader?.Queue(message);
+            MonsterTrainAccessibility.ScreenReader?.LogCombatEvent(message);
         }
 
         /// <summary>
@@ -3844,7 +3878,9 @@ namespace MonsterTrainAccessibility.Screens
             if (!IsInBattle)
                 return;
 
-            MonsterTrainAccessibility.ScreenReader?.Queue($"{enemyName} descends to {RoomIndexToFloorName(roomIndex).ToLower()}");
+            string message = $"{enemyName} descends to {RoomIndexToFloorName(roomIndex).ToLower()}";
+            MonsterTrainAccessibility.ScreenReader?.Queue(message);
+            MonsterTrainAccessibility.ScreenReader?.LogCombatEvent(message);
         }
 
         /// <summary>
@@ -3856,6 +3892,7 @@ namespace MonsterTrainAccessibility.Screens
                 return;
 
             MonsterTrainAccessibility.ScreenReader?.Queue("All enemies defeated");
+            MonsterTrainAccessibility.ScreenReader?.LogCombatEvent("All enemies defeated");
         }
 
         /// <summary>
@@ -3867,6 +3904,7 @@ namespace MonsterTrainAccessibility.Screens
                 return;
 
             MonsterTrainAccessibility.ScreenReader?.Queue(phaseName);
+            MonsterTrainAccessibility.ScreenReader?.LogCombatEvent(phaseName);
         }
 
         /// <summary>
@@ -3877,7 +3915,9 @@ namespace MonsterTrainAccessibility.Screens
             if (!IsInBattle)
                 return;
 
-            MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName} gains {amount} max health");
+            string message = $"{unitName} gains {amount} max health";
+            MonsterTrainAccessibility.ScreenReader?.Queue(message);
+            MonsterTrainAccessibility.ScreenReader?.LogCombatEvent(message);
         }
 
         #endregion

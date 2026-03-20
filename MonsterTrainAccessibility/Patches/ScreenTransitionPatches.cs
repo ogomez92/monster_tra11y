@@ -2434,24 +2434,41 @@ namespace MonsterTrainAccessibility.Patches
                 var screenType = screen.GetType();
                 var bindingFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
 
-                // Try to get reward list
+                // Try to get reward list - try multiple field names and properties
                 var rewardsField = screenType.GetField("rewards", bindingFlags) ??
                                    screenType.GetField("_rewards", bindingFlags) ??
-                                   screenType.GetField("rewardStates", bindingFlags);
+                                   screenType.GetField("rewardStates", bindingFlags) ??
+                                   screenType.GetField("rewardDataList", bindingFlags) ??
+                                   screenType.GetField("currentRewards", bindingFlags) ??
+                                   screenType.GetField("_rewardStates", bindingFlags) ??
+                                   screenType.GetField("rewardNodes", bindingFlags);
 
+                System.Collections.IList rewards = null;
                 if (rewardsField != null)
                 {
-                    var rewards = rewardsField.GetValue(screen) as System.Collections.IList;
-                    if (rewards != null && rewards.Count > 0)
+                    rewards = rewardsField.GetValue(screen) as System.Collections.IList;
+                }
+
+                // Fallback: try properties if fields didn't work
+                if (rewards == null)
+                {
+                    var rewardsProp = screenType.GetProperty("Rewards", bindingFlags) ??
+                                     screenType.GetProperty("RewardStates", bindingFlags);
+                    if (rewardsProp != null)
                     {
-                        sb.Append($"{rewards.Count} rewards: ");
-                        foreach (var reward in rewards)
+                        rewards = rewardsProp.GetValue(screen) as System.Collections.IList;
+                    }
+                }
+
+                if (rewards != null && rewards.Count > 0)
+                {
+                    sb.Append($"{rewards.Count} rewards: ");
+                    foreach (var reward in rewards)
+                    {
+                        string rewardName = GetRewardDisplayName(reward);
+                        if (!string.IsNullOrEmpty(rewardName))
                         {
-                            string rewardName = GetRewardDisplayName(reward);
-                            if (!string.IsNullOrEmpty(rewardName))
-                            {
-                                sb.Append($"{rewardName}, ");
-                            }
+                            sb.Append($"{rewardName}, ");
                         }
                     }
                 }
@@ -2506,6 +2523,20 @@ namespace MonsterTrainAccessibility.Patches
                         return title;
                 }
 
+                // Try _rewardTitleKey field and localize it
+                var titleKeyField = dataType.GetField("_rewardTitleKey",
+                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (titleKeyField != null)
+                {
+                    string titleKey = titleKeyField.GetValue(rewardData) as string;
+                    if (!string.IsNullOrEmpty(titleKey))
+                    {
+                        string localized = TryLocalizeStatic(titleKey);
+                        if (!string.IsNullOrEmpty(localized) && localized != titleKey && !localized.Contains("_"))
+                            return localized;
+                    }
+                }
+
                 // Fallback: clean up type name
                 return typeName.Replace("RewardData", "").Replace("RewardState", "").Replace("Data", "");
             }
@@ -2513,6 +2544,58 @@ namespace MonsterTrainAccessibility.Patches
             {
                 return "Reward";
             }
+        }
+
+        private static MethodInfo _cachedLocalizeMethod;
+        private static bool _localizeSearched;
+
+        private static string TryLocalizeStatic(string key)
+        {
+            if (string.IsNullOrEmpty(key)) return key;
+            try
+            {
+                if (!_localizeSearched)
+                {
+                    _localizeSearched = true;
+                    foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+                    {
+                        if (!assembly.GetName().Name.Contains("Assembly-CSharp"))
+                            continue;
+                        foreach (var type in assembly.GetTypes())
+                        {
+                            if (!type.IsClass || !type.IsAbstract || !type.IsSealed)
+                                continue;
+                            var method = type.GetMethod("Localize", BindingFlags.Public | BindingFlags.Static);
+                            if (method != null && method.ReturnType == typeof(string))
+                            {
+                                var parameters = method.GetParameters();
+                                if (parameters.Length >= 1 && parameters[0].ParameterType == typeof(string))
+                                {
+                                    _cachedLocalizeMethod = method;
+                                    break;
+                                }
+                            }
+                        }
+                        if (_cachedLocalizeMethod != null) break;
+                    }
+                }
+
+                if (_cachedLocalizeMethod != null)
+                {
+                    var parameters = _cachedLocalizeMethod.GetParameters();
+                    var args = new object[parameters.Length];
+                    args[0] = key;
+                    for (int i = 1; i < args.Length; i++)
+                    {
+                        args[i] = parameters[i].HasDefaultValue ? parameters[i].DefaultValue : null;
+                    }
+                    var result = _cachedLocalizeMethod.Invoke(null, args) as string;
+                    if (!string.IsNullOrEmpty(result) && result != key)
+                        return result;
+                }
+            }
+            catch { }
+            return key;
         }
     }
 
@@ -2628,6 +2711,8 @@ namespace MonsterTrainAccessibility.Patches
     {
         private static System.Reflection.FieldInfo _contentLabelField;
         private static System.Reflection.PropertyInfo _textProperty;
+        // Cache the latest narrative text set by AppendTextContent so we can read it reliably
+        private static string _latestNarrativeText;
 
         public static void TryPatch(Harmony harmony)
         {
@@ -2635,6 +2720,15 @@ namespace MonsterTrainAccessibility.Patches
             {
                 var targetType = AccessTools.TypeByName("StoryEventScreen");
                 if (targetType == null) return;
+
+                // Patch AppendTextContent to capture narrative text when it's actually set
+                var appendMethod = AccessTools.Method(targetType, "AppendTextContent");
+                if (appendMethod != null)
+                {
+                    var postfix = new HarmonyMethod(typeof(StoryEventScreenPatch).GetMethod(nameof(AppendTextContentPostfix)));
+                    harmony.Patch(appendMethod, postfix: postfix);
+                    MonsterTrainAccessibility.LogInfo("Patched StoryEventScreen.AppendTextContent");
+                }
 
                 // Patch Initialize for screen transition announcement
                 var initMethod = AccessTools.Method(targetType, "Initialize") ??
@@ -2679,6 +2773,7 @@ namespace MonsterTrainAccessibility.Patches
         {
             try
             {
+                _latestNarrativeText = null; // Clear stale narrative from previous event
                 ScreenStateTracker.SetScreen(Help.GameScreen.Event);
                 MonsterTrainAccessibility.ScreenReader?.AnnounceScreen("Event. Navigate choices with arrows. Enter to select. Press F1 for help.");
             }
@@ -2688,11 +2783,39 @@ namespace MonsterTrainAccessibility.Patches
             }
         }
 
+        public static void AppendTextContentPostfix(object __instance)
+        {
+            try
+            {
+                // Read the freshly-set contentLabel text right after it's been updated
+                string text = ReadContentLabel(__instance);
+                if (!string.IsNullOrEmpty(text))
+                {
+                    _latestNarrativeText = text;
+                    MonsterTrainAccessibility.LogInfo($"AppendTextContent captured: {text.Substring(0, Math.Min(80, text.Length))}...");
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in AppendTextContent postfix: {ex.Message}");
+            }
+        }
+
         public static void OnChoicesPresentedPostfix(object __instance)
         {
             try
             {
-                string narrative = ReadContentLabel(__instance);
+                // Prefer the cached text from AppendTextContent (set during this call chain)
+                // over reading contentLabel which may be stale from a previous event
+                string narrative = _latestNarrativeText;
+                _latestNarrativeText = null; // Consume it so we don't re-announce
+
+                // Fallback to reading contentLabel directly
+                if (string.IsNullOrEmpty(narrative))
+                {
+                    narrative = ReadContentLabel(__instance);
+                }
+
                 if (!string.IsNullOrEmpty(narrative))
                 {
                     MonsterTrainAccessibility.LogInfo($"Event narrative (choices): {narrative}");
@@ -2709,7 +2832,15 @@ namespace MonsterTrainAccessibility.Patches
         {
             try
             {
-                string narrative = ReadContentLabel(__instance);
+                // Prefer cached text from AppendTextContent
+                string narrative = _latestNarrativeText;
+                _latestNarrativeText = null;
+
+                if (string.IsNullOrEmpty(narrative))
+                {
+                    narrative = ReadContentLabel(__instance);
+                }
+
                 if (!string.IsNullOrEmpty(narrative))
                 {
                     MonsterTrainAccessibility.LogInfo($"Event narrative (finished): {narrative}");

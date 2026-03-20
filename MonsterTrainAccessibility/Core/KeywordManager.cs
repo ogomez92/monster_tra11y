@@ -170,8 +170,15 @@ namespace MonsterTrainAccessibility.Core
                     if (string.IsNullOrEmpty(name))
                         continue;
 
+                    // Resolve KEY>>...<< patterns by extracting and localizing the inner key
+                    if (!string.IsNullOrEmpty(tooltip) && tooltip.Contains("KEY>>"))
+                    {
+                        tooltip = ResolveInlineKeys(tooltip);
+                    }
+
                     string value;
-                    if (!string.IsNullOrEmpty(tooltip) && tooltip != (prefix + tooltipSuffix))
+                    if (!string.IsNullOrEmpty(tooltip) && tooltip != (prefix + tooltipSuffix)
+                        && !tooltip.Contains("KEY>>"))
                     {
                         tooltip = Screens.BattleAccessibility.StripRichTextTags(tooltip).Trim();
                         value = $"{name}: {tooltip}";
@@ -240,10 +247,17 @@ namespace MonsterTrainAccessibility.Core
                     name = Screens.BattleAccessibility.StripRichTextTags(name).Trim();
                     if (string.IsNullOrEmpty(name)) continue;
 
+                    // Resolve KEY>>...<< patterns by extracting and localizing the inner key
+                    if (!string.IsNullOrEmpty(tooltip) && tooltip.Contains("KEY>>"))
+                    {
+                        tooltip = ResolveInlineKeys(tooltip);
+                    }
+
                     string value;
                     if (!string.IsNullOrEmpty(tooltip) &&
                         tooltip != (traitName + "_TooltipText") &&
-                        tooltip != (traitName + "_CardTooltipText"))
+                        tooltip != (traitName + "_CardTooltipText") &&
+                        !tooltip.Contains("KEY>>"))
                     {
                         tooltip = Screens.BattleAccessibility.StripRichTextTags(tooltip).Trim();
                         value = $"{name}: {tooltip}";
@@ -305,11 +319,16 @@ namespace MonsterTrainAccessibility.Core
                 { "Echo", "Echo: Copies the next spell played on this floor" },
                 { "Charged Echo", "Charged Echo: Stored echo charge that copies the next spell played" },
                 { "Pyre Lock", "Pyre Lock: Prevents the Pyre from being healed" },
+                { "Relentless", "Relentless: This unit attacks on every floor each turn" },
+                { "Permafrost", "Permafrost: This card stays in your hand between turns and cannot be discarded" },
             };
 
             foreach (var kv in fallbacks)
             {
-                if (!_keywords.ContainsKey(kv.Key))
+                // Add if missing, or override if existing entry has no description
+                // (just the keyword name with no colon means no tooltip was found)
+                if (!_keywords.ContainsKey(kv.Key) ||
+                    !_keywords[kv.Key].Contains(":"))
                 {
                     _keywords[kv.Key] = kv.Value;
                     count++;
@@ -317,6 +336,24 @@ namespace MonsterTrainAccessibility.Core
             }
 
             return count;
+        }
+
+        /// Resolve KEY>>localizationKey<< patterns by extracting and localizing the inner key.
+        private static string ResolveInlineKeys(string text)
+        {
+            if (string.IsNullOrEmpty(text) || !text.Contains("KEY>>"))
+                return text;
+
+            return System.Text.RegularExpressions.Regex.Replace(text, @"KEY>>([^<]+)<<", match =>
+            {
+                string key = match.Groups[1].Value;
+                string localized = TryLocalize(key);
+                if (!string.IsNullOrEmpty(localized) && localized != key && !localized.Contains("KEY>>"))
+                    return localized;
+                // If localization fails, strip the wrapper and return just the key name
+                // Make it readable: "StatusEffect_Relentless_CardTooltipText" -> keep as-is for now
+                return key;
+            });
         }
 
         #region Localization Helpers

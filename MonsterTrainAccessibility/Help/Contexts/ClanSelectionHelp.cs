@@ -16,10 +16,10 @@ namespace MonsterTrainAccessibility.Help.Contexts
 
         public string GetHelpText()
         {
-            return "Left and Right arrows: Browse clans. " +
-                   "Enter: Select highlighted clan. " +
-                   "C: Re-read current clan name and description. " +
-                   "T: Read all available clans. " +
+            return "Left and Right arrows: Browse clans and champions. " +
+                   "Enter: Select highlighted option. " +
+                   "C: Re-read current selection. " +
+                   "T: Read all available options. " +
                    "Escape: Return to main menu.";
         }
     }

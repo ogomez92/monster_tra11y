@@ -1,4 +1,6 @@
 using System;
+using System.IO;
+using System.Reflection;
 using DavyKager;
 
 namespace MonsterTrainAccessibility.Core
@@ -11,6 +13,8 @@ namespace MonsterTrainAccessibility.Core
     {
         private bool _initialized;
         private string _detectedScreenReader;
+        private StreamWriter _combatLogWriter;
+        private string _combatLogPath;
 
         /// <summary>
         /// Whether the screen reader output system is ready
@@ -56,6 +60,21 @@ namespace MonsterTrainAccessibility.Core
                     // Log capabilities
                     MonsterTrainAccessibility.LogInfo($"Speech available: {Tolk.HasSpeech()}");
                     MonsterTrainAccessibility.LogInfo($"Braille available: {Tolk.HasBraille()}");
+
+                    // Initialize combat log file
+                    try
+                    {
+                        string dllDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+                        _combatLogPath = Path.Combine(dllDir, "accessibility_combat_log.txt");
+                        _combatLogWriter = new StreamWriter(_combatLogPath, false, System.Text.Encoding.UTF8);
+                        _combatLogWriter.WriteLine("Combat log started");
+                        _combatLogWriter.Flush();
+                        MonsterTrainAccessibility.LogInfo($"Combat log file: {_combatLogPath}");
+                    }
+                    catch (Exception logEx)
+                    {
+                        MonsterTrainAccessibility.LogError($"Failed to create combat log: {logEx.Message}");
+                    }
                 }
                 else
                 {
@@ -250,6 +269,23 @@ namespace MonsterTrainAccessibility.Core
         }
 
         /// <summary>
+        /// Log a combat event to the combat log file.
+        /// Only battle events are logged, not menu navigation.
+        /// </summary>
+        public void LogCombatEvent(string text)
+        {
+            if (_combatLogWriter == null || string.IsNullOrEmpty(text))
+                return;
+
+            try
+            {
+                _combatLogWriter.WriteLine(text);
+                _combatLogWriter.Flush();
+            }
+            catch { }
+        }
+
+        /// <summary>
         /// Shutdown the Tolk library
         /// </summary>
         public void Shutdown()
@@ -268,6 +304,20 @@ namespace MonsterTrainAccessibility.Core
                     MonsterTrainAccessibility.LogError($"Error shutting down Tolk: {ex.Message}");
                 }
             }
+
+            // Close combat log
+            try
+            {
+                if (_combatLogWriter != null)
+                {
+                    _combatLogWriter.WriteLine("Combat log ended");
+                    _combatLogWriter.Flush();
+                    _combatLogWriter.Close();
+                    _combatLogWriter.Dispose();
+                    _combatLogWriter = null;
+                }
+            }
+            catch { }
         }
     }
 }
