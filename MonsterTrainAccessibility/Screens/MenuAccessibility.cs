@@ -10460,7 +10460,41 @@ namespace MonsterTrainAccessibility.Screens
                     }
                 }
 
-                // Build announcement: [Upgraded] Name (Rarity Type), Clan, Cost. Effect.
+                // Get unit subtype (e.g., "Imp", "Hollow", "Channeler") for monster cards
+                string unitSubtype = null;
+                if (cardType == "Unit" || cardType == "Monster")
+                {
+                    try
+                    {
+                        // Try CardState.GetSpawnCharacterData() first, then CardData's
+                        object charDataForSubtype = null;
+                        var getSpawnMethod = type.GetMethod("GetSpawnCharacterData", Type.EmptyTypes);
+                        if (getSpawnMethod != null)
+                            charDataForSubtype = getSpawnMethod.Invoke(cardState, null);
+
+                        if (charDataForSubtype == null && cardData != null)
+                        {
+                            getSpawnMethod = cardData.GetType().GetMethod("GetSpawnCharacterData", Type.EmptyTypes);
+                            if (getSpawnMethod != null)
+                                charDataForSubtype = getSpawnMethod.Invoke(cardData, null);
+                        }
+
+                        if (charDataForSubtype != null)
+                        {
+                            var getSubtypeMethod = charDataForSubtype.GetType().GetMethod("GetLocalizedSubtype", Type.EmptyTypes);
+                            if (getSubtypeMethod != null)
+                            {
+                                unitSubtype = getSubtypeMethod.Invoke(charDataForSubtype, null) as string;
+                            }
+                        }
+                    }
+                    catch (Exception subtypeEx)
+                    {
+                        MonsterTrainAccessibility.LogError($"Error getting unit subtype: {subtypeEx.Message}");
+                    }
+                }
+
+                // Build announcement: [Upgraded] Name (Rarity [Subtype] Type), Clan, Cost. Effect.
                 if (hasUpgrades)
                     sb.Append("Upgraded ");
                 sb.Append(name);
@@ -10470,6 +10504,12 @@ namespace MonsterTrainAccessibility.Screens
                     if (!string.IsNullOrEmpty(rarity))
                     {
                         sb.Append(rarity);
+                        if (!string.IsNullOrEmpty(unitSubtype) || !string.IsNullOrEmpty(cardType))
+                            sb.Append(" ");
+                    }
+                    if (!string.IsNullOrEmpty(unitSubtype))
+                    {
+                        sb.Append(unitSubtype);
                         if (!string.IsNullOrEmpty(cardType))
                             sb.Append(" ");
                     }
