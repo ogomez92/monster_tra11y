@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using MonsterTrainAccessibility.Battle;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -25,6 +27,12 @@ namespace MonsterTrainAccessibility.Core
         /// Currently browsed floor room index for Page Up/Down outside targeting mode
         /// </summary>
         private int _browsingFloor = 0; // Start at bottom floor (room index 0)
+
+        /// <summary>
+        /// Tracks which keyword definitions have already been announced.
+        /// Persists for the entire game session so definitions are only spoken once.
+        /// Shared via BattleAccessibility.AnnouncedKeywords.
+        /// </summary>
 
         private void Update()
         {
@@ -277,7 +285,7 @@ namespace MonsterTrainAccessibility.Core
 
             var battle = MonsterTrainAccessibility.BattleHandler;
             string floorName = Screens.BattleAccessibility.RoomIndexToFloorName(_browsingFloor);
-            string summary = battle?.GetFloorSummary(_browsingFloor) ?? "";
+            string summary = battle?.GetFloorSummary(_browsingFloor, Screens.BattleAccessibility.AnnouncedKeywords) ?? "";
             string message = string.IsNullOrEmpty(summary) ? floorName : $"{floorName}. {summary}";
             MonsterTrainAccessibility.ScreenReader?.Speak(message, false);
         }
@@ -334,7 +342,7 @@ namespace MonsterTrainAccessibility.Core
             var battle = MonsterTrainAccessibility.BattleHandler;
             if (battle != null && battle.IsInBattle)
             {
-                battle.AnnounceAllFloors();
+                battle.AnnounceAllFloors(Screens.BattleAccessibility.AnnouncedKeywords);
             }
             else
             {
@@ -350,7 +358,7 @@ namespace MonsterTrainAccessibility.Core
             var battle = MonsterTrainAccessibility.BattleHandler;
             if (battle != null && battle.IsInBattle)
             {
-                battle.AnnounceEnemies();
+                battle.AnnounceEnemies(Screens.BattleAccessibility.AnnouncedKeywords);
             }
             else
             {

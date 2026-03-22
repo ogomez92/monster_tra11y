@@ -143,6 +143,7 @@ namespace MonsterTrainAccessibility
             CombatPhaseChangePatch.TryPatch(_harmony);
             AllEnemiesDefeatedPatch.TryPatch(_harmony);
             MaxHPBuffPatch.TryPatch(_harmony);
+            RoomDisabledPatch.TryPatch(_harmony);
 
             // Card targeting patches
             CardTargetingPatches.TryPatch(_harmony);

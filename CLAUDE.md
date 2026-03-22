@@ -135,6 +135,8 @@ Manual patches (no `[HarmonyPatch]` attributes - use `TryPatch()` methods):
 
 Patches use runtime reflection to find game methods - see `PATCH_TARGETS.md` for verified targets.
 
+**Harmony Patch Timing Pitfall:** Some game methods call other patchable methods synchronously from within their body (e.g., `OnContentReady` → `AdvanceStory()` → `OnChoicesPresented`). In these cases, **postfixes run in reverse call order** — the inner method's postfix runs before the outer method's postfix. Use **prefixes** to capture state before it's modified by the method body. See `StoryEventScreenPatch` for a worked example.
+
 ### Text Extraction (MenuAccessibility.cs)
 
 The `GetTextFromGameObject()` method tries multiple extractors in order:
@@ -279,6 +281,17 @@ Both `MenuAccessibility.ExtractKeywordsFromDescription()` and `BattleAccessibili
 - Format: `{ "KeywordName", "KeywordName: Brief explanation" }`
 - Keywords from the game's localization are loaded automatically; only add to fallbacks what the game doesn't provide
 
+## Reading Game Data: UI Labels vs Game State
+
+When extracting information for accessibility, prefer reading from **game state objects** (SaveManager, CardManager, etc.) over **UI labels** (TMP_Text fields). UI labels can contain:
+- Placeholder text from Unity prefabs (never overwritten if feature is locked)
+- Stale text from previous screens (not yet updated)
+- Rich text / custom formatting that needs stripping
+
+Example: For clan level/XP on the class selection screen, query `SaveManager.GetClassLevel(classId)` and `SaveManager.GetClassXP(classId)` directly rather than reading `ClassLevelMeterUI.levelLabel.text`. The `CovenantSelectionUI` labels contain placeholder text ("Rank 15", "description goes here") when the feature is locked (`maxLevel <= 0`).
+
+To find a manager instance via reflection, locate the screen component with `FindObjectOfType`, then access its private manager fields (e.g., `ClassSelectionScreen.saveManager`).
+
 ## Debugging UI Text Extraction
 
 When text isn't reading correctly, the log shows helpful debug info:
@@ -336,9 +349,10 @@ The `game/` folder contains decompiled game source classes from `Assembly-CSharp
 |-------|------|-------------------|
 | `CharacterState` | Unit instance (health, position, status) | `GetName()`, `GetHP()`, `GetAttackDamage()`, `GetTeamType()`, `GetCurrentRoomIndex()`, `GetStatusEffectStacks(string)`, `GetStatusEffect(string)`, `ApplyDamage()`, `ApplyHeal()`, `AddStatusEffect()`, `Setup()`. Enums: `MovementState`, `CombatPreviewState`, `DestroyedState`. Inner: `StatusEffectStack`, `ApplyDamageParams`, `AddStatusEffectParams`. Property: `PreviewMode` |
 | `CardState` | Card instance | `GetTitle()`, `GetTitleKey()`, `GetCost(...)`, `GetCostWithoutTraits()`, `GetStatusEffects()`, `Setup(CardData, ...)`. Fields: `cardType`, `cost`, `costType`, `targetsRoom`, `targetless`, `rarityType` |
-| `RoomState` | Floor state and capacity | Floor state including units, capacity, enchantments |
+| `RoomState` | Floor state and capacity | `IsRoomEnabled()`, `SetRoomEnabled(bool)`, `GetRoomIndex()`, `DestroyRoom()`. Floor state including units, capacity, enchantments. When `!IsRoomEnabled()`, the floor is frozen/destroyed and cards cannot be played on it. |
 | `PyreRoomState` | Pyre health tracking | Pyre-specific room state |
-| `BossState` | Boss-specific state | Boss action tracking |
+| `BossState` | Boss-specific state | `GetNextBossAction()` → `BossActionState`, `PerformBossAction()`, `GetCurrentAttackPhase()`. `AttackPhase.Relentless` triggers room destroy actions |
+| `BossActionState` | Single boss action | `GetTooltipDescription()`, `GetTargetedRoomIndex()`, `IsRoomDestroyAction()`, `IsEmptyAction()`, `GetEffects()`. Description is in internal `stringBuilder` field |
 | `RelicState` | Artifact instance | Individual artifact runtime state |
 | `CardUpgradeState` | Card upgrade instance | `GetAttackDamage()`, `GetAttackDamageBuff()`, `GetCostReduction()`, `GetStatusEffectUpgrades()`, `Setup(CardUpgradeData)` |
 | `CardEffectState` | Card effect instance | `GetStatusEffectStackMultiplier()`, `GetDescriptionAsTrait()`, `Setup(CardEffectData, ...)` |
@@ -385,7 +399,7 @@ The `game/` folder contains decompiled game source classes from `Assembly-CSharp
 | `RewardScreen` | `Show(List<RewardState>, Source, Action, ...)` | Reward selection |
 | `DeckScreen` | `Setup(Params)` | Deck builder |
 | `GameOverScreen` | — | Victory/defeat |
-| `StoryEventScreen` | — | Story events |
+| `StoryEventScreen` | `Initialize()` | Story events. Uses Ink engine: `OnContentReady` accumulates text in `currentTextContent` (StringBuilder), `OnChoicesPresented` renders choices, `OnStoryFinished` shows Continue. `AppendTextContent()` moves text to `contentLabel` and clears the StringBuilder. |
 | `SynthesisScreen` | `Setup(Source, Action)` | Unit synthesis |
 | `SettingsScreen` | — | Settings |
 | `CompendiumScreen` | — | Card/relic compendium |
@@ -555,13 +569,11 @@ The DLC adds several features that may not be fully accessible yet:
 **DLC Features:**
 - **Hellpact Shards**: Collectible shards that power special abilities
 - **Divine Boon/Divine Horde/Divine Temple**: Special reward nodes for collecting shards
-- **Covenant Selector**: UI for selecting difficulty level (shows as "CovenantSelectorUI" - may not be reading properly)
 - **Dark Pact Temple Merchant**: Special DLC merchant
 
 **What needs work:**
 1. Divine reward nodes (Boon/Horde/Temple) may not be appearing or readable in the first artifact selection screen
-2. The Covenant selector interface may just show the component name instead of readable options
-3. Shard-related effects and rewards may need specific handling
+2. Shard-related effects and rewards may need specific handling
 
 **Investigation notes:**
 - The DLC content uses "Pact" terminology internally (e.g., `DarkPactTempleMerchant`, `PactAllNodesPool`)

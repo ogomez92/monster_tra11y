@@ -14,6 +14,12 @@ namespace MonsterTrainAccessibility.Screens
     /// </summary>
     public class BattleAccessibility
     {
+        /// <summary>
+        /// Tracks which keyword definitions have already been announced via floor/unit reading.
+        /// Persists for the entire game session so definitions are only spoken once.
+        /// </summary>
+        public static readonly HashSet<string> AnnouncedKeywords = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         public bool IsInBattle { get; private set; }
 
         // Cached manager references (found at runtime)
@@ -930,7 +936,7 @@ namespace MonsterTrainAccessibility.Screens
         /// <summary>
         /// Announce all floors
         /// </summary>
-        public void AnnounceAllFloors()
+        public void AnnounceAllFloors(HashSet<string> announcedKeywords = null)
         {
             try
             {
@@ -961,7 +967,7 @@ namespace MonsterTrainAccessibility.Screens
                                 var unitDescs = new List<string>();
                                 foreach (var unit in pyreUnits)
                                 {
-                                    string unitDesc = GetUnitBriefDescription(unit);
+                                    string unitDesc = GetUnitBriefDescription(unit, announcedKeywords);
                                     bool isEnemy = IsEnemyUnit(unit);
                                     string prefix = isEnemy ? "Enemy " : "";
                                     unitDescs.Add($"{prefix}{unitDesc}");
@@ -1002,7 +1008,7 @@ namespace MonsterTrainAccessibility.Screens
                                 var descriptions = new List<string>();
                                 foreach (var unit in units)
                                 {
-                                    string unitDesc = GetUnitBriefDescription(unit);
+                                    string unitDesc = GetUnitBriefDescription(unit, announcedKeywords);
                                     bool isEnemy = IsEnemyUnit(unit);
                                     string prefix = isEnemy ? "Enemy " : "";
                                     descriptions.Add($"{prefix}{unitDesc}");
@@ -1023,7 +1029,7 @@ namespace MonsterTrainAccessibility.Screens
         /// <summary>
         /// Get a brief description of a unit including attack/health, status effects, abilities, and size
         /// </summary>
-        private string GetUnitBriefDescription(object unit)
+        private string GetUnitBriefDescription(object unit, HashSet<string> announcedKeywords = null)
         {
             string name = GetUnitName(unit);
             int hp = GetUnitHP(unit);
@@ -1053,7 +1059,7 @@ namespace MonsterTrainAccessibility.Screens
             }
 
             // Add keyword explanations for status effects and abilities
-            string keywordExplanations = GetUnitKeywordExplanations(statusEffects, abilities);
+            string keywordExplanations = GetUnitKeywordExplanations(statusEffects, abilities, announcedKeywords);
             if (!string.IsNullOrEmpty(keywordExplanations))
             {
                 sb.Append($". Keywords: {keywordExplanations}");
@@ -1080,7 +1086,7 @@ namespace MonsterTrainAccessibility.Screens
         /// <summary>
         /// Look up keyword explanations for status effect and ability names found on a unit.
         /// </summary>
-        private string GetUnitKeywordExplanations(string statusEffects, string abilities)
+        private string GetUnitKeywordExplanations(string statusEffects, string abilities, HashSet<string> announcedKeywords = null)
         {
             var keywords = Core.KeywordManager.GetKeywords();
             if (keywords == null || keywords.Count == 0) return null;
@@ -1104,6 +1110,9 @@ namespace MonsterTrainAccessibility.Screens
                     if (string.IsNullOrEmpty(keyName) || seen.Contains(keyName)) continue;
                     seen.Add(keyName);
 
+                    // Skip if already announced in this browsing session
+                    if (announcedKeywords != null && !announcedKeywords.Add(keyName)) continue;
+
                     if (keywords.TryGetValue(keyName, out string explanation))
                     {
                         explanations.Add(explanation);
@@ -1126,7 +1135,7 @@ namespace MonsterTrainAccessibility.Screens
             if (characterState == null) return null;
             try
             {
-                return GetUnitBriefDescription(characterState);
+                return GetUnitBriefDescription(characterState, AnnouncedKeywords);
             }
             catch (Exception ex)
             {
@@ -1507,7 +1516,7 @@ namespace MonsterTrainAccessibility.Screens
         /// Get a text summary of what's on a specific floor (for floor targeting).
         /// Takes room index directly (0=bottom, 1=middle, 2=top, 3=pyre room).
         /// </summary>
-        public string GetFloorSummary(int roomIndex)
+        public string GetFloorSummary(int roomIndex, HashSet<string> announcedKeywords = null)
         {
             try
             {
@@ -1532,12 +1541,25 @@ namespace MonsterTrainAccessibility.Screens
                     {
                         foreach (var unit in pyreUnits)
                         {
-                            string desc = GetUnitBriefDescription(unit);
+                            string desc = GetUnitBriefDescription(unit, announcedKeywords);
                             bool isEnemy = IsEnemyUnit(unit);
                             pyreParts.Add($"{(isEnemy ? "Enemy " : "")}{desc}");
                         }
                     }
                     return pyreParts.Count > 0 ? string.Join(". ", pyreParts) : "Empty";
+                }
+
+                // Check if floor is frozen/disabled (e.g. destroyed by boss action)
+                bool isRoomFrozen = false;
+                var roomType = room.GetType();
+                var isEnabledMethod = roomType.GetMethod("IsRoomEnabled", Type.EmptyTypes);
+                if (isEnabledMethod != null)
+                {
+                    var enabled = isEnabledMethod.Invoke(room, null);
+                    if (enabled is bool isEnabled && !isEnabled)
+                    {
+                        isRoomFrozen = true;
+                    }
                 }
 
                 // Regular floor - get capacity info from game
@@ -1554,7 +1576,7 @@ namespace MonsterTrainAccessibility.Screens
 
                 if (units.Count == 0)
                 {
-                    string emptyInfo = $"Empty. {capacityInfo}";
+                    string emptyInfo = isRoomFrozen ? $"Frozen. {capacityInfo}" : $"Empty. {capacityInfo}";
                     if (!string.IsNullOrEmpty(corruptionInfo))
                         emptyInfo += $". {corruptionInfo}";
                     if (!string.IsNullOrEmpty(enchantmentInfo))
@@ -1568,7 +1590,7 @@ namespace MonsterTrainAccessibility.Screens
                 foreach (var unit in units)
                 {
                     // Use GetUnitBriefDescription which includes abilities and intents
-                    string description = GetUnitBriefDescription(unit);
+                    string description = GetUnitBriefDescription(unit, announcedKeywords);
 
                     if (IsEnemyUnit(unit))
                     {
@@ -1581,18 +1603,20 @@ namespace MonsterTrainAccessibility.Screens
                 }
 
                 var parts = new List<string>();
+                if (isRoomFrozen)
+                    parts.Add("Frozen");
                 parts.Add(capacityInfo);
                 if (!string.IsNullOrEmpty(corruptionInfo))
                     parts.Add(corruptionInfo);
                 if (!string.IsNullOrEmpty(enchantmentInfo))
                     parts.Add(enchantmentInfo);
-                if (friendlyUnits.Count > 0)
-                {
-                    parts.Add($"Your units: {string.Join(", ", friendlyUnits)}");
-                }
                 if (enemyUnits.Count > 0)
                 {
                     parts.Add($"Enemies: {string.Join(", ", enemyUnits)}");
+                }
+                if (friendlyUnits.Count > 0)
+                {
+                    parts.Add($"Your units: {string.Join(", ", friendlyUnits)}");
                 }
 
                 return string.Join(". ", parts);
@@ -2402,7 +2426,7 @@ namespace MonsterTrainAccessibility.Screens
         /// <summary>
         /// Announce all units (player monsters and enemies) on each floor
         /// </summary>
-        public void AnnounceEnemies()
+        public void AnnounceEnemies(HashSet<string> announcedKeywords = null)
         {
             try
             {
@@ -2435,7 +2459,7 @@ namespace MonsterTrainAccessibility.Screens
                     foreach (var unit in units)
                     {
                         bool isEnemy = IsEnemyUnit(unit);
-                        string unitDesc = GetDetailedEnemyDescription(unit);
+                        string unitDesc = GetDetailedEnemyDescription(unit, announcedKeywords);
 
                         if (isEnemy)
                         {
@@ -2496,13 +2520,13 @@ namespace MonsterTrainAccessibility.Screens
         /// </summary>
         public string GetDetailedUnitDescription(object unit)
         {
-            return GetDetailedEnemyDescription(unit);
+            return GetDetailedEnemyDescription(unit, AnnouncedKeywords);
         }
 
         /// <summary>
         /// Get a detailed description of an enemy unit including stats, status effects, and intent
         /// </summary>
-        private string GetDetailedEnemyDescription(object unit)
+        private string GetDetailedEnemyDescription(object unit, HashSet<string> announcedKeywords = null)
         {
             try
             {
@@ -2536,7 +2560,7 @@ namespace MonsterTrainAccessibility.Screens
                 }
 
                 // Add keyword explanations for status effects and abilities
-                string keywordExplanations = GetUnitKeywordExplanations(statusEffects, abilities);
+                string keywordExplanations = GetUnitKeywordExplanations(statusEffects, abilities, announcedKeywords);
                 if (!string.IsNullOrEmpty(keywordExplanations))
                 {
                     sb.Append($". Keywords: {keywordExplanations}");

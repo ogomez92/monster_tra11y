@@ -191,7 +191,7 @@ namespace MonsterTrainAccessibility.Screens
             {
                 foreach (var component in current.GetComponents<Component>())
                 {
-                    if (component != null && component.GetType().Name.Contains("CovenantSelectionUI"))
+                    if (component != null && component.GetType().Name == "CovenantSelectionUI")
                         return component;
                 }
                 current = current.parent;
@@ -1459,15 +1459,15 @@ namespace MonsterTrainAccessibility.Screens
                 return text;
             }
 
-            // 2. Check for settings screen elements (dropdowns, sliders, toggles with SettingsEntry parent)
-            text = GetSettingsElementText(go);
+            // 2.4. Check for DLC toggle (Last Divinity / Hellforged) - before settings/generic toggle
+            text = GetDLCToggleText(go);
             if (!string.IsNullOrEmpty(text))
             {
                 return text;
             }
 
-            // 2.4. Check for DLC toggle (Last Divinity / Hellforged) - before generic toggle
-            text = GetDLCToggleText(go);
+            // 2. Check for settings screen elements (dropdowns, sliders, toggles with SettingsEntry parent)
+            text = GetSettingsElementText(go);
             if (!string.IsNullOrEmpty(text))
             {
                 return text;
@@ -2058,13 +2058,17 @@ namespace MonsterTrainAccessibility.Screens
 
                     if (rewardsList is System.Collections.IList rewards && rewards.Count > 0)
                     {
-                        // Get SaveManager from StoryEventScreen
+                        // Get SaveManager and RelicManager from StoryEventScreen
                         object saveManager = null;
+                        object relicManager = null;
                         if (storyEventScreen != null)
                         {
                             var saveManagerField = storyEventScreen.GetType().GetField("saveManager", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
                             if (saveManagerField != null)
                                 saveManager = saveManagerField.GetValue(storyEventScreen);
+                            var relicManagerField = storyEventScreen.GetType().GetField("relicManager", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                            if (relicManagerField != null)
+                                relicManager = relicManagerField.GetValue(storyEventScreen);
                         }
 
                         var rewardTexts = new List<string>();
@@ -2083,7 +2087,7 @@ namespace MonsterTrainAccessibility.Screens
 
                             MonsterTrainAccessibility.LogInfo($"Story choice reward: previewType={previewTypeVal}, dataKey={dataKey}");
 
-                            string rewardText = GetRewardTextFromData(previewTypeVal, dataKey, saveManager);
+                            string rewardText = GetRewardTextFromData(previewTypeVal, dataKey, saveManager, relicManager);
                             if (!string.IsNullOrEmpty(rewardText))
                             {
                                 rewardTexts.Add(rewardText);
@@ -2149,7 +2153,7 @@ namespace MonsterTrainAccessibility.Screens
         /// Look up reward data by type and key, returning a readable description.
         /// PreviewType values: None=0, Card=1, Relic=2, Upgrade=3, Reward=4, Coin=5, DeckReward=6, Relic_Name=7
         /// </summary>
-        private string GetRewardTextFromData(int previewType, string dataKey, object saveManager)
+        private string GetRewardTextFromData(int previewType, string dataKey, object saveManager, object relicManager = null)
         {
             try
             {
@@ -2176,6 +2180,45 @@ namespace MonsterTrainAccessibility.Screens
                         if (findMethod == null) return null;
                         var cardData = findMethod.Invoke(allGameData, new object[] { dataKey });
                         if (cardData == null) return null;
+
+                        // Create a CardState from CardData to get full card text
+                        // (CardData alone has no GetDescription/GetCardText - those are on CardState)
+                        try
+                        {
+                            var cardStateType = cardData.GetType().Assembly.GetType("CardState");
+                            if (cardStateType != null)
+                            {
+                                // CardState(CardData, RelicManager, SaveManager, bool setupStartingUpgrades = true)
+                                var ctors = cardStateType.GetConstructors();
+                                foreach (var ctor in ctors)
+                                {
+                                    var ps = ctor.GetParameters();
+                                    if (ps.Length >= 3 && ps[0].ParameterType.Name == "CardData")
+                                    {
+                                        var args = new object[ps.Length];
+                                        args[0] = cardData;
+                                        args[1] = relicManager; // may be null, that's ok
+                                        args[2] = saveManager;
+                                        for (int i = 3; i < ps.Length; i++)
+                                        {
+                                            args[i] = ps[i].HasDefaultValue ? ps[i].DefaultValue : (ps[i].ParameterType.IsValueType ? Activator.CreateInstance(ps[i].ParameterType) : null);
+                                        }
+                                        var cardState = ctor.Invoke(args);
+                                        if (cardState != null)
+                                        {
+                                            MonsterTrainAccessibility.LogInfo($"Created CardState from CardData for reward '{dataKey}'");
+                                            return FormatCardDetails(cardState);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            MonsterTrainAccessibility.LogInfo($"Failed to create CardState from CardData: {ex.Message}");
+                        }
+
+                        // Fallback: use CardData directly (limited info)
                         return FormatCardDetails(cardData);
                     }
                     case 2: // Relic
@@ -7221,7 +7264,7 @@ namespace MonsterTrainAccessibility.Screens
                         value = GetSliderValue(go);
                         break;
                     }
-                    else if (typeName.Contains("Toggle"))
+                    else if (typeName.Contains("Toggle") || typeName.Contains("Checkbox"))
                     {
                         value = GetToggleValue(go);
                         break;
@@ -7412,7 +7455,7 @@ namespace MonsterTrainAccessibility.Screens
                     if (component == null) continue;
                     var type = component.GetType();
 
-                    var isOnProp = type.GetProperty("isOn") ?? type.GetProperty("IsOn");
+                    var isOnProp = type.GetProperty("isOn") ?? type.GetProperty("IsOn") ?? type.GetProperty("isChecked");
                     if (isOnProp != null)
                     {
                         var val = isOnProp.GetValue(component);
@@ -12746,6 +12789,21 @@ namespace MonsterTrainAccessibility.Screens
                     result.Append(BattleAccessibility.StripRichTextTags(clanDescription));
                 }
 
+                // Get clan level and XP progression from SaveManager
+                try
+                {
+                    string progressionInfo = GetClanProgressionInfo(actualClassData);
+                    if (!string.IsNullOrEmpty(progressionInfo))
+                    {
+                        result.Append(". ");
+                        result.Append(progressionInfo);
+                    }
+                }
+                catch (Exception progressEx)
+                {
+                    MonsterTrainAccessibility.LogError($"Error getting clan progression: {progressEx.Message}");
+                }
+
                 result.Append(". Use Left and Right arrows to change selection.");
 
                 return result.ToString();
@@ -12755,6 +12813,127 @@ namespace MonsterTrainAccessibility.Screens
                 MonsterTrainAccessibility.LogError($"Error getting clan selection text: {ex.Message}");
             }
             return null;
+        }
+
+        /// <summary>
+        /// Get clan level and XP progression info directly from SaveManager
+        /// </summary>
+        private string GetClanProgressionInfo(object classData)
+        {
+            if (classData == null) return null;
+
+            var classDataType = classData.GetType();
+
+            // Get class ID
+            var getIdMethod = classDataType.GetMethod("GetID", Type.EmptyTypes);
+            if (getIdMethod == null) return null;
+            string classId = getIdMethod.Invoke(classData, null) as string;
+            if (string.IsNullOrEmpty(classId)) return null;
+
+            // Find SaveManager from ClassSelectionScreen
+            Type screenType = null;
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                if (!assembly.GetName().Name.Contains("Assembly-CSharp")) continue;
+                screenType = assembly.GetType("ClassSelectionScreen");
+                if (screenType != null) break;
+            }
+            if (screenType == null) return null;
+
+            var screen = UnityEngine.Object.FindObjectOfType(screenType);
+            if (screen == null) return null;
+
+            var saveManagerField = screenType.GetField("saveManager", BindingFlags.NonPublic | BindingFlags.Instance);
+            if (saveManagerField == null) return null;
+            var saveManager = saveManagerField.GetValue(screen);
+            if (saveManager == null) return null;
+
+            var saveType = saveManager.GetType();
+            var sb = new StringBuilder();
+
+            // Get class level: saveManager.GetClassLevel(classId)
+            var getClassLevelMethod = saveType.GetMethod("GetClassLevel", new[] { typeof(string) });
+            if (getClassLevelMethod != null)
+            {
+                var levelResult = getClassLevelMethod.Invoke(saveManager, new object[] { classId });
+                if (levelResult is int level)
+                {
+                    sb.Append($"Clan level {level}");
+
+                    // Get class XP: saveManager.GetClassXP(classId)
+                    var getClassXPMethod = saveType.GetMethod("GetClassXP", new[] { typeof(string) });
+                    if (getClassXPMethod != null)
+                    {
+                        var xpResult = getClassXPMethod.Invoke(saveManager, new object[] { classId });
+                        if (xpResult is int xp)
+                        {
+                            // Get XP required for next level from BalanceData
+                            var getBalanceMethod = saveType.GetMethod("GetBalanceData", Type.EmptyTypes);
+                            if (getBalanceMethod != null)
+                            {
+                                var balanceData = getBalanceMethod.Invoke(saveManager, null);
+                                if (balanceData != null)
+                                {
+                                    var balanceType = balanceData.GetType();
+
+                                    // Apply XP calculation (same as ClassLevelMeterUI.ShowXP does)
+                                    var applyXpMethod = balanceType.GetMethod("ApplyClassXP");
+                                    if (applyXpMethod != null)
+                                    {
+                                        object[] applyArgs = new object[] { level, xp };
+                                        applyXpMethod.Invoke(balanceData, applyArgs);
+                                        level = (int)applyArgs[0];
+                                        xp = (int)applyArgs[1];
+
+                                        // Update the level text with the adjusted value
+                                        sb.Clear();
+                                        sb.Append($"Clan level {level}");
+                                    }
+
+                                    var hasNextMethod = balanceType.GetMethod("HasNextClassLevel");
+                                    if (hasNextMethod != null)
+                                    {
+                                        bool hasNext = (bool)hasNextMethod.Invoke(balanceData, new object[] { level });
+                                        if (hasNext)
+                                        {
+                                            var getXpRequired = balanceType.GetMethod("GetXPRequiredForNextClassLevel");
+                                            if (getXpRequired != null)
+                                            {
+                                                var totalXp = getXpRequired.Invoke(balanceData, new object[] { level });
+                                                if (totalXp is int total)
+                                                {
+                                                    sb.Append($", XP {xp:N0}/{total:N0}");
+                                                }
+                                            }
+                                        }
+                                        else
+                                        {
+                                            sb.Append(" (max level)");
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Get next level unlock preview
+                    var getPreviewMethod = classDataType.GetMethod("GetLocalizedClassUnlockPreview");
+                    if (getPreviewMethod != null)
+                    {
+                        string previewKey = getPreviewMethod.Invoke(classData, new object[] { level }) as string;
+                        if (!string.IsNullOrEmpty(previewKey))
+                        {
+                            string previewText = LocalizeString(previewKey);
+                            if (!string.IsNullOrEmpty(previewText))
+                            {
+                                sb.Append($". Next unlock: {BattleAccessibility.StripRichTextTags(previewText)}");
+                            }
+                        }
+                    }
+                }
+            }
+
+            return sb.Length > 0 ? sb.ToString() : null;
         }
 
         /// <summary>
@@ -12960,12 +13139,54 @@ namespace MonsterTrainAccessibility.Screens
                                             if (result is int h) health = h;
                                         }
 
-                                        if (attack >= 0 || health >= 0)
+                                        // Get size
+                                        int size = -1;
+                                        var sizeMethod = charDataType.GetMethod("GetSize", Type.EmptyTypes);
+                                        if (sizeMethod != null)
+                                        {
+                                            var sizeResult = sizeMethod.Invoke(charData, null);
+                                            if (sizeResult is int s) size = s;
+                                        }
+
+                                        if (attack >= 0 || health >= 0 || size >= 0)
                                         {
                                             sb.Append(". Stats: ");
                                             if (attack >= 0) sb.Append($"{attack} attack");
-                                            if (attack >= 0 && health >= 0) sb.Append(", ");
+                                            if (attack >= 0 && (health >= 0 || size >= 0)) sb.Append(", ");
                                             if (health >= 0) sb.Append($"{health} health");
+                                            if (health >= 0 && size >= 0) sb.Append(", ");
+                                            if (size >= 0) sb.Append($"size {size}");
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Get starter card name from starterCardData
+                        var starterCardDataField = champDataType.GetField("starterCardData", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                        if (starterCardDataField != null)
+                        {
+                            var starterCard = starterCardDataField.GetValue(championData);
+                            if (starterCard != null)
+                            {
+                                var getNameMethod = starterCard.GetType().GetMethod("GetName", Type.EmptyTypes);
+                                if (getNameMethod != null)
+                                {
+                                    string starterName = getNameMethod.Invoke(starterCard, null) as string;
+                                    if (!string.IsNullOrEmpty(starterName))
+                                    {
+                                        sb.Append($". Starter card: {starterName}");
+
+                                        // Get starter card description too
+                                        var getDescMethod = starterCard.GetType().GetMethod("GetDescription", Type.EmptyTypes);
+                                        if (getDescMethod != null)
+                                        {
+                                            var starterDesc = getDescMethod.Invoke(starterCard, null) as string;
+                                            if (!string.IsNullOrEmpty(starterDesc))
+                                            {
+                                                sb.Append(". ");
+                                                sb.Append(BattleAccessibility.StripRichTextTags(starterDesc));
+                                            }
                                         }
                                     }
                                 }
@@ -13034,145 +13255,106 @@ namespace MonsterTrainAccessibility.Screens
         {
             try
             {
-                // Check if this has CovenantSelectorUI or is a child of one
+                // Find CovenantSelectionUI on this object or parents
                 Component covenantUI = null;
-                string goName = go.name;
 
-                foreach (var component in go.GetComponents<Component>())
+                Transform current = go.transform;
+                while (current != null && covenantUI == null)
                 {
-                    if (component == null) continue;
-                    string typeName = component.GetType().Name;
-
-                    if (typeName.Contains("Covenant") || typeName.Contains("Ascension"))
+                    foreach (var component in current.GetComponents<Component>())
                     {
-                        covenantUI = component;
-                        break;
-                    }
-                }
+                        if (component == null) continue;
+                        string typeName = component.GetType().Name;
 
-                // Check parent hierarchy if not found on this object
-                if (covenantUI == null)
-                {
-                    Transform current = go.transform.parent;
-                    while (current != null)
-                    {
-                        foreach (var component in current.GetComponents<Component>())
+                        if (typeName == "CovenantSelectionUI")
                         {
-                            if (component == null) continue;
-                            string typeName = component.GetType().Name;
-
-                            if (typeName.Contains("Covenant") || typeName.Contains("Ascension"))
-                            {
-                                covenantUI = component;
-                                break;
-                            }
+                            covenantUI = component;
+                            break;
                         }
-                        if (covenantUI != null) break;
-                        current = current.parent;
                     }
+                    current = current.parent;
                 }
 
                 if (covenantUI == null)
                     return null;
 
-                MonsterTrainAccessibility.LogInfo($"Found CovenantUI component: {covenantUI.GetType().Name} on {go.name}");
-
                 var uiType = covenantUI.GetType();
 
-                // Log all fields for debugging
-                var fields = uiType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                MonsterTrainAccessibility.LogInfo($"CovenantUI fields: {string.Join(", ", fields.Select(f => f.Name))}");
-
-                // Try to get the current covenant level from the UI
+                // Read currentLevel and maxLevel fields
                 int covenantLevel = -1;
-                int maxCovenant = -1;
+                int maxLevel = -1;
 
-                // Try various field/property names for current level
-                var levelFieldNames = new[] { "covenantLevel", "_covenantLevel", "selectedLevel", "_selectedLevel",
-                                               "currentLevel", "_currentLevel", "level", "_level",
-                                               "ascensionLevel", "_ascensionLevel" };
-                foreach (var fieldName in levelFieldNames)
+                var levelField = uiType.GetField("currentLevel", BindingFlags.NonPublic | BindingFlags.Instance);
+                if (levelField != null)
                 {
-                    var field = uiType.GetField(fieldName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                    if (field != null && (field.FieldType == typeof(int) || field.FieldType.IsEnum))
-                    {
-                        var val = field.GetValue(covenantUI);
-                        if (val != null)
-                        {
-                            covenantLevel = Convert.ToInt32(val);
-                            MonsterTrainAccessibility.LogInfo($"Found covenant level via {fieldName}: {covenantLevel}");
-                            break;
-                        }
-                    }
-
-                    var prop = uiType.GetProperty(fieldName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                    if (prop != null && prop.CanRead && (prop.PropertyType == typeof(int) || prop.PropertyType.IsEnum))
-                    {
-                        var val = prop.GetValue(covenantUI);
-                        if (val != null)
-                        {
-                            covenantLevel = Convert.ToInt32(val);
-                            MonsterTrainAccessibility.LogInfo($"Found covenant level via property {fieldName}: {covenantLevel}");
-                            break;
-                        }
-                    }
+                    var val = levelField.GetValue(covenantUI);
+                    if (val != null) covenantLevel = Convert.ToInt32(val);
                 }
 
-                // Try to get max covenant level
-                var maxFieldNames = new[] { "maxCovenantLevel", "_maxCovenantLevel", "maxLevel", "_maxLevel",
-                                            "unlockedLevel", "_unlockedLevel", "maxUnlockedCovenant" };
-                foreach (var fieldName in maxFieldNames)
+                var maxField = uiType.GetField("maxLevel", BindingFlags.NonPublic | BindingFlags.Instance);
+                if (maxField != null)
                 {
-                    var field = uiType.GetField(fieldName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                    if (field != null && (field.FieldType == typeof(int) || field.FieldType.IsEnum))
-                    {
-                        var val = field.GetValue(covenantUI);
-                        if (val != null)
-                        {
-                            maxCovenant = Convert.ToInt32(val);
-                            break;
-                        }
-                    }
+                    var val = maxField.GetValue(covenantUI);
+                    if (val != null) maxLevel = Convert.ToInt32(val);
                 }
 
-                // Try to get text from children that might show covenant info
-                var childTexts = GetAllTextFromChildren(go);
-                string childInfo = "";
-                if (childTexts != null && childTexts.Count > 0)
-                {
-                    var meaningfulTexts = childTexts.Where(t =>
-                        !string.IsNullOrWhiteSpace(t) && t.Length > 1).ToList();
-                    if (meaningfulTexts.Count > 0)
-                    {
-                        childInfo = string.Join(". ", meaningfulTexts);
-                    }
-                }
-
-                // Build the announcement
                 var sb = new StringBuilder();
-                sb.Append("Covenant ");
 
-                if (covenantLevel >= 0)
+                // When maxLevel is 0, covenant is locked - labels contain placeholder text
+                if (maxLevel <= 0)
                 {
-                    sb.Append($"level {covenantLevel}");
-                    if (maxCovenant >= 0)
+                    sb.Append("Covenant: Locked. Win a run to unlock covenant ranks.");
+                    return sb.ToString();
+                }
+
+                // Covenant is unlocked - read the actual UI labels
+                // Read the levelLabel TMP_Text for the displayed level name
+                string levelLabelText = null;
+                var levelLabelField = uiType.GetField("levelLabel", BindingFlags.NonPublic | BindingFlags.Instance);
+                if (levelLabelField != null)
+                {
+                    var levelLabel = levelLabelField.GetValue(covenantUI);
+                    if (levelLabel != null)
                     {
-                        sb.Append($" of {maxCovenant} unlocked");
+                        var textProp = levelLabel.GetType().GetProperty("text");
+                        if (textProp != null)
+                            levelLabelText = textProp.GetValue(levelLabel) as string;
                     }
                 }
-                else if (!string.IsNullOrEmpty(childInfo))
+
+                // Read the descriptionLabel TMP_Text for the covenant description
+                string descriptionText = null;
+                var descLabelField = uiType.GetField("descriptionLabel", BindingFlags.NonPublic | BindingFlags.Instance);
+                if (descLabelField != null)
                 {
-                    sb.Append(childInfo);
+                    var descLabel = descLabelField.GetValue(covenantUI);
+                    if (descLabel != null)
+                    {
+                        var textProp = descLabel.GetType().GetProperty("text");
+                        if (textProp != null)
+                            descriptionText = textProp.GetValue(descLabel) as string;
+                    }
+                }
+
+                // Build announcement
+                if (!string.IsNullOrEmpty(levelLabelText))
+                {
+                    sb.Append($"Covenant: {BattleAccessibility.StripRichTextTags(levelLabelText)}");
                 }
                 else
                 {
-                    // Try to infer from button name or position
-                    string nameLower = goName.ToLower();
-                    if (nameLower.Contains("0") || nameLower.Contains("none"))
-                        sb.Append("0 (no modifiers)");
-                    else
-                        sb.Append("selector. Use arrows to change level, Enter to confirm");
+                    sb.Append($"Covenant level {covenantLevel}");
                 }
+
+                sb.Append($". Maximum unlocked: {maxLevel}");
+
+                if (!string.IsNullOrEmpty(descriptionText))
+                {
+                    sb.Append(". ");
+                    sb.Append(BattleAccessibility.StripRichTextTags(descriptionText));
+                }
+
+                sb.Append(". Use Left and Right arrows to change level.");
 
                 return sb.ToString();
             }

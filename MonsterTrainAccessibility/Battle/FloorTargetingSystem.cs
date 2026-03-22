@@ -262,7 +262,7 @@ namespace MonsterTrainAccessibility.Battle
             var battle = MonsterTrainAccessibility.BattleHandler;
             if (battle != null)
             {
-                return battle.GetFloorSummary(roomIndex);
+                return battle.GetFloorSummary(roomIndex, Screens.BattleAccessibility.AnnouncedKeywords);
             }
             return "";
         }

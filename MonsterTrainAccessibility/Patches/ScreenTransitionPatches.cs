@@ -2238,6 +2238,10 @@ namespace MonsterTrainAccessibility.Patches
                     break;
             }
 
+            if (!string.IsNullOrEmpty(cardName) || !string.IsNullOrEmpty(relicName))
+            {
+                sb.Append("Press Up arrow to view details. ");
+            }
             sb.Append("Press Enter to continue.");
             return sb.ToString().Trim();
         }
@@ -2709,10 +2713,9 @@ namespace MonsterTrainAccessibility.Patches
     /// </summary>
     public static class StoryEventScreenPatch
     {
-        private static System.Reflection.FieldInfo _contentLabelField;
-        private static System.Reflection.PropertyInfo _textProperty;
-        // Cache the latest narrative text set by AppendTextContent so we can read it reliably
-        private static string _latestNarrativeText;
+        private static System.Reflection.FieldInfo _currentTextContentField;
+        // Captured narrative text - set by prefixes BEFORE the method body clears it
+        private static string _capturedNarrative;
 
         public static void TryPatch(Harmony harmony)
         {
@@ -2720,15 +2723,6 @@ namespace MonsterTrainAccessibility.Patches
             {
                 var targetType = AccessTools.TypeByName("StoryEventScreen");
                 if (targetType == null) return;
-
-                // Patch AppendTextContent to capture narrative text when it's actually set
-                var appendMethod = AccessTools.Method(targetType, "AppendTextContent");
-                if (appendMethod != null)
-                {
-                    var postfix = new HarmonyMethod(typeof(StoryEventScreenPatch).GetMethod(nameof(AppendTextContentPostfix)));
-                    harmony.Patch(appendMethod, postfix: postfix);
-                    MonsterTrainAccessibility.LogInfo("Patched StoryEventScreen.AppendTextContent");
-                }
 
                 // Patch Initialize for screen transition announcement
                 var initMethod = AccessTools.Method(targetType, "Initialize") ??
@@ -2741,26 +2735,28 @@ namespace MonsterTrainAccessibility.Patches
                     MonsterTrainAccessibility.LogInfo($"Patched StoryEventScreen.{initMethod.Name}");
                 }
 
-                // Patch OnChoicesPresented to announce narrative text + choices
+                // Patch OnChoicesPresented - PREFIX to capture text, POSTFIX to speak it
                 var choicesMethod = AccessTools.Method(targetType, "OnChoicesPresented");
                 if (choicesMethod != null)
                 {
+                    var prefix = new HarmonyMethod(typeof(StoryEventScreenPatch).GetMethod(nameof(OnChoicesPresentedPrefix)));
                     var postfix = new HarmonyMethod(typeof(StoryEventScreenPatch).GetMethod(nameof(OnChoicesPresentedPostfix)));
-                    harmony.Patch(choicesMethod, postfix: postfix);
+                    harmony.Patch(choicesMethod, prefix: prefix, postfix: postfix);
                     MonsterTrainAccessibility.LogInfo("Patched StoryEventScreen.OnChoicesPresented");
                 }
 
-                // Patch OnStoryFinished to announce narrative text + continue
+                // Patch OnStoryFinished - PREFIX to capture text, POSTFIX to speak it
                 var finishedMethod = AccessTools.Method(targetType, "OnStoryFinished");
                 if (finishedMethod != null)
                 {
+                    var prefix = new HarmonyMethod(typeof(StoryEventScreenPatch).GetMethod(nameof(OnStoryFinishedPrefix)));
                     var postfix = new HarmonyMethod(typeof(StoryEventScreenPatch).GetMethod(nameof(OnStoryFinishedPostfix)));
-                    harmony.Patch(finishedMethod, postfix: postfix);
+                    harmony.Patch(finishedMethod, prefix: prefix, postfix: postfix);
                     MonsterTrainAccessibility.LogInfo("Patched StoryEventScreen.OnStoryFinished");
                 }
 
-                // Cache reflection for contentLabel
-                _contentLabelField = targetType.GetField("contentLabel",
+                // Cache reflection for currentTextContent StringBuilder field
+                _currentTextContentField = targetType.GetField("currentTextContent",
                     System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             }
             catch (Exception ex)
@@ -2773,7 +2769,7 @@ namespace MonsterTrainAccessibility.Patches
         {
             try
             {
-                _latestNarrativeText = null; // Clear stale narrative from previous event
+                _capturedNarrative = null;
                 ScreenStateTracker.SetScreen(Help.GameScreen.Event);
                 MonsterTrainAccessibility.ScreenReader?.AnnounceScreen("Event. Navigate choices with arrows. Enter to select. Press F1 for help.");
             }
@@ -2783,38 +2779,59 @@ namespace MonsterTrainAccessibility.Patches
             }
         }
 
-        public static void AppendTextContentPostfix(object __instance)
+        /// <summary>
+        /// PREFIX: Capture currentTextContent BEFORE OnChoicesPresented clears it via AppendTextContent.
+        /// OnContentReady → AdvanceStory() → OnChoicesPresented all run synchronously,
+        /// so by the time this prefix runs, currentTextContent has the full narrative text.
+        /// </summary>
+        public static void OnChoicesPresentedPrefix(object __instance)
         {
             try
             {
-                // Read the freshly-set contentLabel text right after it's been updated
-                string text = ReadContentLabel(__instance);
-                if (!string.IsNullOrEmpty(text))
-                {
-                    _latestNarrativeText = text;
-                    MonsterTrainAccessibility.LogInfo($"AppendTextContent captured: {text.Substring(0, Math.Min(80, text.Length))}...");
-                }
+                _capturedNarrative = CaptureCurrentText(__instance);
             }
             catch (Exception ex)
             {
-                MonsterTrainAccessibility.LogError($"Error in AppendTextContent postfix: {ex.Message}");
+                MonsterTrainAccessibility.LogError($"Error in OnChoicesPresented prefix: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// PREFIX: Capture currentTextContent BEFORE OnStoryFinished processes it.
+        /// </summary>
+        public static void OnStoryFinishedPrefix(object __instance)
+        {
+            try
+            {
+                _capturedNarrative = CaptureCurrentText(__instance);
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in OnStoryFinished prefix: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Read currentTextContent StringBuilder before the method body clears it.
+        /// </summary>
+        private static string CaptureCurrentText(object instance)
+        {
+            if (_currentTextContentField == null) return null;
+
+            var sb = _currentTextContentField.GetValue(instance) as System.Text.StringBuilder;
+            if (sb == null || sb.Length == 0) return null;
+
+            string text = sb.ToString();
+            text = Screens.BattleAccessibility.StripRichTextTags(text).Trim();
+            return string.IsNullOrWhiteSpace(text) ? null : text;
         }
 
         public static void OnChoicesPresentedPostfix(object __instance)
         {
             try
             {
-                // Prefer the cached text from AppendTextContent (set during this call chain)
-                // over reading contentLabel which may be stale from a previous event
-                string narrative = _latestNarrativeText;
-                _latestNarrativeText = null; // Consume it so we don't re-announce
-
-                // Fallback to reading contentLabel directly
-                if (string.IsNullOrEmpty(narrative))
-                {
-                    narrative = ReadContentLabel(__instance);
-                }
+                string narrative = _capturedNarrative;
+                _capturedNarrative = null;
 
                 if (!string.IsNullOrEmpty(narrative))
                 {
@@ -2832,14 +2849,8 @@ namespace MonsterTrainAccessibility.Patches
         {
             try
             {
-                // Prefer cached text from AppendTextContent
-                string narrative = _latestNarrativeText;
-                _latestNarrativeText = null;
-
-                if (string.IsNullOrEmpty(narrative))
-                {
-                    narrative = ReadContentLabel(__instance);
-                }
+                string narrative = _capturedNarrative;
+                _capturedNarrative = null;
 
                 if (!string.IsNullOrEmpty(narrative))
                 {
@@ -2851,30 +2862,6 @@ namespace MonsterTrainAccessibility.Patches
             {
                 MonsterTrainAccessibility.LogError($"Error in OnStoryFinished patch: {ex.Message}");
             }
-        }
-
-        private static string ReadContentLabel(object screenInstance)
-        {
-            if (_contentLabelField == null) return null;
-
-            object contentLabel = _contentLabelField.GetValue(screenInstance);
-            if (contentLabel == null) return null;
-
-            // Get the text property from the TMP component
-            if (_textProperty == null)
-            {
-                _textProperty = contentLabel.GetType().GetProperty("text");
-            }
-            if (_textProperty == null) return null;
-
-            string text = _textProperty.GetValue(contentLabel) as string;
-            if (string.IsNullOrEmpty(text)) return null;
-
-            // Strip rich text tags
-            string stripped = Screens.BattleAccessibility.StripRichTextTags(text).Trim();
-            if (string.IsNullOrEmpty(stripped) || stripped.Length <= 2) return null;
-
-            return stripped;
         }
     }
 
