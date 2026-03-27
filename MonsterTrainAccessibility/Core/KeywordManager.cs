@@ -165,7 +165,7 @@ namespace MonsterTrainAccessibility.Core
                         || name.Contains("KEY>>") || name.Contains("<<"))
                         continue;
 
-                    name = Screens.BattleAccessibility.StripRichTextTags(name).Trim();
+                    name = Utilities.TextUtilities.StripRichTextTags(name).Trim();
 
                     if (string.IsNullOrEmpty(name))
                         continue;
@@ -180,7 +180,7 @@ namespace MonsterTrainAccessibility.Core
                     if (!string.IsNullOrEmpty(tooltip) && tooltip != (prefix + tooltipSuffix)
                         && !tooltip.Contains("KEY>>"))
                     {
-                        tooltip = Screens.BattleAccessibility.StripRichTextTags(tooltip).Trim();
+                        tooltip = Utilities.TextUtilities.StripRichTextTags(tooltip).Trim();
                         value = $"{name}: {tooltip}";
                     }
                     else
@@ -244,7 +244,7 @@ namespace MonsterTrainAccessibility.Core
                     if (string.IsNullOrEmpty(name) || name == (traitName + "_CardText"))
                         continue;
 
-                    name = Screens.BattleAccessibility.StripRichTextTags(name).Trim();
+                    name = Utilities.TextUtilities.StripRichTextTags(name).Trim();
                     if (string.IsNullOrEmpty(name)) continue;
 
                     // Resolve KEY>>...<< patterns by extracting and localizing the inner key
@@ -259,7 +259,7 @@ namespace MonsterTrainAccessibility.Core
                         tooltip != (traitName + "_CardTooltipText") &&
                         !tooltip.Contains("KEY>>"))
                     {
-                        tooltip = Screens.BattleAccessibility.StripRichTextTags(tooltip).Trim();
+                        tooltip = Utilities.TextUtilities.StripRichTextTags(tooltip).Trim();
                         value = $"{name}: {tooltip}";
                     }
                     else

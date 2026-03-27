@@ -1,3 +1,4 @@
+using MonsterTrainAccessibility.Utilities;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -11,9 +12,7 @@ namespace MonsterTrainAccessibility.Patches
     /// </summary>
     public static class CharacterStateHelper
     {
-        // Cached status effect localization data
         private static Dictionary<string, string> _statusIdToLocPrefix;
-        private static MethodInfo _localizeMethod;
         private static bool _localizationInitialized;
 
         public static string GetUnitName(object characterState)
@@ -206,21 +205,18 @@ namespace MonsterTrainAccessibility.Patches
             {
                 EnsureLocalizationInitialized();
 
-                if (_statusIdToLocPrefix == null || _localizeMethod == null)
+                if (_statusIdToLocPrefix == null)
                     return null;
 
-                // Look up the localization prefix for this status ID
                 if (!_statusIdToLocPrefix.TryGetValue(statusId, out string locPrefix))
                     return null;
 
-                // Try to get the localized name using {prefix}_CardText
                 string nameKey = locPrefix + "_CardText";
-                string localizedName = InvokeLocalize(nameKey);
+                string localizedName = LocalizationHelper.TryLocalize(nameKey);
 
                 if (!string.IsNullOrEmpty(localizedName) && localizedName != nameKey)
                 {
-                    // Strip any rich text tags
-                    localizedName = Screens.BattleAccessibility.StripRichTextTags(localizedName).Trim();
+                    localizedName = TextUtilities.StripRichTextTags(localizedName).Trim();
                     if (!string.IsNullOrEmpty(localizedName))
                         return localizedName;
                 }
@@ -244,47 +240,9 @@ namespace MonsterTrainAccessibility.Patches
 
             try
             {
-                // Find the Localize method
-                foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-                {
-                    var asmName = assembly.GetName().Name;
-                    if (!asmName.Contains("Assembly-CSharp") && !asmName.Contains("Trainworks"))
-                        continue;
-
-                    try
-                    {
-                        foreach (var type in assembly.GetTypes())
-                        {
-                            if (!type.IsClass) continue;
-
-                            var method = type.GetMethod("Localize", BindingFlags.Public | BindingFlags.Static);
-                            if (method != null && method.ReturnType == typeof(string))
-                            {
-                                var parameters = method.GetParameters();
-                                if (parameters.Length >= 1 && parameters[0].ParameterType == typeof(string))
-                                {
-                                    _localizeMethod = method;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    catch { }
-
-                    if (_localizeMethod != null) break;
-                }
-
-                // Find StatusEffectManager.StatusIdToLocalizationExpression
-                Type semType = null;
-                foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-                {
-                    semType = assembly.GetType("StatusEffectManager");
-                    if (semType != null) break;
-                }
-
+                Type semType = ReflectionHelper.FindType("StatusEffectManager");
                 if (semType != null)
                 {
-                    // Try field first, then property
                     var field = semType.GetField("StatusIdToLocalizationExpression",
                         BindingFlags.Public | BindingFlags.Static);
                     IDictionary dict = null;
@@ -323,31 +281,6 @@ namespace MonsterTrainAccessibility.Patches
             {
                 MonsterTrainAccessibility.LogError($"EnsureLocalizationInitialized error: {ex.Message}");
             }
-        }
-
-        /// <summary>
-        /// Invoke the cached Localize method.
-        /// </summary>
-        private static string InvokeLocalize(string key)
-        {
-            if (string.IsNullOrEmpty(key) || _localizeMethod == null)
-                return null;
-
-            try
-            {
-                var parameters = _localizeMethod.GetParameters();
-                var args = new object[parameters.Length];
-                args[0] = key;
-                for (int i = 1; i < parameters.Length; i++)
-                {
-                    args[i] = parameters[i].HasDefaultValue ? parameters[i].DefaultValue : null;
-                }
-
-                return _localizeMethod.Invoke(null, args) as string;
-            }
-            catch { }
-
-            return null;
         }
     }
 }

@@ -41,7 +41,14 @@
       "Bash(git log:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(ls /c/Python*/python.exe)",
+      "Read(//c/Users/**)",
+      "Bash(\"/c/Program Files/Python314/python\" \"T:/code/mods/monstertrain/extract_readers.py\")",
+      "Bash(\"/c/Program Files/Python314/python\" \"T:/code/mods/monstertrain/fix_readers.py\")",
+      "Bash(\"/c/Program Files/Python314/python\" \"T:/code/mods/monstertrain/remove_methods.py\")",
+      "Bash(for f:*)",
+      "Bash(do wc:*)"
     ]
   }
 }

@@ -24,52 +24,135 @@ The csproj automatically copies the built DLL to the game's plugins folder after
 
 All game data access uses **runtime reflection** since there's no public API. Game types are discovered at runtime and methods are cached for performance.
 
-### Core Components (MonsterTrainAccessibility/Core/)
+### Data Flow
 
-- **ScreenReaderOutput**: Wrapper for Tolk library - handles speech output, braille, and screen reader detection. All accessibility output goes through this.
+1. **Harmony patches** (`Patches/`) detect game events (screen changes, combat events, card plays)
+2. Patches update **ScreenStateTracker** and call **screen handlers** (`Screens/`)
+3. Screen handlers use **readers** (`Screens/Readers/`) to extract text from game objects
+4. All speech output goes through **ScreenReaderOutput** (`Core/`) → Tolk library → screen reader
+
+For menu screens, **MenuAccessibility** polls `EventSystem.current.currentSelectedGameObject` and delegates to the appropriate reader. For battle state, **BattleAccessibility** uses **BattleManagerCache** to access game managers via reflection.
+
+### Module Organization
+
+```
+MonsterTrainAccessibility/
+├── Core/              # Input, config, screen reader, keywords, focus system
+├── Battle/            # Battle-specific readers and targeting systems
+├── Screens/           # Screen handler coordinators (MenuAccessibility, BattleAccessibility)
+├── Screens/Readers/   # Text extractors for specific UI types (one per screen/component type)
+├── Patches/Combat/    # Combat event patches (damage, death, status, turns)
+├── Patches/Screens/   # Screen transition patches (one per screen)
+├── Patches/           # Card event & targeting patches
+├── Help/              # Context-sensitive help system
+├── Help/Contexts/     # Individual help providers (priority-based)
+└── Utilities/         # Shared helpers (text, localization, reflection, UI)
+```
+
+### Core Components (`Core/`)
+
+- **ScreenReaderOutput**: Wrapper for Tolk library - handles speech output, braille, and screen reader detection.
   - **IMPORTANT: Never use `interrupt = true`** - it cuts off previous announcements. Always use `Speak(text, false)` or just `Speak(text)`.
-- **InputInterceptor**: Unity MonoBehaviour that handles accessibility hotkeys (F1, C, T, H, L, N, R, V). Navigation is handled by the game's native EventSystem.
-- **AccessibilityConfig**: BepInEx configuration - verbosity levels, keybindings, announcement settings.
-- **KeywordManager**: Centralized keyword dictionary built from game localization data at runtime. Sources: `StatusEffectManager.StatusIdToLocalizationExpression`, `CharacterTriggerData.TriggerToLocalizationExpression`, known card trait names, plus a hardcoded fallback dict for mechanics not in the game's formal systems. Used by both BattleAccessibility and MenuAccessibility.
+- **InputInterceptor**: Unity MonoBehaviour that handles accessibility hotkeys (F1, C, T, H, L, U, R, V).
+- **AccessibilityConfig**: BepInEx configuration - verbosity levels, keybindings, announcement toggles.
+- **KeywordManager**: Centralized keyword dictionary built from game localization at runtime (~107 keywords). Sources: `StatusEffectManager.StatusIdToLocalizationExpression`, `CharacterTriggerData.TriggerToLocalizationExpression`, known card trait names, plus a hardcoded fallback dict for mechanics not in the game's formal systems.
+- **FocusableItem / FocusContext / VirtualFocusManager**: Focus management and navigation context stacking.
 
-### Help System (MonsterTrainAccessibility/Help/)
+### Screen Handlers (`Screens/`)
 
-Context-sensitive help that announces available keys based on current game screen.
+- **MenuAccessibility**: MonoBehaviour that polls `EventSystem.current.currentSelectedGameObject` and reads text from selected UI elements. `GetTextFromGameObject()` tries readers in priority order, falling through to `GetTextWithContext()` and then `CleanGameObjectName()` as final fallback.
+- **BattleAccessibility**: Coordinator for battle screen. Uses `BattleManagerCache` for reflection-cached game state access.
+- **CardDraftAccessibility**: Handles card/relic draft, upgrade, purge screen transitions.
+- **MapAccessibility**: Handles map screen transitions.
 
-- **IHelpContext**: Interface for help providers - each screen/mode implements this
-- **HelpSystem**: Coordinator that selects the active context and speaks help text
-- **ScreenStateTracker**: Static enum tracking current game screen (MainMenu, Battle, etc.)
-- **Contexts/**: Individual help providers (higher priority wins):
-  - `GlobalHelp` (priority 0): Fallback for any screen
-  - `MainMenuHelp` (40): Main menu navigation
-  - `ClanSelectionHelp` (50): Clan/class selection
-  - `MapHelp` (60): Map navigation
-  - `ShopHelp` (70): Shop purchases
-  - `EventHelp` (70): Event choices
-  - `CardDraftHelp` (80): Card draft selection
-  - `BattleIntroHelp` (85): Pre-battle screen
-  - `BattleHelp` (90): Battle information keys
-  - `TutorialHelp` (95): Tutorial popups
-  - `BattleTargetingHelp` (100): Floor targeting mode
+### Screen Readers (`Screens/Readers/`)
 
-### Battle Systems (MonsterTrainAccessibility/Battle/)
+Each reader extracts text from a specific UI domain. Called from `MenuAccessibility.GetTextFromGameObject()`:
 
-- **FloorTargetingSystem**: Keyboard-based floor selection for playing cards. When a card requires floor placement, use Page Up/Down to select floor (clamped 1-3, doesn't wrap), Enter to confirm, Escape to cancel.
-  - **IMPORTANT for Combat Patches**: Check `FloorTargetingSystem.IsTargeting` before announcing damage/deaths - the game calculates preview damage when selecting floors, and those shouldn't be announced.
+| Reader | Handles |
+|--------|---------|
+| `CardTextReader` | CardUI, card details, status effects, upgrades |
+| `ClanSelectionTextReader` | Clan icons, champion choice buttons, covenant selector, DLC toggle |
+| `ShopTextReader` | MerchantGoodDetailsUI, MerchantServiceUI |
+| `BattleIntroTextReader` | Pre-battle boss info, run opening screen |
+| `MapTextReader` | Map nodes, branch choices |
+| `RelicTextReader` | RelicInfoUI for artifact selection |
+| `CompendiumTextReader` | Logbook items, relics grid, stats, clan checklists, sort buttons |
+| `SettingsTextReader` | Settings dropdowns, sliders, toggles |
+| `EventTextReader` | Story event elements, continue button, choices |
+| `DialogTextReader` | Dialog/popup text |
+| `TooltipTextReader` | TooltipProviderComponent text, map node status |
 
-### Screen Handlers (MonsterTrainAccessibility/Screens/)
+### Battle Systems (`Battle/`)
 
-- **MenuAccessibility**: MonoBehaviour that polls `EventSystem.current.currentSelectedGameObject` and reads text from selected UI elements. Handles all menu screens, card drafts, map, shop, events. Key methods:
-  - `GetTextFromGameObject()`: Main entry point for extracting readable text from UI elements
-  - `GetCardUIText()`: Extracts full card details (name, type, cost, description) from CardUI components
-  - `ReadAllScreenText()`: For reading patch notes and long text areas
-- **BattleAccessibility**: Uses reflection to access game managers (`CardManager`, `SaveManager`, `RoomManager`, `PlayerManager`) and read actual game state for hand, floors, units, resources.
-- **CardDraftAccessibility**: Announces screen transitions (simplified - UI handled by MenuAccessibility).
-- **MapAccessibility**: Announces screen transitions (simplified - UI handled by MenuAccessibility).
+- **BattleManagerCache**: Reflection-based caching for game manager references (`CardManager`, `SaveManager`, `RoomManager`, `PlayerManager`, `CombatManager`) and their methods.
+- **HandReader**: Reads cards in hand with cost, type, playability.
+- **FloorReader**: Reads floor capacity, units (yours front-to-back, then enemies), corruption, enchantments.
+- **EnemyReader**: Detailed unit descriptions with triggers, abilities, status effects, boss actions.
+- **ResourceReader**: Ember, gold, pyre health, DLC crystals/threat.
+- **FloorTargetingSystem**: Keyboard floor selection (PageUp/Down, Enter, Escape).
+  - **IMPORTANT for Combat Patches**: Check `FloorTargetingSystem.IsTargeting` before announcing damage/deaths - the game calculates preview damage when selecting floors.
+- **UnitTargetingSystem**: Keyboard unit targeting (arrows, number keys 1-9, Enter, Escape).
 
-### Hotkeys
+### Harmony Patches
 
-#### Global Keys (all screens)
+All patches use manual patching via `TryPatch()` methods (no `[HarmonyPatch]` attributes). They use runtime reflection to find game methods. See `PATCH_TARGETS.md` for verified targets.
+
+**Screen patches** (`Patches/Screens/`): One file per screen. Each patches the screen's `Initialize`/`Setup`/`Show` method to call `ScreenStateTracker.SetScreen()` and announce the transition. ~20 screen patches.
+
+**Combat patches** (`Patches/Combat/`): Detect battle events and call `BattleAccessibility` methods.
+- `PlayerTurnPatches` - Turn start/end
+- `DamagePatches` - Damage application
+- `StatusEffectPatches` - Status add/remove
+- `UnitLifecyclePatches` - Spawn, death
+- `EnemyMovementPatches` - Ascend/descend
+- `BattleFlowPatches` - Victory, pyre damage
+- `CombatPhaseChangePatch` - Phase transitions
+- `CombatMiscPatches` - Relics, healing, max HP buffs
+- `PreviewModeDetector` - Filters phantom damage from preview mode
+- `CharacterStateHelper` - Shared reflection helpers for CharacterState/CardState
+
+**Card patches** (`Patches/`): `CardEventPatches.cs` (draw, play, discard, shuffle, exhaust, upgrade), `CardTargetingPatches.cs` (target selection, card selection).
+
+**Harmony Patch Timing Pitfall:** Some game methods call other patchable methods synchronously (e.g., `OnContentReady` → `AdvanceStory()` → `OnChoicesPresented`). In these cases, **postfixes run in reverse call order**. Use **prefixes** to capture state before modification. See `StoryEventScreenPatch` for a worked example.
+
+### Shared Utilities (`Utilities/`)
+
+- **TextUtilities**: `StripRichTextTags()` - converts Unity rich text and game `<sprite>` tags to readable words.
+- **LocalizationHelper**: `TryLocalize()` / `LocalizeOrNull()` - single localization entry point via cached reflection.
+- **ReflectionHelper**: `FindType()` / `FindManager()` - type and manager discovery with caching.
+- **UITextHelper**: `GetTMPText()` / `CleanGameObjectName()` - Unity UI text extraction.
+
+### Help System (`Help/`)
+
+Priority-based context-sensitive help. `HelpSystem` selects the highest-priority active `IHelpContext`. 18 contexts from `GlobalHelp` (priority 0) through `DialogHelp` (priority 110). Each context's `IsActive()` checks `ScreenStateTracker.CurrentScreen`.
+
+### Entry Point
+
+`MonsterTrainAccessibility.cs` is the BepInEx plugin entry. `Awake()` initializes all systems, `ApplyPatches()` registers ~55 Harmony patches, `CreateHandlers()` creates persistent MonoBehaviour GameObjects, `RegisterHelpContexts()` registers all 18 help contexts.
+
+## Text Extraction Chain
+
+`MenuAccessibility.GetTextFromGameObject()` tries readers in this order:
+1. Scrollbar content, run opening screen, dialog buttons
+2. CardUI, shop items, battle intro, relic info
+3. Map nodes, DLC toggles, settings elements, generic toggles
+4. Compendium items (relics, upgrades, stats, checklists, sort buttons, logbook)
+5. Clan selection, champion choice, covenant selector
+6. Tooltip buttons, event elements, map branch choices
+7. `GetTextWithContext()` - handles short/icon button labels
+8. `CleanGameObjectName()` - final fallback
+
+To fix text extraction for a new UI element, add a reader method and insert it at the right priority in this chain.
+
+**`GetTextWithContext()` logic:**
+- If text is 1-2 chars (likely icon), uses cleaned GameObject name instead
+- If text is 3-4 chars or empty, looks for context from hierarchy
+- `GetContextLabelFromHierarchy()` skips container names: container, panel, holder, group, content, root, options, input area, section, buttons, layout, wrapper
+
+## Hotkeys
+
+### Global Keys (all screens)
 | Key | Action |
 |-----|--------|
 | F1 | Context-sensitive help |
@@ -78,32 +161,24 @@ Context-sensitive help that announces available keys based on current game scree
 | Tab | Read train stats (pyre health, gold, deck size) |
 | V | Cycle verbosity level |
 
-#### Battle Keys
+### Battle Keys
 | Key | Action |
 |-----|--------|
 | H | Read hand (all cards) |
-| L | Read floors (capacity and units) - L for Levels |
-| U | Read all units with detail (your monsters front-to-back, then enemies) |
+| L | Read floors (capacity and units) |
+| U | Read all units with detail |
 | R | Read resources (ember, pyre, cards) |
 
-Note: F, E, and N are avoided because they conflict with game shortcuts (F = Toggle Unit Details, E = End Turn, N = Combat Speed Toggle).
+Note: F, E, and N are avoided (F = Toggle Unit Details, E = End Turn, N = Combat Speed Toggle).
 
-#### Combat Log
-
-All battle events (damage, deaths, status effects, spawns, card draws/plays, turn changes, etc.) are written to a plain text log file at:
-```
-BepInEx\plugins\accessibility_combat_log.txt
-```
-The file is overwritten each time the game launches.
-
-#### Floor Targeting Keys (when playing a card)
+### Floor Targeting (when playing a card)
 | Key | Action |
 |-----|--------|
-| Page Up/Down | Cycle between floors (same as game's native keys) |
+| Page Up/Down | Cycle between floors |
 | Enter | Confirm floor selection |
 | Escape | Cancel card play |
 
-#### Unit Targeting (when playing spells)
+### Unit Targeting (when playing spells)
 | Key | Action |
 |-----|--------|
 | Left/Right arrows | Select target unit |
@@ -111,57 +186,10 @@ The file is overwritten each time the game launches.
 | Enter | Confirm target |
 | Escape | Cancel spell |
 
-**Targeting Order Notes:**
-- Your first summoned unit is on the far right (front of your board)
-- Go LEFT to target your other units (toward back of board)
-- Go RIGHT to target enemy units
-- Spells like Restore default to your frontmost unit; go left for others
-- Spells like Torch default to first enemy; go right for other enemies
-- Floor announcements list: your units (front-to-back), then enemies (front-to-back)
-- When placing units: default position is next to existing units; use right arrow before confirming to place at front
+**Targeting Order:** Your frontmost unit is far right. Go LEFT for your other units, RIGHT for enemies. Floor announcements list: your units (front-to-back), then enemies (front-to-back).
 
-### Harmony Patches (MonsterTrainAccessibility/Patches/)
-
-Manual patches (no `[HarmonyPatch]` attributes - use `TryPatch()` methods):
-- **ScreenTransitionPatches**: Hooks screen changes to announce transitions
-  - `MainMenuScreenPatch`, `BattleIntroScreenPatch`, `CombatStartPatch`
-  - `CardDraftScreenPatch`, `ClassSelectionScreenPatch`, `MapScreenPatch`
-  - `MerchantScreenPatch`, `EnhancerSelectionScreenPatch`, `GameOverScreenPatch`
-  - `SettingsScreenPatch`: Announces "Settings. Press Tab to switch between tabs."
-  - `CompendiumScreenPatch`: Announces "Logbook" with navigation keys (Page Up/Down for sections, arrows for pages)
-  - `ScreenManagerPatch`: Generic screen transition detection
-- **CombatEventPatches**: Turn changes, damage, deaths, status effects
-- **CardEventPatches**: Draw, play, discard events
-
-Patches use runtime reflection to find game methods - see `PATCH_TARGETS.md` for verified targets.
-
-**Harmony Patch Timing Pitfall:** Some game methods call other patchable methods synchronously from within their body (e.g., `OnContentReady` → `AdvanceStory()` → `OnChoicesPresented`). In these cases, **postfixes run in reverse call order** — the inner method's postfix runs before the outer method's postfix. Use **prefixes** to capture state before it's modified by the method body. See `StoryEventScreenPatch` for a worked example.
-
-### Text Extraction (MenuAccessibility.cs)
-
-The `GetTextFromGameObject()` method tries multiple extractors in order:
-1. Dialog buttons, CardUI, shop items, battle intro, map nodes
-2. Toggles, logbook items, clan selection, champion choices
-3. Localized tooltip buttons, branch choices
-4. **`GetTextWithContext()`** - handles short button labels
-
-**`GetTextWithContext()` logic:**
-- If text is 1-2 chars (likely icon), uses cleaned GameObject name instead
-- If text is 3-4 chars or empty, looks for context from hierarchy
-- Falls back to direct text
-
-**`GetContextLabelFromHierarchy()` excluded container names:**
-These parent names are skipped when looking for context labels:
-- container, panel, holder, group, content, root
-- options, input area, input, area
-- section, buttons, layout, wrapper
-
-To fix "ParentName: X" announcements, add the parent name pattern to this exclusion list.
-
-### Key Integration Points
-
-- **Tolk.cs** (in ../tolk/): P/Invoke wrapper for Tolk.dll screen reader library
-- **Trainworks2/**: Reference modding toolkit (not directly used, but useful for finding patch targets)
+### Combat Log
+All battle events written to `BepInEx\plugins\accessibility_combat_log.txt` (overwritten each launch).
 
 ## Game Path Configuration
 
@@ -186,77 +214,6 @@ Team.Type.Heroes    // Enemy units (confusing naming)
 CardType.Monster / CardType.Spell / CardType.Blight
 ```
 
-## Localization
-
-Monster Train uses a `Localize` extension method for all text localization.
-
-**Method Location:**
-- Class: `LocalizationExtensions` (static class in `Assembly-CSharp`)
-- Method: `Localize(this string key, ILocalizationParameterContext context = null)`
-- Returns: Localized string
-
-**Key Format:**
-Localization keys follow this pattern:
-```
-{TypeName}_{fieldName}-{guid1}-{guid2}-v2
-```
-Example: `SinsData_descriptionKey-d23d6de33eeeeebb-5a268a87653a9064ba547b1444b4c668-v2`
-
-**How to Call via Reflection:**
-```csharp
-// Cache the method once
-private static MethodInfo _localizeMethod;
-
-// Find it in Assembly-CSharp
-foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-{
-    if (!assembly.GetName().Name.Contains("Assembly-CSharp"))
-        continue;
-
-    foreach (var type in assembly.GetTypes())
-    {
-        if (!type.IsClass || !type.IsAbstract || !type.IsSealed)
-            continue;
-
-        var method = type.GetMethod("Localize",
-            BindingFlags.Public | BindingFlags.Static);
-        if (method != null && method.ReturnType == typeof(string))
-        {
-            var parameters = method.GetParameters();
-            if (parameters.Length >= 1 && parameters[0].ParameterType == typeof(string))
-            {
-                _localizeMethod = method;
-                break;
-            }
-        }
-    }
-}
-
-// Call it (handles optional second parameter)
-var args = new object[_localizeMethod.GetParameters().Length];
-args[0] = key;
-for (int i = 1; i < args.Length; i++)
-{
-    var p = _localizeMethod.GetParameters()[i];
-    args[i] = p.HasDefaultValue ? p.DefaultValue : null;
-}
-string localized = (string)_localizeMethod.Invoke(null, args);
-```
-
-**Common Localizable Types:**
-- `CardData`: `GetName()`, `GetDescription()` - already return localized text
-- `RelicData` / `SinsData`: `GetName()` returns localized, but `GetDescriptionKey()` returns the key that needs localization
-- `RewardData`: Has `_rewardTitleKey` field - needs localization
-- `ScenarioData`: `GetBattleName()` returns localized text
-
-**Best Practice:**
-1. Try `GetName()` / `GetDescription()` methods first - they usually return localized text
-2. If those return keys (contain `-` and `_`), use `GetDescriptionKey()` and localize the result
-3. Fall back to type-name-based display names if localization fails
-
-**`KEY>>...<<` Pattern:**
-The game wraps unresolved localization keys as `KEY>>keyName<<` when its `LocalizeInk` method fails. The regular `Localize` method often succeeds for the same key. `MenuAccessibility.ResolveInlineKeys()` handles this by extracting the key and calling `KeywordManager.TryLocalize()`. This runs in `CleanSpriteTagsForSpeech()` so all speech output is cleaned automatically.
-
 ## Floor/Room Index Mapping
 
 The game's internal room indices are **reversed** from user-facing floor numbers:
@@ -270,31 +227,27 @@ Room Index 3 = Pyre Room
 
 **Conversion formula:** `roomIndex = 3 - userFloor` (for floors 1-3)
 
-## Keyword Dictionaries
+## Localization
 
-Keywords (status effects, card mechanics) need explanations for screen reader users. Keywords are centralized in `Core/KeywordManager.cs` which builds a dictionary from the game's own localization data at runtime (~107 keywords: 41 status effects, 27 triggers, 19 traits, 20 fallbacks).
+Monster Train uses a `Localize` extension method. Use `LocalizationHelper.TryLocalize(key)` which caches the reflection lookup.
 
-Both `MenuAccessibility.ExtractKeywordsFromDescription()` and `BattleAccessibility` call `Core.KeywordManager.GetKeywords()`.
+**Best Practice:**
+1. Try `GetName()` / `GetDescription()` methods first - they usually return localized text
+2. If those return keys (contain `-` and `_`), use `GetDescriptionKey()` and localize the result
+3. Fall back to type-name-based display names if localization fails
 
-**Adding New Keywords:**
-- Add fallback entries to `KeywordManager.LoadFallbackKeywords()` for mechanics not in the game's status/trigger/trait systems
-- Format: `{ "KeywordName", "KeywordName: Brief explanation" }`
-- Keywords from the game's localization are loaded automatically; only add to fallbacks what the game doesn't provide
+**`KEY>>...<<` Pattern:** The game wraps unresolved localization keys as `KEY>>keyName<<`. `MenuAccessibility.ResolveInlineKeys()` handles this by extracting the key and calling `KeywordManager.TryLocalize()`. This runs in `CleanSpriteTagsForSpeech()` so all speech output is cleaned automatically.
 
 ## Reading Game Data: UI Labels vs Game State
 
-When extracting information for accessibility, prefer reading from **game state objects** (SaveManager, CardManager, etc.) over **UI labels** (TMP_Text fields). UI labels can contain:
+Prefer reading from **game state objects** (SaveManager, CardManager, etc.) over **UI labels** (TMP_Text fields). UI labels can contain:
 - Placeholder text from Unity prefabs (never overwritten if feature is locked)
 - Stale text from previous screens (not yet updated)
 - Rich text / custom formatting that needs stripping
 
-Example: For clan level/XP on the class selection screen, query `SaveManager.GetClassLevel(classId)` and `SaveManager.GetClassXP(classId)` directly rather than reading `ClassLevelMeterUI.levelLabel.text`. The `CovenantSelectionUI` labels contain placeholder text ("Rank 15", "description goes here") when the feature is locked (`maxLevel <= 0`).
-
-To find a manager instance via reflection, locate the screen component with `FindObjectOfType`, then access its private manager fields (e.g., `ClassSelectionScreen.saveManager`).
+To find a manager instance via reflection, locate the screen component with `FindObjectOfType`, then access its private manager fields (e.g., `ClassSelectionScreen.saveManager`). Or use `ReflectionHelper.FindManager()`.
 
 ## Debugging UI Text Extraction
-
-When text isn't reading correctly, the log shows helpful debug info:
 
 **Log Location:** `C:\Program Files (x86)\Steam\steamapps\common\Monster Train\BepInEx\LogOutput.log`
 
@@ -302,7 +255,6 @@ When text isn't reading correctly, the log shows helpful debug info:
 1. `Components on 'GameObjectName':` - shows component hierarchy
 2. `=== Fields on TypeName ===` - lists all fields on a component
 3. `TooltipProvider type:` / `Tooltip.fieldName =` - tooltip data structure
-4. Text extraction results like `BossDetailsUI texts found: [...]`
 
 **Common Patterns:**
 - If text shows placeholder/debug content, check for `IsPlaceholderText()` filter
@@ -311,7 +263,6 @@ When text isn't reading correctly, the log shows helpful debug info:
 
 **Adding Debug Logging:**
 ```csharp
-// Log all fields on an unknown component
 foreach (var field in componentType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
 {
     var val = field.GetValue(component);
@@ -321,7 +272,7 @@ foreach (var field in componentType.GetFields(BindingFlags.Public | BindingFlags
 
 ## Game Source Reference (`game/` folder)
 
-The `game/` folder contains decompiled game source classes from `Assembly-CSharp`. These can be referenced directly instead of guessing method signatures for reflection/Harmony patches. **Note:** The mod still uses runtime reflection since these files are not compiled into the mod — they exist purely as reference.
+The `game/` folder contains decompiled game source classes from `Assembly-CSharp`. Reference these directly instead of guessing method signatures for reflection/Harmony patches. **Note:** These files are not compiled into the mod — they exist purely as reference.
 
 ### Core Managers
 
@@ -329,260 +280,92 @@ The `game/` folder contains decompiled game source classes from `Assembly-CSharp
 |-------|------|-------------------|
 | `CardManager` | Deck, hand, draw, play, discard | `DrawCards(int)`, `PlayCard(int, SpawnPoint, ref SelectionError)`, `DiscardCard(DiscardCardParams)`, `ShuffleDeck()`, `GetHand()`, `GetHandCard(int)`, `GetDiscardPile()`, `AddCard()` |
 | `CombatManager` | Combat phases, damage, turns | `StartPlayerTurn()`, `EndPlayerTurn()`, `StartCombat()`, `EndCombat()`, `ApplyDamageToTarget()`. Enum `Phase`: Start, Placement, PreCombat, MonsterTurn, Combat, HeroTurn, EndOfCombat |
-| `SaveManager` | Save/load, game state, preview mode | `PreviewMode` property, `GetTowerHP()`, `AdjustTowerHP()`, `GetCurrentScenarioData()`, `GetBalanceData()`. Enums: `GameSpeed`, `VictoryType`, `VictorySectionState` |
+| `SaveManager` | Save/load, game state, preview mode | `PreviewMode` property, `GetTowerHP()`, `AdjustTowerHP()`, `GetCurrentScenarioData()`, `GetBalanceData()` |
 | `RoomManager` | Floor management (3 floors + pyre) | `GetRoom()`, `GetRoomState()`, `NumRooms = 4`, `currentSelectedRoom`, `rooms` list |
-| `PlayerManager` | Player resources | `GetEnergy()`, `AddEnergy()`, `RemoveEnergy()`, `GetTowerHP()`, `AdjustTowerHP()`. Signals: `energyChangedSignal`, `healPlayerSignal` |
-| `MonsterManager` | Player unit management | `InstantiateCharacter()`, `AddCharacter()`, `SpawnCharacter()`, `GetTeamType()` → `Team.Type.Monsters` |
-| `HeroManager` | Enemy unit management | `InstantiateCharacter()`, `AddCharacter()`, `OnSpawnPointChanged()`, `PostAscensionDescensionSingularCharacterTrigger()`, `GetTeamType()` → `Team.Type.Heroes` |
-| `RelicManager` | Artifact management | `GetRelicState()`, `AddRelic()`, `RemoveRelic()` |
+| `PlayerManager` | Player resources | `GetEnergy()`, `AddEnergy()`, `RemoveEnergy()`, `GetTowerHP()`, `AdjustTowerHP()` |
+| `MonsterManager` | Player unit management | `GetTeamType()` → `Team.Type.Monsters` |
+| `HeroManager` | Enemy unit management | `GetTeamType()` → `Team.Type.Heroes` |
 | `ScreenManager` | Screen transitions | `ChangeScreen()`, `LoadScreen()`, `ShowScreen()` |
 | `StatusEffectManager` | Status effect tracking | Global status effect registry |
-| `ScenarioManager` | Battle scenario/boss | Manages current scenario |
-| `StoryManager` | Story events | Event progression |
-| `InputManager` | Input handling | Keyboard/gamepad input |
-| `SoundManager` | Audio | Sound playback |
-| `RandomManager` | RNG | Random number generation |
 
 ### State Classes (Runtime Game Objects)
 
-| Class | Role | Key Methods/Fields |
-|-------|------|-------------------|
-| `CharacterState` | Unit instance (health, position, status) | `GetName()`, `GetHP()`, `GetAttackDamage()`, `GetTeamType()`, `GetCurrentRoomIndex()`, `GetStatusEffectStacks(string)`, `GetStatusEffect(string)`, `ApplyDamage()`, `ApplyHeal()`, `AddStatusEffect()`, `Setup()`. Enums: `MovementState`, `CombatPreviewState`, `DestroyedState`. Inner: `StatusEffectStack`, `ApplyDamageParams`, `AddStatusEffectParams`. Property: `PreviewMode` |
-| `CardState` | Card instance | `GetTitle()`, `GetTitleKey()`, `GetCost(...)`, `GetCostWithoutTraits()`, `GetStatusEffects()`, `Setup(CardData, ...)`. Fields: `cardType`, `cost`, `costType`, `targetsRoom`, `targetless`, `rarityType` |
-| `RoomState` | Floor state and capacity | `IsRoomEnabled()`, `SetRoomEnabled(bool)`, `GetRoomIndex()`, `DestroyRoom()`. Floor state including units, capacity, enchantments. When `!IsRoomEnabled()`, the floor is frozen/destroyed and cards cannot be played on it. |
-| `PyreRoomState` | Pyre health tracking | Pyre-specific room state |
-| `BossState` | Boss-specific state | `GetNextBossAction()` → `BossActionState`, `PerformBossAction()`, `GetCurrentAttackPhase()`. `AttackPhase.Relentless` triggers room destroy actions |
-| `BossActionState` | Single boss action | `GetTooltipDescription()`, `GetTargetedRoomIndex()`, `IsRoomDestroyAction()`, `IsEmptyAction()`, `GetEffects()`. Description is in internal `stringBuilder` field |
-| `RelicState` | Artifact instance | Individual artifact runtime state |
-| `CardUpgradeState` | Card upgrade instance | `GetAttackDamage()`, `GetAttackDamageBuff()`, `GetCostReduction()`, `GetStatusEffectUpgrades()`, `Setup(CardUpgradeData)` |
-| `CardEffectState` | Card effect instance | `GetStatusEffectStackMultiplier()`, `GetDescriptionAsTrait()`, `Setup(CardEffectData, ...)` |
-| `RunState` | Current run state | Run progression data |
-| `NodeState` | Map node instance | Individual map node |
-| `RewardState` | Reward instance | Reward data |
-| `MerchantGoodState` | Shop item instance | Merchant item data |
-| `CovenantState` | Difficulty level | Covenant tracking |
-| `MutatorState` | Mutator modifier | Mutator tracking |
+| Class | Role | Key Methods |
+|-------|------|-------------|
+| `CharacterState` | Unit instance | `GetName()`, `GetHP()`, `GetAttackDamage()`, `GetTeamType()`, `GetCurrentRoomIndex()`, `GetStatusEffectStacks(string)`, `ApplyDamage()`. Property: `PreviewMode` |
+| `CardState` | Card instance | `GetTitle()`, `GetCost(...)`, `GetStatusEffects()`. Fields: `cardType`, `cost`, `targetsRoom`, `targetless` |
+| `RoomState` | Floor state | `IsRoomEnabled()`, `GetRoomIndex()`. When `!IsRoomEnabled()`, the floor is frozen/destroyed. |
+| `BossState` | Boss state | `GetNextBossAction()` → `BossActionState`. `AttackPhase.Relentless` triggers room destroy. |
+| `BossActionState` | Boss action | `GetTooltipDescription()`, `GetTargetedRoomIndex()`, `IsRoomDestroyAction()`. Description in internal `stringBuilder` field. |
 
 ### Data Classes (Definitions/Templates)
 
-| Class | Role | Key Methods/Fields |
-|-------|------|-------------------|
-| `CardData` | Card definition | `GetName()`, `GetNameKey()`, `GetCost()`, `GetCostType()`, `GetStatusEffects()`. Fields: `nameKey`, `cost`, `cardType`, `traits`, `effects`, `startingUpgrades`. Enum `CostType`: Default, ConsumeRemainingEnergy, NonPlayable |
-| `CharacterData` | Unit template | `GetName()`, `GetNameKey()`, `GetAttackDamage()`, `GetStatusEffectImmunities()` |
-| `CardEffectData` | Card effect definition | `GetStatusEffectStackMultiplier()` |
-| `CardTraitData` | Card trait definition | `Setup(string traitStateName)` |
-| `CardUpgradeData` | Upgrade definition | `GetCostReduction()`, `GetStatusEffectUpgrades()` |
-| `CardUpgradeTreeData` | Upgrade tree structure | Champion upgrade paths |
-| `CollectableRelicData` | Artifact definition | Extends `RelicData` with collectability |
-| `RelicData` | Base artifact definition | `GetName()`, `GetNameKey()`, `GetDescriptionKey()` |
-| `SinsData` | Trial modifier | Trial relics with special effects |
-| `ScenarioData` | Battle/boss definition | `GetBattleName()`, `GetBossIcon()`, `GetBossAtIndex(int)` |
-| `ClassData` | Clan definition | `GetTitle()`, `GetTitleKey()`, `GetDescription()`, `GetDescriptionKey()` |
-| `ChampionData` | Champion definition | Simple ScriptableObject: `championCardData` (CardData), `starterCardData` (CardData), `upgradeTree` (CardUpgradeTreeData). Get champion name via `championCardData.GetName()` |
-| `CovenantData` | Covenant/difficulty | Difficulty level definition |
-| `MutatorData` | Mutator definition | Game modifier definition |
-| `AllGameData` | Master data container | All cards, relics, classes, etc. |
-| `BalanceData` | Balance constants | `GetMaxEnergy()`, `GetStatusEffectsDisplayData()` |
+| Class | Role | Key Methods |
+|-------|------|-------------|
+| `CardData` | Card definition | `GetName()`, `GetDescription()`, `GetCost()`, `GetSpawnCharacterData()`. Fields: `cardType`, `traits`, `effects` |
+| `CharacterData` | Unit template | `GetName()`, `GetAttackDamage()`, `GetHealth()`, `GetSize()` |
+| `ClassData` | Clan definition | `GetTitle()`, `GetChampionData(int)`, `GetChampionCard(int)`. Field: `champions` (List\<ChampionData\>) |
+| `ChampionData` | Champion definition | Fields: `championCardData` (CardData), `starterCardData` (CardData), `upgradeTree` (CardUpgradeTreeData) |
+| `RelicData` | Artifact definition | `GetName()`, `GetDescriptionKey()` (needs localization) |
+| `ScenarioData` | Battle/boss definition | `GetBattleName()`, `GetBossAtIndex(int)` |
+| `BalanceData` | Balance constants | `GetMaxEnergy()`, `GetAlternateChampionUnlockLevel()` |
 
 ### Screen Classes
 
 | Class | Entry Method | Notes |
 |-------|-------------|-------|
-| `MainMenuScreen` | `Initialize()` | Main menu — patched for screen transition |
+| `ClassSelectionScreen` | `Initialize()` | Has `mainChampionSelectionUI` / `subChampionSelectionUI` fields. Calls `SetLocked(!saveManager.IsUnlocked(classData, 1), unlockLevel)` on champion UIs. |
+| `ChampionSelectionUI` | `SetLocked(bool, int)` | `championChoiceButtons` list, `classData` field, `locked` field. `Refresh()` sets button states. |
+| `ChampionChoiceButton` | `SetState(bool, bool)` | `lockedTooltipProvider.enabled = locked`. Navigation target is the child `GameUISelectableButton` (`Button` property). |
+| `StoryEventScreen` | `Initialize()` | Uses Ink engine. `OnContentReady` accumulates text, `OnChoicesPresented` renders choices. |
+| `CardDraftScreen` | `Setup(List<CardData>, ...)` | Card draft selection |
+| `MerchantScreen` | `Initialize()` | Shop/merchant |
+| `RewardScreen` | `Show(List<RewardState>, ...)` | Reward selection |
 | `BattleIntroScreen` | `Initialize()` / `Setup()` / `Show()` | Pre-battle boss info |
-| `MapScreen` | `Initialize()` | Map/node navigation |
-| `CardDraftScreen` | `Setup(List<CardData>, string, bool, Action)` | Card draft selection |
-| `RelicDraftScreen` | `Setup(List<CollectableRelicData>, string, bool, Action)` | Artifact draft |
-| `ClassSelectionScreen` | `Initialize()` | Clan/class selection |
-| `ChampionUpgradeScreen` | `Setup(CardUpgradeTreeData, Source, Action)` | Champion upgrades |
-| `MerchantScreen` | — | Shop/merchant |
-| `RewardScreen` | `Show(List<RewardState>, Source, Action, ...)` | Reward selection |
-| `DeckScreen` | `Setup(Params)` | Deck builder |
-| `GameOverScreen` | — | Victory/defeat |
-| `StoryEventScreen` | `Initialize()` | Story events. Uses Ink engine: `OnContentReady` accumulates text in `currentTextContent` (StringBuilder), `OnChoicesPresented` renders choices, `OnStoryFinished` shows Continue. `AppendTextContent()` moves text to `contentLabel` and clears the StringBuilder. |
-| `SynthesisScreen` | `Setup(Source, Action)` | Unit synthesis |
-| `SettingsScreen` | — | Settings |
-| `CompendiumScreen` | — | Card/relic compendium |
-| `RunSummaryScreen` | `Setup(RunAggregateData, Action, ...)` | Run summary |
-| `DialogScreen` | — | Dialogue/text boxes |
-| `MinimapScreen` | — | Minimap display |
-
-### Card Effects (`CardEffect*.cs`, 40+ classes)
-
-All extend `CardEffectBase`. Key pattern:
-- `Setup(CardEffectState)` — initialization
-- `GetDescriptionAsTrait(CardEffectState)` — tooltip text
-
-**Common effects:** `CardEffectDamage`, `CardEffectHeal`, `CardEffectHealTrain`, `CardEffectAddStatusEffect`, `CardEffectRemoveStatusEffect`, `CardEffectSpawnMonster`, `CardEffectSpawnHero`, `CardEffectBuffDamage`, `CardEffectBuffMaxHealth`, `CardEffectDraw`, `CardEffectAdjustEnergy`, `CardEffectGainEnergy`, `CardEffectBump`, `CardEffectKill`, `CardEffectSacrifice`, `CardEffectRecruit`, `CardEffectTransform`, `CardEffectRandomDiscard`, `CardEffectDiscardHand`, `CardEffectFreezeCard`, `CardEffectModifyCardCost`, `CardEffectAdjustRoomCapacity`
-
-### Card Traits (`CardTrait*.cs`, 40+ classes)
-
-Trait state/data pairs. Key ones:
-- `CardTraitExhaustState` (Consume), `CardTraitIntrinsicState` (Intrinsic), `CardTraitFreeze` (Freeze), `CardTraitPermafrost` (Permafrost), `CardTraitRetain` (Holdover), `CardTraitSelfPurge` (Purge), `CardTraitCopyOnPlay`, `CardTraitCorruptRestricted`, `CardTraitIgnoreArmor`, `CardTraitUnplayable`
-- **Scaling traits** (20+): `CardTraitScalingAddDamage`, `CardTraitScalingAddStatusEffect`, `CardTraitScalingBuffDamage`, `CardTraitScalingHeal`, `CardTraitScalingReduceCost`, `CardTraitScalingUpgradeUnitAttack/Health/Size/StatusEffect`
-
-### Relic Effects (`RelicEffect*.cs`, 150+ classes)
-
-All extend `RelicEffectBase` and implement various `IRelicEffect` interfaces. The interfaces determine when the effect triggers:
-- `IStartOfCombatRelicEffect`, `IEndOfCombatRelicEffect`, `IEndOfTurnRelicEffect`
-- `ICardPlayedRelicEffect`, `ICardDrawnRelicEffect`, `IOnDiscardRelicEffect`
-- `ICharacterStatAdjustmentRelicEffect`, `IOnStatusEffectAddedRelicEffect`
-- `IStartOfRunRelicEffect`, `IMerchantRelicEffect`, `ICardModifierRelicEffect`
-
-### Status Effects (`StatusEffect*State.cs`, 40+ classes)
-
-All extend `StatusEffectState`. Named by mechanic:
-- **Buffs:** `Armor`, `Regen`, `DamageShield`, `Lifesteal`, `Haste`, `Multistrike`, `Stealth`, `SpellShield`, `Buff`
-- **Debuffs:** `Poison`, `Dazed`, `Rooted`, `Fragile`, `SpellWeakness`, `MeleeWeakness`, `Sap`, `Debuff`, `Silenced`
-- **Mechanics:** `Endless`, `Ephemeral`, `Immobile`, `Immune`, `Inedible`, `Inert`, `Cardless`, `HealImmunity`
-- **Combat:** `Spikes`, `Trample`, `Splash`, `Ambush`, `Hunter`, `AttractDamage`
-- **Special:** `Scorch`, `Spark`, `HealMultiplier`, `Revive`, `Hatch`, `EatMany`, `CorruptPoison`, `CorruptRegen`
-- **DLC:** `ShardUpgrade`, `StygianBlessing`, `PyreLock`
-
-### UI Classes (Key ones for text extraction)
-
-| Class | Role |
-|-------|------|
-| `CardUI` | Card display. Enums: `CardUIState` (Hand, FaceDown, Screen, Locked), `MasteryType` |
-| `CharacterUI` | Unit health/status display |
-| `BossDetailsUI` | Boss information panel |
-| `HandUI` | Hand display, card animations |
-| `RoomUI` | Floor display |
-| `RoomTargetingUI` | Floor targeting indicator |
-| `SpawnPointUI` | Unit placement slots |
-| `BranchChoiceUI` | Choice branching |
-| `CardChoiceItem` | Draft card item |
-| `RelicChoiceItemUI` | Artifact choice item |
-| `MerchantGoodDetailsUI` | Shop item details |
-| `MerchantServiceUI` | Shop service display |
-| `CovenantSelectionUI` | Difficulty selector |
-| `ChampionSelectionUI` | Champion choice |
-| `TooltipUI` / `TooltipContainer` | Tooltip system |
-| `EndTurnUI` | End turn button |
-| `EnergyUI` | Ember display |
-| `GoldUI` | Gold display |
-| `TowerHPUI` | Pyre health display |
-| `DeckCountUI` | Deck counter |
-
-### Currently Patched Methods
-
-The mod has 55+ Harmony patches. Key ones listed below; see `Patches/` directory and search for `TryPatch` calls for the complete list:
-
-| Patch | Target | Method |
-|-------|--------|--------|
-| `MainMenuScreenPatch` | `MainMenuScreen` | `Initialize` (postfix) |
-| `BattleIntroScreenPatch` | `BattleIntroScreen` | `Initialize`/`Setup`/`Show` (postfix) |
-| `CombatStartPatch` | `CombatManager` | `StartCombat` (postfix) |
-| `CardDraftScreenPatch` | `CardDraftScreen` | `Setup` (postfix) |
-| `ClassSelectionScreenPatch` | `ClassSelectionScreen` | `Initialize` (postfix) |
-| `MapScreenPatch` | `MapScreen` | `Initialize` (postfix) |
-| `MerchantScreenPatch` | `MerchantScreen` | `Initialize` (postfix) |
-| `GameOverScreenPatch` | `GameOverScreen` | `Initialize` (postfix) |
-| `SettingsScreenPatch` | `SettingsScreen` | `Initialize` (postfix) |
-| `CompendiumScreenPatch` | `CompendiumScreen` | `Initialize` (postfix) |
-| `ScreenManagerPatch` | `ScreenManager` | Generic transition detection |
-| `CardDrawPatch` | `CardManager` | `DrawCards` (postfix) |
-| `CardPlayedPatch` | `CardManager` | `PlayCard` (postfix) |
-| `CardTargetingPatches` | `CardSelectionBehaviour` | `MoveTargetWithKeyboard` (postfix), `SelectCardInternal(bool, bool)` (postfix) |
-| `CombatEventPatches` | Various | Turn changes, damage, deaths, status effects |
-
-### Reward System Classes
-
-| Class | Role |
-|-------|------|
-| `RewardData` | Base reward (has `_rewardTitleKey` field) |
-| `CardRewardData` | Card reward |
-| `CardPoolRewardData` | Random card pool reward |
-| `GoldRewardData` | Gold reward |
-| `HealthRewardData` | Pyre health reward |
-| `CrystalRewardData` | Crystal/shard reward (Hellforged DLC) |
-| `DraftRewardData` | Draft choice reward |
-| `RelicDraftRewardData` | Artifact choice reward |
-| `ChampionUpgradeRewardData` | Champion upgrade |
-| `EnhancerRewardData` | Card upgrade reward |
-| `PurgeRewardData` | Card purge option |
-| `MerchantRewardData` | Shop reward |
-| `UnitSynthesisRewardData` | Unit merge reward |
-| `MapSkipRewardData` | Map skip reward |
-
-### Map & Progression
-
-| Class | Role |
-|-------|------|
-| `MapNodeData` | Node definition (battle, merchant, event, etc.) |
-| `MapNodeBucketData` | Node pool configuration |
-| `MapNodeUI` / `MapNodeUIBase` | Node display |
-| `MapBattleNodeUI` | Battle node icon |
-| `MapPath` | Path between nodes |
-| `MapSection` | Map region |
-| `MapPlayerTrain` | Player train on map |
-| `RewardNodeData` | Reward node configuration |
-
-### Signals (Event System)
-
-The game uses `Signal<T>` for pub/sub events:
-- `CardManager.cardPlayedSignal` — `Signal<CardState>`
-- `CardManager.cardPilesChangedSignal` — `Signal<CardPileInformation>`
-- `CardManager.deckShuffledSignal` — `Signal<bool>`
-- `PlayerManager.energyChangedSignal` — `Signal<int>`
-- `PlayerManager.healPlayerSignal` — `Signal<int>` (static)
 
 ### Key Structs for Patch Parameters
 
 ```csharp
-// CombatManager damage parameters
-CombatManager.ApplyDamageToTargetParameters {
-    CardState playedCard, bool finalEffectInSequence, RelicState relicState,
-    Damage.Type damageType, CharacterState selfTarget, VfxAtLoc vfxAtLoc, bool showDamageVfx
-}
-
-// CharacterState damage parameters
 CharacterState.ApplyDamageParams {
     CharacterState attacker, CardState damageSourceCard, bool damageSourceCardFinishingResolution,
     RelicState damageSourceRelic, Damage.Type damageType, bool fromAttractDamageTrigger
 }
 
-// CharacterState status effect parameters
 CharacterState.AddStatusEffectParams {
     bool spawnEffect, bool overrideImmunity, RelicState sourceRelicState,
     CardState sourceCardState, CardManager cardManager, Type fromEffectType, bool sourceIsHero
 }
 
-// CardManager discard parameters
 CardManager.DiscardCardParams {
     CardState discardCard, bool wasPlayed, bool handDiscarded, float effectDelay,
     CharacterState characterSummoned, Type outSuppressTraitOnDiscard
 }
-
-// CardManager pile counts
-CardManager.CardPileInformation {
-    int deckCount, int handCount, int discardCount, int exhaustedCount, int eatenCount
-}
 ```
+
+## Adding New Keywords
+
+Keywords are centralized in `Core/KeywordManager.cs`. Add fallback entries to `LoadFallbackKeywords()` for mechanics not in the game's status/trigger/trait systems:
+```csharp
+{ "KeywordName", "KeywordName: Brief explanation" }
+```
+Keywords from the game's localization are loaded automatically; only add to fallbacks what the game doesn't provide.
+
+## Common Pitfalls
+
+- **EventSystem focuses child selectables**: When searching for a game component on a focused UI element, always search parents too (the component may be on an ancestor). The game's `GameUISelectableButton` is often a child of the behavior component.
+- **Preview mode phantom events**: The game simulates damage during floor targeting. Check `FloorTargetingSystem.IsTargeting` or `PreviewMode` before announcing combat events.
+- **Tooltip text persists when disabled**: `TooltipProviderComponent` retains its text even when `enabled = false`. Check the `enabled` property before using tooltip text.
+- **Game names are confusing**: `Team.Type.Heroes` = enemies, `Team.Type.Monsters` = player's units.
+
+## Key Integration Points
+
+- **Tolk.cs** (in `../tolk/`): P/Invoke wrapper for Tolk.dll screen reader library
+- **Trainworks2/**: Reference modding toolkit (not directly used, but useful for finding patch targets)
 
 ## Known Limitations / TODO
 
 ### The Last Divinity DLC (Hellforged)
 
-The DLC adds several features that may not be fully accessible yet:
-
-**DLC Features:**
 - **Hellpact Shards**: Collectible shards that power special abilities
-- **Divine Boon/Divine Horde/Divine Temple**: Special reward nodes for collecting shards
-- **Dark Pact Temple Merchant**: Special DLC merchant
-
-**What needs work:**
-1. Divine reward nodes (Boon/Horde/Temple) may not be appearing or readable in the first artifact selection screen
-2. Shard-related effects and rewards may need specific handling
-
-**Investigation notes:**
-- The DLC content uses "Pact" terminology internally (e.g., `DarkPactTempleMerchant`, `PactAllNodesPool`)
-- Covenant/difficulty selection may require unlocking higher levels first
-- UI types to investigate: `CovenantSelectorUI`, any Pact-related UI components
-
-### Key Conflicts Avoided
-
-These keys conflict with game shortcuts and are NOT used by the mod:
-- **N**: Combat speed toggle (was previously Read Units, now U)
-- **F**: Toggle Unit Details
-- **E**: End Turn (game handles this)
+- **Divine Boon/Divine Horde/Divine Temple**: Special reward nodes - may not be fully readable
+- DLC content uses "Pact" terminology internally (e.g., `DarkPactTempleMerchant`, `PactAllNodesPool`)
