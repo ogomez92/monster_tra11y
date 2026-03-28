@@ -22,35 +22,15 @@ A comprehensive accessibility mod for Monster Train that enables totally blind p
 
 ## Installation
 
-### Step 1: Subscribe to the Monster Train Mod Loader
+### Step 1: Install BepInEx
 
 1. Open Steam and go to the [Monster Train Mod Loader](https://steamcommunity.com/sharedfiles/filedetails/?id=2187468759) on Steam Workshop
 2. Click **Subscribe** to download the mod loader
 3. For detailed modding instructions, see the [Official Monster Train Modding Guide](https://steamcommunity.com/sharedfiles/filedetails/?id=2257843164)
 
-### Step 2: Enable the Mod Loader In-Game
+### Step 2: Install the Mod
 
-After subscribing, you must enable the mod loader inside the game.
-
-#### Instructions for Screen Reader Users
-
-1. Launch Monster Train
-2. Press **Enter** to skip the intro cinematic
-3. You are now at the main menu (the menu does NOT wrap around)
-4. Press **Down Arrow** approximately **7 times** to reach the bottom area
-5. Press **Right Arrow** approximately **4 times** (this reaches the lower-right corner where "Mod Settings" is)
-6. Press **Enter** to open Mod Settings
-7. Press **Down Arrow** twice to reach the "Enable Mod Loader" checkbox
-8. Press **Enter** to toggle it on (you can use AI with a screenshot to verify it's selected)
-9. Press escape - a dialog will ask if you want to apply and quit
-10. The leftmost option is selected by default (Apply & Quit) - press **Enter** to confirm
-11. The game will exit automatically
-
-### install the mod
-
-Once you have enabled the mod loader, do the following:
-
-1. Download te latest release of this mod
+1. Download the latest release of this mod
 2. Extract **all contents** directly to your Monster Train game folder:
    - Default location: `C:\Program Files (x86)\Steam\steamapps\common\Monster Train`
 3. The folder structure should look like:
@@ -67,7 +47,7 @@ Once you have enabled the mod loader, do the following:
    ```
 4. Launch Monster Train once to let BepInEx initialize
 
-### Step 3: Launch the Game
+### Step 3: Launch the game
 
 1. Start your screen reader (NVDA, JAWS, or enable Windows Narrator)
 2. Launch Monster Train

@@ -64,6 +64,11 @@ namespace MonsterTrainAccessibility.Battle
             if (!IsTargeting)
                 return;
 
+            // Poll the game's selected room every frame to catch ALL room changes,
+            // not just PageUp/Down. The game can change rooms during card resolution,
+            // combat phase transitions, or SelectCardInternal(reselect: true).
+            PollGameFloor();
+
             // Update cooldown
             if (_inputCooldown > 0)
             {
@@ -71,16 +76,8 @@ namespace MonsterTrainAccessibility.Battle
                 return;
             }
 
-            // Page Up/Down to cycle floors (matches game's native floor navigation)
-            // After the key is pressed, read the floor from game state instead of assuming
-            if (Input.GetKeyDown(KeyCode.PageUp) || Input.GetKeyDown(KeyCode.PageDown))
-            {
-                // Let the game process the key, then read the actual floor
-                ReadFloorFromGameAndAnnounce();
-                _inputCooldown = INPUT_COOLDOWN_TIME;
-            }
             // Enter to confirm
-            else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
+            if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
             {
                 ConfirmSelection();
                 _inputCooldown = INPUT_COOLDOWN_TIME;
@@ -90,6 +87,24 @@ namespace MonsterTrainAccessibility.Battle
             {
                 CancelTargeting();
                 _inputCooldown = INPUT_COOLDOWN_TIME;
+            }
+        }
+
+        /// <summary>
+        /// Check if the game's selected floor has changed and announce it.
+        /// This catches floor changes from any source (PageUp/Down, card play, combat phases).
+        /// </summary>
+        private void PollGameFloor()
+        {
+            var battleHandler = MonsterTrainAccessibility.BattleHandler;
+            if (battleHandler == null) return;
+
+            int gameFloor = battleHandler.GetSelectedFloor();
+            if (gameFloor >= 0 && gameFloor <= 3 && gameFloor != SelectedFloor)
+            {
+                MonsterTrainAccessibility.LogInfo($"Floor changed: {SelectedFloor} -> {gameFloor} (detected by poll)");
+                SelectedFloor = gameFloor;
+                AnnounceFloorSelection();
             }
         }
 
@@ -143,41 +158,6 @@ namespace MonsterTrainAccessibility.Battle
                 _onConfirm = null;
                 _onCancel = null;
                 MonsterTrainAccessibility.LogInfo("Floor targeting force cancelled");
-            }
-        }
-
-        /// <summary>
-        /// Read the current floor from game state and announce it.
-        /// This is called after Page Up/Down to stay in sync with the game.
-        /// </summary>
-        private void ReadFloorFromGameAndAnnounce()
-        {
-            // Use a coroutine with a tiny delay to let the game process the key first
-            StartCoroutine(ReadFloorAfterDelay());
-        }
-
-        private System.Collections.IEnumerator ReadFloorAfterDelay()
-        {
-            // Wait one frame for the game to process the key
-            yield return null;
-
-            var battleHandler = MonsterTrainAccessibility.BattleHandler;
-            if (battleHandler != null)
-            {
-                int gameFloor = battleHandler.GetSelectedFloor();
-                if (gameFloor >= 0 && gameFloor <= 3)
-                {
-                    SelectedFloor = gameFloor;
-                    MonsterTrainAccessibility.LogInfo($"ReadFloorFromGame: room index is {gameFloor}");
-
-                    // Always announce the current floor from game state
-                    AnnounceFloorSelection();
-                }
-                else
-                {
-                    // Couldn't read floor
-                    MonsterTrainAccessibility.LogInfo($"ReadFloorFromGame: invalid floor {gameFloor}");
-                }
             }
         }
 

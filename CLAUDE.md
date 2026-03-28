@@ -352,8 +352,10 @@ Keywords from the game's localization are loaded automatically; only add to fall
 
 ## Common Pitfalls
 
-- **EventSystem focuses child selectables**: When searching for a game component on a focused UI element, always search parents too (the component may be on an ancestor). The game's `GameUISelectableButton` is often a child of the behavior component.
+- **EventSystem focuses child selectables**: When searching for a game component on a focused UI element, always search parents too (the component may be on an ancestor). The game's `GameUISelectableButton` is often a child of the behavior component. Use `FindComponentInSelfOrParents()` pattern (see `ClanSelectionTextReader`).
+- **Serialized fields point to children, not parents**: `FindComponentInHierarchy` only searches UP. When a parent component has a serialized reference to a child (e.g., `MerchantGoodUIBase.buyButton`), searching up from the parent won't find the child. Search children too with `GetComponentsInChildren`, or read the field directly via reflection.
 - **Preview mode phantom events**: The game simulates damage during floor targeting. Check `FloorTargetingSystem.IsTargeting` or `PreviewMode` before announcing combat events.
+- **Game state changes silently**: The game can change the selected room/floor through many mechanisms (card play resolution, combat phase transitions, `SelectCardInternal(reselect: true)`). Don't rely solely on key detection — poll game state to catch all changes. See `FloorTargetingSystem.PollGameFloor()`.
 - **Tooltip text persists when disabled**: `TooltipProviderComponent` retains its text even when `enabled = false`. Check the `enabled` property before using tooltip text.
 - **Game names are confusing**: `Team.Type.Heroes` = enemies, `Team.Type.Monsters` = player's units.
 

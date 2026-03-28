@@ -48,7 +48,8 @@
       "Bash(\"/c/Program Files/Python314/python\" \"T:/code/mods/monstertrain/fix_readers.py\")",
       "Bash(\"/c/Program Files/Python314/python\" \"T:/code/mods/monstertrain/remove_methods.py\")",
       "Bash(for f:*)",
-      "Bash(do wc:*)"
+      "Bash(do wc:*)",
+      "Bash(head -5 \"C:\\\\Program Files \\(x86\\)\\\\Steam\\\\steamapps\\\\common\\\\Monster Train\\\\BepInEx\\\\LogOutput.log\")"
     ]
   }
 }

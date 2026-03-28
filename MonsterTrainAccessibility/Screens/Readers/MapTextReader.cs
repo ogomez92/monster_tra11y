@@ -23,9 +23,6 @@ namespace MonsterTrainAccessibility.Screens
         {
             try
             {
-                // Debug: Log all components on this object and parents to understand structure
-                LogMapNodeComponents(go);
-
                 // Check for Minimap components first (Monster Train's map system)
                 var mapInfo = GetMinimapNodeInfo(go);
                 if (mapInfo != null)
@@ -60,11 +57,17 @@ namespace MonsterTrainAccessibility.Screens
 
                 if (mapNodeComponent == null)
                 {
-                    // Try finding tooltip data directly from the selected object
-                    string tooltipText = TooltipTextReader.GetTooltipTextWithBody(go);
-                    if (!string.IsNullOrEmpty(tooltipText) && !tooltipText.Contains("Enemy_Tooltip"))
+                    // No map component found. Only try tooltip fallback on map-related screens
+                    // to avoid stealing tooltip text from unrelated screens (e.g., champion buttons on clan selection).
+                    var currentScreen = Help.ScreenStateTracker.CurrentScreen;
+                    if (currentScreen == Help.GameScreen.Map || currentScreen == Help.GameScreen.BattleIntro ||
+                        currentScreen == Help.GameScreen.Rewards || currentScreen == Help.GameScreen.ChampionUpgrade)
                     {
-                        return tooltipText;
+                        string tooltipText = TooltipTextReader.GetTooltipTextWithBody(go);
+                        if (!string.IsNullOrEmpty(tooltipText) && !tooltipText.Contains("Enemy_Tooltip"))
+                        {
+                            return tooltipText;
+                        }
                     }
                     return null;
                 }

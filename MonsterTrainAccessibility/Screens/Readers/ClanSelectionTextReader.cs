@@ -276,7 +276,11 @@ namespace MonsterTrainAccessibility.Screens
                     result.Append(clanName);
                     if (isLocked)
                     {
-                        result.Append(" (Locked)");
+                        result.Append(" (Locked");
+                        string unlockReason = GetUnlockProgressString(actualClassData);
+                        if (!string.IsNullOrEmpty(unlockReason))
+                            result.Append($". {unlockReason}");
+                        result.Append(")");
                     }
                 }
                 else
@@ -438,34 +442,105 @@ namespace MonsterTrainAccessibility.Screens
             return sb.Length > 0 ? sb.ToString() : null;
         }
 
+        /// <summary>
+        /// Get unlock progress string for a locked clan via ClassData.GetFullClassUnlockProgressString(SaveManager)
+        /// </summary>
+        private static string GetUnlockProgressString(object classData)
+        {
+            if (classData == null) return null;
+            try
+            {
+                var classDataType = classData.GetType();
+
+                // Need SaveManager to call GetFullClassUnlockProgressString
+                var saveManager = FindSaveManager();
+                if (saveManager == null) return null;
+
+                var method = classDataType.GetMethod("GetFullClassUnlockProgressString",
+                    new[] { saveManager.GetType() });
+                if (method != null)
+                {
+                    var result = method.Invoke(classData, new[] { saveManager }) as string;
+                    if (!string.IsNullOrEmpty(result))
+                        return TextUtilities.StripRichTextTags(result);
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting unlock progress: {ex.Message}");
+            }
+            return null;
+        }
+
+        private static object FindSaveManager()
+        {
+            Type screenType = null;
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                if (!assembly.GetName().Name.Contains("Assembly-CSharp")) continue;
+                screenType = assembly.GetType("ClassSelectionScreen");
+                if (screenType != null) break;
+            }
+            if (screenType == null) return null;
+            var screen = UnityEngine.Object.FindObjectOfType(screenType);
+            if (screen == null) return null;
+            var field = screenType.GetField("saveManager", BindingFlags.NonPublic | BindingFlags.Instance);
+            return field?.GetValue(screen);
+        }
+
 
         /// <summary>
         /// Get text for champion choice buttons on the clan selection screen.
-        /// Searches parents for ChampionChoiceButton since EventSystem may focus the child GameUISelectableButton.
+        /// The focused object is the GameUISelectableButton referenced by ChampionChoiceButton.Button.
+        /// This button may NOT be in the same hierarchy as ChampionChoiceButton (serialized references
+        /// can point anywhere), so we find ChampionSelectionUI in parents and match the focused object
+        /// against each ChampionChoiceButton's Button property.
         /// </summary>
         internal static string GetChampionChoiceText(GameObject go)
         {
             try
             {
-                // Search this object and parents for ChampionChoiceButton
-                Component championButton = FindComponentInSelfOrParents(go.transform, "ChampionChoiceButton");
-                if (championButton == null)
+                // Find ChampionSelectionUI anywhere in parents - this is the container for all champion buttons
+                Component championSelectionUI = FindComponentInSelfOrParents(go.transform, "ChampionSelectionUI");
+                if (championSelectionUI == null)
                     return null;
 
-                bool isButtonLocked = IsChampionButtonLocked(championButton);
-
-                // Find ChampionSelectionUI in parents to get champion data
-                Component championSelectionUI = FindComponentInSelfOrParents(championButton.transform.parent, "ChampionSelectionUI");
-                if (championSelectionUI == null)
-                    return isButtonLocked ? "Champion: Locked" : "Champion option";
-
                 var uiType = championSelectionUI.GetType();
+                var bindFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
 
-                // Determine button index from the championChoiceButtons list
-                int buttonIndex = GetButtonIndex(uiType, championSelectionUI, championButton);
+                // Get the championChoiceButtons list
+                var buttonsField = uiType.GetField("championChoiceButtons", bindFlags);
+                var buttons = buttonsField?.GetValue(championSelectionUI) as System.Collections.IList;
+                if (buttons == null || buttons.Count == 0)
+                    return null;
+
+                // Find which ChampionChoiceButton owns the focused GameUISelectableButton.
+                // ChampionChoiceButton.Button returns the GameUISelectableButton - match it against go's components.
+                int buttonIndex = -1;
+                Component matchedButton = null;
+                for (int i = 0; i < buttons.Count; i++)
+                {
+                    var choiceButton = buttons[i] as Component;
+                    if (choiceButton == null) continue;
+
+                    // Read the Button property (returns GameUISelectableButton)
+                    var buttonProp = choiceButton.GetType().GetProperty("Button", bindFlags | BindingFlags.Public);
+                    var selectableButton = buttonProp?.GetValue(choiceButton) as Component;
+                    if (selectableButton != null && selectableButton.gameObject == go)
+                    {
+                        buttonIndex = i;
+                        matchedButton = choiceButton;
+                        break;
+                    }
+                }
+
+                if (buttonIndex < 0 || matchedButton == null)
+                    return null; // Focused object isn't a champion choice button
+
+                bool isButtonLocked = IsChampionButtonLocked(matchedButton);
 
                 // Get champion data via ClassData.GetChampionData(index)
-                var classDataField = uiType.GetField("classData", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                var classDataField = uiType.GetField("classData", bindFlags);
                 var classData = classDataField?.GetValue(championSelectionUI);
                 if (classData == null)
                     return isButtonLocked ? "Champion: Locked" : "Champion option";
@@ -513,26 +588,6 @@ namespace MonsterTrainAccessibility.Screens
             if (enabledProp == null) return false;
 
             return (bool)enabledProp.GetValue(provider);
-        }
-
-        private static int GetButtonIndex(Type uiType, Component championSelectionUI, Component championButton)
-        {
-            // Match the button against ChampionSelectionUI.championChoiceButtons list
-            var buttonsField = uiType.GetField("championChoiceButtons",
-                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-            if (buttonsField != null)
-            {
-                var buttons = buttonsField.GetValue(championSelectionUI) as System.Collections.IList;
-                if (buttons != null)
-                {
-                    for (int i = 0; i < buttons.Count; i++)
-                    {
-                        if (ReferenceEquals(buttons[i], championButton))
-                            return i;
-                    }
-                }
-            }
-            return 0;
         }
 
         private static string BuildChampionText(object championData, bool isLocked)

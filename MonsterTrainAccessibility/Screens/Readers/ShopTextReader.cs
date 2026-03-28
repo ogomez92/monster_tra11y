@@ -1229,14 +1229,43 @@ namespace MonsterTrainAccessibility.Screens
 
 
         /// <summary>
-        /// Get price from the BuyButton component
+        /// Get price from the BuyButton component.
+        /// Searches parents (for when go is BuyButton's child), children (for when go is MerchantGoodUI parent),
+        /// and the MerchantGoodUIBase.buyButton field directly.
         /// </summary>
         internal static string GetPriceFromBuyButton(GameObject go)
         {
             try
             {
-                // Find BuyButton in hierarchy
+                // Find BuyButton in parents (handles case where focused object is a child of BuyButton)
                 Component buyButton = UITextHelper.FindComponentInHierarchy(go, "BuyButton");
+
+                // If not found in parents, search children (handles case where go is MerchantGoodDetailsUI)
+                if (buyButton == null)
+                {
+                    foreach (var comp in go.GetComponentsInChildren<Component>())
+                    {
+                        if (comp != null && comp.GetType().Name == "BuyButton")
+                        {
+                            buyButton = comp;
+                            break;
+                        }
+                    }
+                }
+
+                // Also try reading buyButton field from MerchantGoodUIBase in parents
+                if (buyButton == null)
+                {
+                    var merchantGood = UITextHelper.FindComponentInHierarchy(go, "MerchantGoodDetailsUI")
+                                   ?? UITextHelper.FindComponentInHierarchy(go, "MerchantGoodUIBase");
+                    if (merchantGood != null)
+                    {
+                        var buyField = merchantGood.GetType().GetField("buyButton",
+                            BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                        buyButton = buyField?.GetValue(merchantGood) as Component;
+                    }
+                }
+
                 if (buyButton != null)
                 {
                     var btnType = buyButton.GetType();
