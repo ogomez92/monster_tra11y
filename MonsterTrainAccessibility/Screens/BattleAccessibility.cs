@@ -495,6 +495,19 @@ namespace MonsterTrainAccessibility.Screens
         }
 
         /// <summary>
+        /// Announce when a unit eats a morsel (Umbra feeding mechanic)
+        /// </summary>
+        public void OnMorselEaten(string feederName, string morselName)
+        {
+            if (!IsInBattle)
+                return;
+
+            string message = $"{feederName} eats {morselName}";
+            MonsterTrainAccessibility.ScreenReader?.Queue(message);
+            MonsterTrainAccessibility.ScreenReader?.LogCombatEvent(message);
+        }
+
+        /// <summary>
         /// Announce when a card is exhausted/consumed (removed from deck)
         /// </summary>
         public void OnCardExhausted(string cardName)
