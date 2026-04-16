@@ -147,22 +147,10 @@ namespace MonsterTrainAccessibility.Patches
                                 ruleName = getNameMethod.Invoke(sinData, null) as string;
                             }
 
-                            // Get the rule description - try GetDescriptionKey() and localize
-                            var getDescKeyMethod = sinType.GetMethod("GetDescriptionKey");
-                            if (getDescKeyMethod != null && getDescKeyMethod.GetParameters().Length == 0)
-                            {
-                                var descKey = getDescKeyMethod.Invoke(sinData, null) as string;
-                                if (!string.IsNullOrEmpty(descKey))
-                                {
-                                    ruleDescription = TryLocalizeKey(descKey);
-
-                                    // Resolve placeholders like {[effect0.status0.power]}
-                                    if (!string.IsNullOrEmpty(ruleDescription) && ruleDescription.Contains("{["))
-                                    {
-                                        ruleDescription = ResolveEffectPlaceholders(ruleDescription, sinData, sinType);
-                                    }
-                                }
-                            }
+                            // Get the description by creating a RelicState from the SinsData.
+                            // RelicState.GetDescription() fills in numeric parameters (e.g., attack values)
+                            // that raw localization of the description key would miss.
+                            ruleDescription = Screens.SettingsTextReader.GetRelicDescription(sinData);
                         }
                     }
 

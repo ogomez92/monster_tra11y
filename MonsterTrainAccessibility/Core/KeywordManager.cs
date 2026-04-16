@@ -320,6 +320,7 @@ namespace MonsterTrainAccessibility.Core
                 { "Charged Echo", "Charged Echo: Stored echo charge that copies the next spell played" },
                 { "Pyre Lock", "Pyre Lock: Prevents the Pyre from being healed" },
                 { "Relentless", "Relentless: This unit attacks on every floor each turn" },
+                { "Holdover", "Holdover: This card returns to your hand at the end of each turn instead of being discarded" },
                 { "Permafrost", "Permafrost: This card stays in your hand between turns and cannot be discarded" },
             };
 

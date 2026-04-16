@@ -98,19 +98,12 @@ namespace MonsterTrainAccessibility.Screens
                             }
                         }
 
-                        // If still no description, try GetDescriptionKey and localize
+                        // If still no description, create a RelicState to get the description
+                        // with numeric parameters filled in (raw localization misses these)
                         if (string.IsNullOrEmpty(relicDescription))
                         {
-                            var descKeyMethod = dataType.GetMethod("GetDescriptionKey", BindingFlags.Public | BindingFlags.Instance);
-                            if (descKeyMethod != null && descKeyMethod.GetParameters().Length == 0)
-                            {
-                                var key = descKeyMethod.Invoke(relicData, null) as string;
-                                if (!string.IsNullOrEmpty(key))
-                                {
-                                    relicDescription = LocalizationHelper.Localize(key);
-                                    MonsterTrainAccessibility.LogInfo($"GetDescriptionKey() -> Localized: '{relicDescription}'");
-                                }
-                            }
+                            relicDescription = SettingsTextReader.GetRelicDescription(relicData);
+                            MonsterTrainAccessibility.LogInfo($"GetRelicDescription returned: '{relicDescription}'");
                         }
 
                         // Resolve effect placeholders like {[effect0.power]} or {[#effect0.power]}
@@ -299,21 +292,13 @@ namespace MonsterTrainAccessibility.Screens
                 }
                 else
                 {
-                    // Try GetDescriptionKey and localize
-                    var getDescKeyMethod = type.GetMethod("GetDescriptionKey", BindingFlags.Public | BindingFlags.Instance);
-                    if (getDescKeyMethod != null)
+                    // Create a RelicState to get the description with numeric parameters filled in
+                    string desc = SettingsTextReader.GetRelicDescription(relicData);
+                    if (!string.IsNullOrEmpty(desc))
                     {
-                        var descKey = getDescKeyMethod.Invoke(relicData, null) as string;
-                        if (!string.IsNullOrEmpty(descKey))
-                        {
-                            string localized = LocalizationHelper.Localize(descKey);
-                            if (!string.IsNullOrEmpty(localized) && localized != descKey)
-                            {
-                                string cleanDesc = TextUtilities.StripRichTextTags(localized);
-                                if (sb.Length > 0) sb.Append(". ");
-                                sb.Append(cleanDesc);
-                            }
-                        }
+                        string cleanDesc = TextUtilities.StripRichTextTags(desc);
+                        if (sb.Length > 0) sb.Append(". ");
+                        sb.Append(cleanDesc);
                     }
                 }
 

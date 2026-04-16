@@ -473,17 +473,28 @@ namespace MonsterTrainAccessibility.Screens
                             }
                         }
 
-                        // If description looks like a key or is empty, try GetDescriptionKey and localize
+                        // If description looks like a key or is empty, create a RelicState to get
+                        // the description with numeric parameters filled in
                         if (string.IsNullOrEmpty(desc) || desc.Contains("_descriptionKey"))
                         {
-                            var descKeyMethod = dataType.GetMethod("GetDescriptionKey", Type.EmptyTypes);
-                            if (descKeyMethod != null)
+                            if (isRelicType)
                             {
-                                var key = descKeyMethod.Invoke(data, null) as string;
-                                if (!string.IsNullOrEmpty(key))
+                                desc = SettingsTextReader.GetRelicDescription(data);
+                                MonsterTrainAccessibility.LogInfo($"GetRelicDescription returned: {desc}");
+                            }
+
+                            // Fallback to raw localization for non-relic types
+                            if (string.IsNullOrEmpty(desc))
+                            {
+                                var descKeyMethod = dataType.GetMethod("GetDescriptionKey", Type.EmptyTypes);
+                                if (descKeyMethod != null)
                                 {
-                                    desc = LocalizationHelper.Localize(key);
-                                    MonsterTrainAccessibility.LogInfo($"Localized description: {desc}");
+                                    var key = descKeyMethod.Invoke(data, null) as string;
+                                    if (!string.IsNullOrEmpty(key))
+                                    {
+                                        desc = LocalizationHelper.Localize(key);
+                                        MonsterTrainAccessibility.LogInfo($"Localized description: {desc}");
+                                    }
                                 }
                             }
                         }

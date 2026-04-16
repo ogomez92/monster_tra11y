@@ -536,6 +536,65 @@ namespace MonsterTrainAccessibility.Screens
             }
         }
 
+        /// <summary>
+        /// Set the game's selected room index via reflection.
+        /// Directly sets the selectedRoom field on RoomUI without triggering
+        /// side effects (camera pan, sound, notifications). This ensures
+        /// GetSelectedRoom() returns the correct value when targeting starts.
+        /// </summary>
+        internal static bool SetSelectedFloor(BattleManagerCache cache, int roomIndex)
+        {
+            try
+            {
+                if (cache.RoomManager == null)
+                {
+                    cache.FindManagers();
+                }
+
+                if (cache.RoomManager == null)
+                {
+                    MonsterTrainAccessibility.LogInfo("SetSelectedFloor: RoomManager is null");
+                    return false;
+                }
+
+                var roomManagerType = cache.RoomManager.GetType();
+
+                // Get the RoomUI via RoomManager.GetRoomUI()
+                var getRoomUIMethod = roomManagerType.GetMethod("GetRoomUI", Type.EmptyTypes);
+                if (getRoomUIMethod == null)
+                {
+                    MonsterTrainAccessibility.LogInfo("SetSelectedFloor: GetRoomUI method not found");
+                    return false;
+                }
+
+                var roomUI = getRoomUIMethod.Invoke(cache.RoomManager, null);
+                if (roomUI == null)
+                {
+                    MonsterTrainAccessibility.LogInfo("SetSelectedFloor: RoomUI is null");
+                    return false;
+                }
+
+                // Set the selectedRoom field directly on RoomUI (no side effects)
+                var roomUIType = roomUI.GetType();
+                var selectedRoomField = roomUIType.GetField("selectedRoom",
+                    BindingFlags.NonPublic | BindingFlags.Instance);
+                if (selectedRoomField == null)
+                {
+                    MonsterTrainAccessibility.LogInfo("SetSelectedFloor: selectedRoom field not found");
+                    return false;
+                }
+
+                selectedRoomField.SetValue(roomUI, roomIndex);
+                MonsterTrainAccessibility.LogInfo($"SetSelectedFloor: Set room to {roomIndex}");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"SetSelectedFloor error: {ex.Message}");
+                return false;
+            }
+        }
+
         internal static object GetRoom(BattleManagerCache cache, int roomIndex)
         {
             if (cache.RoomManager == null || cache.GetRoomMethod == null)

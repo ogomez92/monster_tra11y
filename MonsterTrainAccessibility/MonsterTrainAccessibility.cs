@@ -106,6 +106,8 @@ namespace MonsterTrainAccessibility
             UnlockScreenPatch.TryPatch(_harmony);
             SettingsScreenPatch.TryPatch(_harmony);
             CompendiumScreenPatch.TryPatch(_harmony);
+            CompendiumSectionPatch.TryPatch(_harmony);
+            CompendiumPageTurnPatch.TryPatch(_harmony);
             ScreenManagerPatch.TryPatch(_harmony);
 
             // New screen patches

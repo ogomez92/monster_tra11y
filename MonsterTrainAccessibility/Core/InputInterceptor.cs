@@ -272,22 +272,37 @@ namespace MonsterTrainAccessibility.Core
         }
 
         /// <summary>
-        /// Browse floors with Page Up/Down when not in targeting mode
+        /// Browse floors with Page Up/Down when not in targeting mode.
+        /// The game natively handles PageUp/PageDown as ScrollUp/ScrollDown to change
+        /// the selected room. We just read the game's floor and announce it.
+        /// Uses a coroutine to wait one frame so the game processes the input first.
         /// </summary>
         private void BrowseFloor(bool up)
         {
-            // Room index 0 = bottom floor, 2 = top floor, 3 = pyre room
-            // Page Up = go up = increase room index, Page Down = go down = decrease room index
-            if (up)
-                _browsingFloor = Mathf.Min(3, _browsingFloor + 1);
-            else
-                _browsingFloor = Mathf.Max(0, _browsingFloor - 1);
+            StartCoroutine(BrowseFloorDelayed());
+        }
+
+        private System.Collections.IEnumerator BrowseFloorDelayed()
+        {
+            // Wait one frame for the game to process the PageUp/PageDown input
+            // and update its selected room before we read it.
+            yield return null;
 
             var battle = MonsterTrainAccessibility.BattleHandler;
-            string floorName = Screens.BattleAccessibility.RoomIndexToFloorName(_browsingFloor);
-            string summary = battle?.GetFloorSummary(_browsingFloor, Screens.BattleAccessibility.AnnouncedKeywords) ?? "";
-            string message = string.IsNullOrEmpty(summary) ? floorName : $"{floorName}. {summary}";
-            MonsterTrainAccessibility.ScreenReader?.Speak(message, false);
+            if (battle == null) yield break;
+
+            int gameFloor = battle.GetSelectedFloor();
+            if (gameFloor < 0 || gameFloor > 3) yield break;
+
+            // Only announce if the floor actually changed
+            if (gameFloor != _browsingFloor)
+            {
+                _browsingFloor = gameFloor;
+                string floorName = Screens.BattleAccessibility.RoomIndexToFloorName(_browsingFloor);
+                string summary = battle.GetFloorSummary(_browsingFloor, Screens.BattleAccessibility.AnnouncedKeywords) ?? "";
+                string message = string.IsNullOrEmpty(summary) ? floorName : $"{floorName}. {summary}";
+                MonsterTrainAccessibility.ScreenReader?.Speak(message, false);
+            }
         }
 
         /// <summary>

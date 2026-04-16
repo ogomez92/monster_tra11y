@@ -361,16 +361,10 @@ namespace MonsterTrainAccessibility.Screens
                             ruleName = getNameMethod.Invoke(sinData, null) as string;
                         }
 
-                        // Get the rule description - try GetDescriptionKey() and localize
-                        var getDescKeyMethod = sinType.GetMethod("GetDescriptionKey");
-                        if (getDescKeyMethod != null && getDescKeyMethod.GetParameters().Length == 0)
-                        {
-                            var descKey = getDescKeyMethod.Invoke(sinData, null) as string;
-                            if (!string.IsNullOrEmpty(descKey))
-                            {
-                                ruleDescription = LocalizationHelper.LocalizeOrNull(descKey);
-                            }
-                        }
+                        // Get the description by creating a RelicState from the SinsData.
+                        // RelicState.GetDescription() fills in numeric parameters (e.g., attack values)
+                        // that raw localization of the description key would miss.
+                        ruleDescription = GetRelicDescription(sinData);
                     }
                 }
 
@@ -447,5 +441,51 @@ namespace MonsterTrainAccessibility.Screens
             return null;
         }
 
+        /// <summary>
+        /// Get a relic's description with numeric parameters filled in.
+        /// Creates a RelicState from the RelicData and calls GetDescription(),
+        /// which uses CardEffectLocalizationContext to substitute values.
+        /// </summary>
+        internal static string GetRelicDescription(object relicData)
+        {
+            try
+            {
+                // Find RelicState type and create an instance from the RelicData
+                var relicStateType = Utilities.ReflectionHelper.FindType("RelicState");
+                if (relicStateType == null) return null;
+
+                var ctor = relicStateType.GetConstructor(new[] { relicData.GetType().BaseType ?? relicData.GetType() });
+                if (ctor == null)
+                {
+                    // Try finding constructor that takes RelicData specifically
+                    var relicDataType = Utilities.ReflectionHelper.FindType("RelicData");
+                    if (relicDataType != null)
+                        ctor = relicStateType.GetConstructor(new[] { relicDataType });
+                }
+                if (ctor == null) return null;
+
+                var relicState = ctor.Invoke(new[] { relicData });
+                if (relicState == null) return null;
+
+                // Call GetDescription() which handles parameter substitution
+                var getDescMethod = relicStateType.GetMethod("GetDescription");
+                if (getDescMethod == null) return null;
+
+                // GetDescription has optional RelicManager parameter
+                var parameters = getDescMethod.GetParameters();
+                object result;
+                if (parameters.Length == 0)
+                    result = getDescMethod.Invoke(relicState, null);
+                else
+                    result = getDescMethod.Invoke(relicState, new object[] { null });
+
+                return result as string;
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting relic description: {ex.Message}");
+                return null;
+            }
+        }
     }
 }

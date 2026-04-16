@@ -232,7 +232,7 @@ namespace MonsterTrainAccessibility.Patches
                         }
                     }
 
-                    // Get saveManager for clan names
+                    // Get saveManager for clan names and score
                     var saveManagerField = currentType.GetField("saveManager", bindingFlags);
                     if (saveManagerField != null && mainClassName == null)
                     {
@@ -290,6 +290,20 @@ namespace MonsterTrainAccessibility.Patches
                                 {
                                     var result = getBattlesMethod.Invoke(saveManager, null);
                                     if (result is int b) battlesWon = b;
+                                }
+                            }
+
+                            // Get score directly from saveManager - most reliable source
+                            // saveManager.GetScore() computes the full score including
+                            // battle scores, gold bonus, crystal bonus, and distance modifiers
+                            var getScoreMethod = smType.GetMethod("GetScore");
+                            if (getScoreMethod != null)
+                            {
+                                var result = getScoreMethod.Invoke(saveManager, null);
+                                if (result is int s && s > 0)
+                                {
+                                    MonsterTrainAccessibility.LogInfo($"Score from saveManager.GetScore(): {s} (field was: {finalScore})");
+                                    finalScore = s;
                                 }
                             }
                         }

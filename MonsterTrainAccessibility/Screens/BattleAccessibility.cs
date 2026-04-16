@@ -290,6 +290,7 @@ namespace MonsterTrainAccessibility.Screens
         public void AnnounceAllFloors(HashSet<string> announcedKeywords = null) => FloorReader.AnnounceAllFloors(_cache, announcedKeywords);
         public string GetFloorSummary(int roomIndex, HashSet<string> announcedKeywords = null) => FloorReader.GetFloorSummary(_cache, roomIndex, announcedKeywords);
         public int GetSelectedFloor() => FloorReader.GetSelectedFloor(_cache);
+        public bool SetSelectedFloor(int roomIndex) => FloorReader.SetSelectedFloor(_cache, roomIndex);
         public List<string> GetAllEnemies() => FloorReader.GetAllEnemies(_cache);
         public List<string> GetAllFriendlyUnits() => FloorReader.GetAllFriendlyUnits(_cache);
         public List<string> GetAllUnits() => FloorReader.GetAllUnits(_cache);

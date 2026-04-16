@@ -688,7 +688,8 @@ namespace MonsterTrainAccessibility.Screens
 
 
         /// <summary>
-        /// Get text for covenant selector buttons (difficulty selection)
+        /// Get text for covenant selector buttons (difficulty selection).
+        /// Reads from game state fields, not UI labels (which may contain placeholder text).
         /// </summary>
         internal static string GetCovenantSelectorText(GameObject go)
         {
@@ -719,7 +720,7 @@ namespace MonsterTrainAccessibility.Screens
 
                 var uiType = covenantUI.GetType();
 
-                // Read currentLevel and maxLevel fields
+                // Read currentLevel and maxLevel from game state fields
                 int covenantLevel = -1;
                 int maxLevel = -1;
 
@@ -739,58 +740,40 @@ namespace MonsterTrainAccessibility.Screens
 
                 var sb = new StringBuilder();
 
-                // When maxLevel is 0, covenant is locked - labels contain placeholder text
+                // When maxLevel is 0, covenant is locked
                 if (maxLevel <= 0)
                 {
                     sb.Append("Covenant: Locked. Win a run to unlock covenant ranks.");
                     return sb.ToString();
                 }
 
-                // Covenant is unlocked - read the actual UI labels
-                // Read the levelLabel TMP_Text for the displayed level name
-                string levelLabelText = null;
-                var levelLabelField = uiType.GetField("levelLabel", BindingFlags.NonPublic | BindingFlags.Instance);
-                if (levelLabelField != null)
+                // Build level name from game data, not from TMP labels (which may have placeholder text)
+                if (covenantLevel > 0)
                 {
-                    var levelLabel = levelLabelField.GetValue(covenantUI);
-                    if (levelLabel != null)
-                    {
-                        var textProp = levelLabel.GetType().GetProperty("text");
-                        if (textProp != null)
-                            levelLabelText = textProp.GetValue(levelLabel) as string;
-                    }
-                }
-
-                // Read the descriptionLabel TMP_Text for the covenant description
-                string descriptionText = null;
-                var descLabelField = uiType.GetField("descriptionLabel", BindingFlags.NonPublic | BindingFlags.Instance);
-                if (descLabelField != null)
-                {
-                    var descLabel = descLabelField.GetValue(covenantUI);
-                    if (descLabel != null)
-                    {
-                        var textProp = descLabel.GetType().GetProperty("text");
-                        if (textProp != null)
-                            descriptionText = textProp.GetValue(descLabel) as string;
-                    }
-                }
-
-                // Build announcement
-                if (!string.IsNullOrEmpty(levelLabelText))
-                {
-                    sb.Append($"Covenant: {TextUtilities.StripRichTextTags(levelLabelText)}");
+                    // Try to get the localized level string from game data:
+                    // allGameData.GetChallengeCovenantDisplayData().GetChallengeLevelString(currentLevel)
+                    string levelName = GetCovenantLevelName(covenantUI, uiType, covenantLevel);
+                    if (!string.IsNullOrEmpty(levelName))
+                        sb.Append($"Covenant: {TextUtilities.StripRichTextTags(levelName)}");
+                    else
+                        sb.Append($"Covenant: Rank {covenantLevel}");
                 }
                 else
                 {
-                    sb.Append($"Covenant level {covenantLevel}");
+                    sb.Append("Covenant: Off");
                 }
 
                 sb.Append($". Maximum unlocked: {maxLevel}");
 
-                if (!string.IsNullOrEmpty(descriptionText))
+                // Get description from game data, not TMP labels
+                if (covenantLevel > 0)
                 {
-                    sb.Append(". ");
-                    sb.Append(TextUtilities.StripRichTextTags(descriptionText));
+                    string description = GetCovenantDescription(covenantUI, uiType, covenantLevel);
+                    if (!string.IsNullOrEmpty(description))
+                    {
+                        sb.Append(". ");
+                        sb.Append(TextUtilities.StripRichTextTags(description));
+                    }
                 }
 
                 sb.Append(". Use Left and Right arrows to change level.");
@@ -802,6 +785,85 @@ namespace MonsterTrainAccessibility.Screens
                 MonsterTrainAccessibility.LogError($"Error getting covenant selector text: {ex.Message}");
             }
             return null;
+        }
+
+        /// <summary>
+        /// Get the localized covenant level name from allGameData.
+        /// Path: allGameData.GetChallengeCovenantDisplayData().GetChallengeLevelString(level)
+        /// </summary>
+        private static string GetCovenantLevelName(Component covenantUI, Type uiType, int level)
+        {
+            try
+            {
+                var allGameDataField = uiType.GetField("allGameData", BindingFlags.NonPublic | BindingFlags.Instance);
+                if (allGameDataField == null) return null;
+
+                var allGameData = allGameDataField.GetValue(covenantUI);
+                if (allGameData == null) return null;
+
+                var getDisplayDataMethod = allGameData.GetType().GetMethod("GetChallengeCovenantDisplayData");
+                if (getDisplayDataMethod == null) return null;
+
+                var displayData = getDisplayDataMethod.Invoke(allGameData, null);
+                if (displayData == null) return null;
+
+                var getLevelStringMethod = displayData.GetType().GetMethod("GetChallengeLevelString", new[] { typeof(int) });
+                if (getLevelStringMethod == null) return null;
+
+                return getLevelStringMethod.Invoke(displayData, new object[] { level }) as string;
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting covenant level name: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Get the covenant description from allGameData.
+        /// Path: allGameData.GetAscensionCovenantForLevel(level) -> GetDescription()
+        /// </summary>
+        private static string GetCovenantDescription(Component covenantUI, Type uiType, int level)
+        {
+            try
+            {
+                var allGameDataField = uiType.GetField("allGameData", BindingFlags.NonPublic | BindingFlags.Instance);
+                if (allGameDataField == null) return null;
+
+                var allGameData = allGameDataField.GetValue(covenantUI);
+                if (allGameData == null) return null;
+
+                var getCovenantMethod = allGameData.GetType().GetMethod("GetAscensionCovenantForLevel");
+                if (getCovenantMethod == null) return null;
+
+                var covenantData = getCovenantMethod.Invoke(allGameData, new object[] { level });
+                if (covenantData == null) return null;
+
+                // CovenantData extends RelicData which has GetDescription()
+                var getDescMethod = covenantData.GetType().GetMethod("GetDescription");
+                if (getDescMethod != null)
+                {
+                    var desc = getDescMethod.Invoke(covenantData, null) as string;
+                    if (!string.IsNullOrEmpty(desc))
+                        return desc;
+                }
+
+                // Fallback: try GetDescriptionKey() and localize
+                var getDescKeyMethod = covenantData.GetType().GetMethod("GetDescriptionKey");
+                if (getDescKeyMethod != null)
+                {
+                    var descKey = getDescKeyMethod.Invoke(covenantData, null) as string;
+                    if (!string.IsNullOrEmpty(descKey))
+                        return LocalizationHelper.TryLocalize(descKey) ?? descKey;
+                }
+
+                return null;
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting covenant description: {ex.Message}");
+                return null;
+            }
         }
 
 

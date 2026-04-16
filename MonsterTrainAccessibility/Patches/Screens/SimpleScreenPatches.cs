@@ -99,6 +99,177 @@ namespace MonsterTrainAccessibility.Patches
     }
 
     /// <summary>
+    /// Announce section changes in the compendium/logbook (PageUp/PageDown)
+    /// Patches CompendiumScreen.SetSection(Section) to read the new section name.
+    /// </summary>
+    public static class CompendiumSectionPatch
+    {
+        public static void TryPatch(Harmony harmony)
+        {
+            try
+            {
+                var targetType = HarmonyLib.AccessTools.TypeByName("CompendiumScreen");
+                if (targetType != null)
+                {
+                    var method = HarmonyLib.AccessTools.Method(targetType, "SetSection");
+                    if (method != null)
+                    {
+                        var postfix = new HarmonyMethod(typeof(CompendiumSectionPatch).GetMethod(nameof(Postfix)));
+                        harmony.Patch(method, postfix: postfix);
+                        MonsterTrainAccessibility.LogInfo("Patched CompendiumScreen.SetSection");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Failed to patch CompendiumScreen.SetSection: {ex.Message}");
+            }
+        }
+
+        public static void Postfix(object __instance)
+        {
+            try
+            {
+                // Read the currentSection field to get the active section
+                var screenType = __instance.GetType();
+                var sectionField = screenType.GetField("currentSection",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                if (sectionField != null)
+                {
+                    var section = sectionField.GetValue(__instance);
+                    string sectionName = SectionToName(section?.ToString());
+                    if (!string.IsNullOrEmpty(sectionName))
+                    {
+                        // Try to get page info from paginated sections
+                        string pageInfo = GetPageInfo(__instance, screenType);
+                        string message = string.IsNullOrEmpty(pageInfo)
+                            ? sectionName
+                            : $"{sectionName}. {pageInfo}";
+                        MonsterTrainAccessibility.ScreenReader?.Speak(message, false);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in CompendiumScreen.SetSection patch: {ex.Message}");
+            }
+        }
+
+        internal static string SectionToName(string section)
+        {
+            if (string.IsNullOrEmpty(section) || section == "NONE") return null;
+            switch (section)
+            {
+                case "Checklist": return "Checklist";
+                case "Cards": return "Cards";
+                case "ChampUpgrades": return "Champion Upgrades";
+                case "Blessings": return "Artifacts";
+                case "CardFrames": return "Card Frames";
+                case "Stats": return "Statistics";
+                default: return section;
+            }
+        }
+
+        internal static string GetPageInfo(object screen, Type screenType)
+        {
+            try
+            {
+                // Get the current section UI to read page count
+                var getCurrentSectionMethod = screenType.GetMethod("GetCurrentSectionUI",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                if (getCurrentSectionMethod == null) return null;
+
+                var sectionUI = getCurrentSectionMethod.Invoke(screen, null);
+                if (sectionUI == null) return null;
+
+                // Check if it's a PaginatedCompendiumSection
+                var sectionUIType = sectionUI.GetType();
+                var currentPageField = sectionUIType.GetField("currentPage",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                var pagesField = sectionUIType.GetField("pages",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+                if (currentPageField != null && pagesField != null)
+                {
+                    var currentPage = currentPageField.GetValue(sectionUI);
+                    var pages = pagesField.GetValue(sectionUI);
+
+                    if (currentPage is int page && pages is System.Collections.IList pageList && pageList.Count > 1)
+                    {
+                        return $"Page {page + 1} of {pageList.Count}";
+                    }
+                }
+            }
+            catch { }
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Announce page turns in the compendium/logbook (Left/Right arrows)
+    /// Patches CompendiumSection.TurnPage(int) to read the new page number.
+    /// </summary>
+    public static class CompendiumPageTurnPatch
+    {
+        public static void TryPatch(Harmony harmony)
+        {
+            try
+            {
+                // Patch the base CompendiumSection.TurnPage or PaginatedCompendiumSection.TurnPage
+                var targetType = HarmonyLib.AccessTools.TypeByName("PaginatedCompendiumSection");
+                if (targetType == null)
+                    targetType = HarmonyLib.AccessTools.TypeByName("CompendiumSection");
+                if (targetType != null)
+                {
+                    var method = HarmonyLib.AccessTools.Method(targetType, "TurnPage");
+                    if (method != null)
+                    {
+                        var postfix = new HarmonyMethod(typeof(CompendiumPageTurnPatch).GetMethod(nameof(Postfix)));
+                        harmony.Patch(method, postfix: postfix);
+                        MonsterTrainAccessibility.LogInfo($"Patched {targetType.Name}.TurnPage");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Failed to patch CompendiumSection.TurnPage: {ex.Message}");
+            }
+        }
+
+        public static void Postfix(object __instance)
+        {
+            try
+            {
+                var sectionType = __instance.GetType();
+
+                // Read current page index and total pages
+                var currentPageField = sectionType.GetField("currentPage",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                var pagesField = sectionType.GetField("pages",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+                if (currentPageField != null && pagesField != null)
+                {
+                    var currentPage = currentPageField.GetValue(__instance);
+                    var pages = pagesField.GetValue(__instance);
+
+                    if (currentPage is int page && pages is System.Collections.IList pageList)
+                    {
+                        string message = pageList.Count > 1
+                            ? $"Page {page + 1} of {pageList.Count}"
+                            : $"Page {page + 1}";
+                        MonsterTrainAccessibility.ScreenReader?.Speak(message, false);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in CompendiumSection.TurnPage patch: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
     /// Generic screen manager patch to catch all screen transitions
     /// </summary>
     public static class ScreenManagerPatch
