@@ -329,6 +329,10 @@ namespace MonsterTrainAccessibility.Patches
                 }
 
                 // Build announcement
+                // Track victory/defeat so the run summary hotkey and help contexts work
+                bool isVictory = victoryTypeStr == "Standard" || victoryTypeStr == "Hellforged";
+                Help.ScreenStateTracker.SetScreen(isVictory ? Help.GameScreen.Victory : Help.GameScreen.Defeat);
+
                 // Victory/Defeat - use title text if available, otherwise infer from victoryType
                 if (!string.IsNullOrEmpty(titleText))
                 {
@@ -802,6 +806,150 @@ namespace MonsterTrainAccessibility.Patches
             }
             sb.Append("Press Enter to continue.");
             return sb.ToString().Trim();
+        }
+    }
+
+    /// <summary>
+    /// Detect the ranked (Hell Rush) game over screen.
+    /// RankedGameOverScreen extends GameOverScreenBase directly (not GameOverScreen),
+    /// and declares its own Initialize override, so GameOverScreenPatch never fires for it.
+    /// </summary>
+    public static class RankedGameOverScreenPatch
+    {
+        public static void TryPatch(Harmony harmony)
+        {
+            try
+            {
+                var targetType = AccessTools.TypeByName("RankedGameOverScreen");
+                if (targetType == null)
+                {
+                    MonsterTrainAccessibility.LogInfo("RankedGameOverScreen not found");
+                    return;
+                }
+
+                var method = AccessTools.Method(targetType, "Initialize");
+                if (method != null)
+                {
+                    var postfix = new HarmonyMethod(typeof(RankedGameOverScreenPatch).GetMethod(nameof(Postfix)));
+                    harmony.Patch(method, postfix: postfix);
+                    MonsterTrainAccessibility.LogInfo("Patched RankedGameOverScreen.Initialize");
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Failed to patch RankedGameOverScreen: {ex.Message}");
+            }
+        }
+
+        public static void Postfix(object __instance)
+        {
+            // Base class fields (victoryType, currentRunData, saveManager) are populated by
+            // base.Initialize(), so the shared reader works for the ranked variant too.
+            GameOverScreenPatch.Postfix(__instance);
+        }
+    }
+
+    /// <summary>
+    /// Detect the run summary screen (detailed post-run stats and leaderboard entries).
+    /// Setup is also called when navigating between leaderboard entries, so each
+    /// viewed run gets announced.
+    /// </summary>
+    public static class RunSummaryScreenPatch
+    {
+        public static void TryPatch(Harmony harmony)
+        {
+            try
+            {
+                var targetType = AccessTools.TypeByName("RunSummaryScreen");
+                if (targetType == null)
+                {
+                    MonsterTrainAccessibility.LogInfo("RunSummaryScreen not found");
+                    return;
+                }
+
+                var method = AccessTools.Method(targetType, "Setup");
+                if (method != null)
+                {
+                    var postfix = new HarmonyMethod(typeof(RunSummaryScreenPatch).GetMethod(nameof(Postfix)));
+                    harmony.Patch(method, postfix: postfix);
+                    MonsterTrainAccessibility.LogInfo("Patched RunSummaryScreen.Setup");
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Failed to patch RunSummaryScreen: {ex.Message}");
+            }
+        }
+
+        // __0 is the RunAggregateData passed to Setup(runData, onReturn, leaderboardData)
+        public static void Postfix(object __0)
+        {
+            try
+            {
+                Help.ScreenStateTracker.SetScreen(Help.GameScreen.RunSummary);
+
+                var sb = new StringBuilder("Run Summary. ");
+                var runData = __0;
+                if (runData != null)
+                {
+                    var type = runData.GetType();
+
+                    bool victory = InvokeOrDefault(runData, type, "GetVictory", false);
+                    bool battleMode = InvokeOrDefault(runData, type, "IsBattleMode", false);
+                    if (battleMode)
+                    {
+                        int rank = InvokeOrDefault(runData, type, "GetBattleModeRank", 0);
+                        if (rank > 0) sb.Append($"Rank {rank}. ");
+                    }
+                    else
+                    {
+                        sb.Append(victory ? "Victory. " : "Defeat. ");
+                    }
+
+                    int score = InvokeOrDefault(runData, type, "GetScore", 0);
+                    if (score > 0) sb.Append($"Score: {score:N0}. ");
+
+                    int battlesWon = InvokeOrDefault(runData, type, "GetNumBattlesWon", 0);
+                    if (battlesWon > 0) sb.Append($"{battlesWon} battles won. ");
+
+                    int gold = InvokeOrDefault(runData, type, "GetFinalGold", 0);
+                    if (gold > 0) sb.Append($"Gold: {gold:N0}. ");
+
+                    var getRunTime = type.GetMethod("GetRunTime");
+                    if (getRunTime != null && getRunTime.Invoke(runData, null) is TimeSpan runTime && runTime.TotalSeconds > 0)
+                    {
+                        if (runTime.TotalHours >= 1)
+                            sb.Append($"Time: {(int)runTime.TotalHours} hours {runTime.Minutes} minutes. ");
+                        else
+                            sb.Append($"Time: {runTime.Minutes} minutes {runTime.Seconds} seconds. ");
+                    }
+
+                    var getDate = type.GetMethod("GetSaveDateString");
+                    string date = getDate?.Invoke(runData, null) as string;
+                    if (!string.IsNullOrEmpty(date)) sb.Append($"Date: {date}. ");
+                }
+                sb.Append("Use arrows to navigate buttons. Press T to read all screen text.");
+
+                string announcement = sb.ToString().Trim();
+                MonsterTrainAccessibility.LogInfo($"Run summary: {announcement}");
+                MonsterTrainAccessibility.ScreenReader?.Speak(announcement, false);
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in RunSummaryScreen patch: {ex.Message}");
+            }
+        }
+
+        private static T InvokeOrDefault<T>(object target, Type type, string methodName, T fallback)
+        {
+            try
+            {
+                var method = type.GetMethod(methodName);
+                if (method != null && method.Invoke(target, null) is T value)
+                    return value;
+            }
+            catch { }
+            return fallback;
         }
     }
 }

@@ -101,6 +101,8 @@ namespace MonsterTrainAccessibility
             MerchantScreenPatch.TryPatch(_harmony);
             EnhancerSelectionScreenPatch.TryPatch(_harmony);
             GameOverScreenPatch.TryPatch(_harmony);
+            RankedGameOverScreenPatch.TryPatch(_harmony);
+            RunSummaryScreenPatch.TryPatch(_harmony);
             StatHighlightPatch.TryPatch(_harmony);
             WinStreakPatch.TryPatch(_harmony);
             UnlockScreenPatch.TryPatch(_harmony);
@@ -124,6 +126,7 @@ namespace MonsterTrainAccessibility
             MinimapScreenPatch.TryPatch(_harmony);
             CreditsScreenPatch.TryPatch(_harmony);
             KeyMappingScreenPatch.TryPatch(_harmony);
+            IntroScreensPatch.TryPatch(_harmony);
 
             // Combat event patches
             PlayerTurnStartPatch.TryPatch(_harmony);

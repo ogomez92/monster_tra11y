@@ -533,6 +533,68 @@ namespace MonsterTrainAccessibility.Patches
     }
 
     /// <summary>
+    /// Announce the startup intro video and logo screens so blind players
+    /// know the game is loading and that the intro can be skipped.
+    /// </summary>
+    public static class IntroScreensPatch
+    {
+        public static void TryPatch(Harmony harmony)
+        {
+            TryPatchOne(harmony, "IntroLogosScreen", nameof(LogosPostfix));
+            TryPatchOne(harmony, "IntroFmvScreen", nameof(FmvPostfix));
+        }
+
+        private static void TryPatchOne(Harmony harmony, string typeName, string postfixName)
+        {
+            try
+            {
+                var targetType = AccessTools.TypeByName(typeName);
+                if (targetType == null)
+                {
+                    MonsterTrainAccessibility.LogInfo($"{typeName} not found");
+                    return;
+                }
+
+                var method = AccessTools.Method(targetType, "Initialize");
+                if (method != null)
+                {
+                    var postfix = new HarmonyMethod(typeof(IntroScreensPatch).GetMethod(postfixName));
+                    harmony.Patch(method, postfix: postfix);
+                    MonsterTrainAccessibility.LogInfo($"Patched {typeName}.Initialize");
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Failed to patch {typeName}: {ex.Message}");
+            }
+        }
+
+        public static void LogosPostfix()
+        {
+            try
+            {
+                MonsterTrainAccessibility.ScreenReader?.Speak("Monster Train is starting. Press any key to skip the intro.", false);
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in IntroLogosScreen patch: {ex.Message}");
+            }
+        }
+
+        public static void FmvPostfix()
+        {
+            try
+            {
+                MonsterTrainAccessibility.ScreenReader?.Speak("Intro video playing. Press any key to skip.", false);
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in IntroFmvScreen patch: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
     /// Detect key mapping screen
     /// </summary>
     public static class KeyMappingScreenPatch

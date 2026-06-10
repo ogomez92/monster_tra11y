@@ -99,10 +99,22 @@ namespace MonsterTrainAccessibility.Patches
                         else
                             announcement = $"Card Upgrade. Select a card to enhance. {cardCount} cards.";
                     }
+                    else if (modeLower.Contains("spellmerge"))
+                        announcement = $"Spell Merge. Select a spell to merge. {cardCount} cards.";
+                    else if (modeLower.Contains("duplication"))
+                        announcement = $"Card Duplication. Select a card to copy. {cardCount} cards.";
                     else if (modeLower.Contains("draw"))
                         announcement = $"Draw Pile. {cardCount} cards.";
                     else if (modeLower.Contains("discard"))
                         announcement = $"Discard Pile. {cardCount} cards.";
+                    else if (modeLower.Contains("exhaust"))
+                        announcement = $"Exhausted Pile. {cardCount} cards.";
+                    else if (modeLower.Contains("eaten"))
+                        announcement = $"Eaten Pile. {cardCount} cards.";
+                    else if (modeLower.Contains("showcase"))
+                        announcement = $"Starting deck preview. {cardCount} cards.";
+                    else if (modeLower.Contains("cardeffectselection"))
+                        announcement = $"Select a card. {cardCount} cards.";
                     else
                         announcement = cardCount > 0 ? $"Deck. {cardCount} cards." : "Deck.";
                 }

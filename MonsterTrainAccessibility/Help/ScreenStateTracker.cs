@@ -31,6 +31,7 @@ namespace MonsterTrainAccessibility.Help
         Minimap,
         Credits,
         KeyMapping,
+        RunSummary,
         Loading
     }
 

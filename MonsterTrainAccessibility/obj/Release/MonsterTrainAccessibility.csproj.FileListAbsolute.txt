@@ -12,3 +12,14 @@ T:\code\mods\monstertrain\MonsterTrainAccessibility\obj\Release\MonsterTrainAcce
 T:\code\mods\monstertrain\release\BepInEx\plugins\MonsterTrainAccessibility.deps.json
 T:\code\mods\monstertrain\release\BepInEx\plugins\MonsterTrainAccessibility.dll
 T:\code\mods\monstertrain\release\BepInEx\plugins\MonsterTrainAccessibility.pdb
+D:\code\mods\monstertrain\release\BepInEx\plugins\MonsterTrainAccessibility.deps.json
+D:\code\mods\monstertrain\release\BepInEx\plugins\MonsterTrainAccessibility.dll
+D:\code\mods\monstertrain\release\BepInEx\plugins\MonsterTrainAccessibility.pdb
+D:\code\mods\monstertrain\MonsterTrainAccessibility\obj\Release\MonsterTrainAccessibility.csproj.AssemblyReference.cache
+D:\code\mods\monstertrain\MonsterTrainAccessibility\obj\Release\MonsterTrainAccessibility.GeneratedMSBuildEditorConfig.editorconfig
+D:\code\mods\monstertrain\MonsterTrainAccessibility\obj\Release\MonsterTrainAccessibility.AssemblyInfoInputs.cache
+D:\code\mods\monstertrain\MonsterTrainAccessibility\obj\Release\MonsterTrainAccessibility.AssemblyInfo.cs
+D:\code\mods\monstertrain\MonsterTrainAccessibility\obj\Release\MonsterTrainAccessibility.csproj.CoreCompileInputs.cache
+D:\code\mods\monstertrain\MonsterTrainAccessibility\obj\Release\MonsterTrainAccessibility.sourcelink.json
+D:\code\mods\monstertrain\MonsterTrainAccessibility\obj\Release\MonsterTrainAccessibility.dll
+D:\code\mods\monstertrain\MonsterTrainAccessibility\obj\Release\MonsterTrainAccessibility.pdb
