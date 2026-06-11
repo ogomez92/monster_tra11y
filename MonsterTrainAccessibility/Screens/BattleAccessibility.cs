@@ -25,6 +25,11 @@ namespace MonsterTrainAccessibility.Screens
         // Shared manager cache used by all reader classes
         private readonly BattleManagerCache _cache = new BattleManagerCache();
 
+        /// <summary>
+        /// Shared manager cache, exposed for the review buffer providers.
+        /// </summary>
+        internal BattleManagerCache Cache => _cache;
+
         // Track which keyword descriptions have already been announced this battle
         private HashSet<string> _announcedKeywords = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 

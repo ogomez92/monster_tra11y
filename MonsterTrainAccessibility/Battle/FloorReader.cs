@@ -636,7 +636,8 @@ namespace MonsterTrainAccessibility.Screens
                 var room = GetRoom(cache, roomIndex);
                 if (room == null)
                 {
-                    return $"{RoomIndexToFloorName(roomIndex)}: Unknown";
+                    // Callers prefix the floor name themselves
+                    return "Unknown";
                 }
 
                 // Pyre room - special handling

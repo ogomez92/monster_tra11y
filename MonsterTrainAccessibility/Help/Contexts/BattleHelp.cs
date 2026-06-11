@@ -36,6 +36,9 @@ namespace MonsterTrainAccessibility.Help.Contexts
                    "E: End your turn and start combat phase. " +
                    "C: Re-read current selection. " +
                    "V: Cycle verbosity level. " +
+                   "Ctrl plus Left/Right: Switch review buffers: Events history, Hand, Floors, Units, Resources. " +
+                   "Ctrl plus Up/Down: Step through the current buffer one item at a time, " +
+                   "for example each combat event or each card in hand. " +
                    "Enemies ascend each turn. Protect your Pyre on top floor!";
         }
     }

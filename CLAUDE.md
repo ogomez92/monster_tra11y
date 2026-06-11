@@ -57,6 +57,7 @@ MonsterTrainAccessibility/
 - **AccessibilityConfig**: BepInEx configuration - verbosity levels, keybindings, announcement toggles.
 - **KeywordManager**: Centralized keyword dictionary built from game localization at runtime (~107 keywords). Sources: `StatusEffectManager.StatusIdToLocalizationExpression`, `CharacterTriggerData.TriggerToLocalizationExpression`, known card trait names, plus a hardcoded fallback dict for mechanics not in the game's formal systems.
 - **FocusableItem / FocusContext / VirtualFocusManager**: Focus management and navigation context stacking.
+- **Buffers (`Core/Buffers/`)**: Say the Spire-style review buffers navigated with Ctrl+arrows. `AnnouncementBuffer` is a named list of items with a position; `BufferManager` owns the buffer list and handles Ctrl+Up/Down (item navigation) and Ctrl+Left/Right (buffer switching). The **Events** buffer is fed by `ScreenReaderOutput.LogCombatEvent` (every combat event), capped at 200 items, and follows the latest item when focused. `BattleBuffers` registers contextual battle buffers (Hand, Floors, Units, Resources) whose refreshers return null outside battle so they're skipped. `CtrlNavigationSuppressionPatch` suppresses arrows while Ctrl is held on BOTH game input paths: `BaseInput.GetAxisRaw`/`GetButtonDown` (EventSystem UI focus) and `ScreenManager.OnInputMappingSignaled` (the game's `Controls.Left/Right/Up/Down` enum mappings that screens like `HandUI` consume to cycle cards — keyboard arrow mappings only, WASD/gamepad pass through).
 
 ### Screen Handlers (`Screens/`)
 
@@ -64,6 +65,7 @@ MonsterTrainAccessibility/
 - **BattleAccessibility**: Coordinator for battle screen. Uses `BattleManagerCache` for reflection-cached game state access.
 - **CardDraftAccessibility**: Handles card/relic draft, upgrade, purge screen transitions.
 - **MapAccessibility**: Handles map screen transitions.
+- **MapNavigator**: Virtual map cursor for the map screen (review-only, doesn't move real selection). Ctrl+Up/Down moves between rings (distances), Ctrl+Left/Right steps through a ring's stops. Reads `RunState`/`NodeState` via reflection, using the game's static `MapSection.GetMapNodeDataForBranch(distance, branch, saveManager)` so node `Location`s match the game's `CanBeTriggered`/`HasBeenVisited` indexing (per-type index: merchants, events, then rewards). Nodes appearing in both branch lists are the same `MapNodeData` asset (reference equality) = shared "both paths" stops. Battle per ring via `SaveManager.GetScenarioData(distance)`.
 
 ### Screen Readers (`Screens/Readers/`)
 
@@ -160,6 +162,10 @@ To fix text extraction for a new UI element, add a reader method and insert it a
 | T | Read all text on screen |
 | Tab | Read train stats (pyre health, gold, deck size) |
 | V | Cycle verbosity level |
+| Ctrl+Up/Down | Review buffer: next/previous item (Events history; in battle also Hand, Floors, Units, Resources) |
+| Ctrl+Left/Right | Switch between review buffers |
+
+On the map screen, Ctrl+arrows drive the virtual map cursor instead: Ctrl+Up/Down = forward/back one ring, Ctrl+Left/Right = stops within the ring. While Ctrl is held, arrows never reach the game (see `CtrlNavigationSuppressionPatch`).
 
 ### Battle Keys
 | Key | Action |

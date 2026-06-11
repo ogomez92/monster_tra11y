@@ -55,6 +55,35 @@ namespace MonsterTrainAccessibility.Core
             if (config == null)
                 return;
 
+            // Ctrl+arrows: review buffers everywhere, map cursor on the map screen.
+            // Handled before the targeting check so buffers stay reviewable while
+            // targeting. While Ctrl is held no other hotkeys fire (so Ctrl+C etc.
+            // don't trigger plain letter hotkeys).
+            if (Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl))
+            {
+                if (Input.GetKeyDown(KeyCode.UpArrow))
+                {
+                    HandleCtrlArrow(CtrlArrow.Up);
+                    _inputCooldown = INPUT_COOLDOWN_TIME;
+                }
+                else if (Input.GetKeyDown(KeyCode.DownArrow))
+                {
+                    HandleCtrlArrow(CtrlArrow.Down);
+                    _inputCooldown = INPUT_COOLDOWN_TIME;
+                }
+                else if (Input.GetKeyDown(KeyCode.LeftArrow))
+                {
+                    HandleCtrlArrow(CtrlArrow.Left);
+                    _inputCooldown = INPUT_COOLDOWN_TIME;
+                }
+                else if (Input.GetKeyDown(KeyCode.RightArrow))
+                {
+                    HandleCtrlArrow(CtrlArrow.Right);
+                    _inputCooldown = INPUT_COOLDOWN_TIME;
+                }
+                return;
+            }
+
             // Skip most input handling if floor or unit targeting is active
             // (Targeting systems handle their own input)
             if (FloorTargetingSystem.Instance?.IsTargeting == true ||
@@ -165,6 +194,41 @@ namespace MonsterTrainAccessibility.Core
                 }
             }
 
+        }
+
+        private enum CtrlArrow { Up, Down, Left, Right }
+
+        /// <summary>
+        /// Route Ctrl+arrow presses: on the map screen they drive the virtual
+        /// map cursor; everywhere else they drive the review buffers.
+        /// </summary>
+        private void HandleCtrlArrow(CtrlArrow arrow)
+        {
+            if ((Help.ScreenStateTracker.CurrentScreen == Help.GameScreen.Map ||
+                 Help.ScreenStateTracker.CurrentScreen == Help.GameScreen.Minimap) &&
+                MonsterTrainAccessibility.MapNav != null)
+            {
+                switch (arrow)
+                {
+                    case CtrlArrow.Up: MonsterTrainAccessibility.MapNav.NextRing(); break;
+                    case CtrlArrow.Down: MonsterTrainAccessibility.MapNav.PreviousRing(); break;
+                    case CtrlArrow.Right: MonsterTrainAccessibility.MapNav.NextNode(); break;
+                    case CtrlArrow.Left: MonsterTrainAccessibility.MapNav.PreviousNode(); break;
+                }
+                return;
+            }
+
+            var buffers = MonsterTrainAccessibility.Buffers;
+            if (buffers == null)
+                return;
+
+            switch (arrow)
+            {
+                case CtrlArrow.Up: buffers.NextItem(); break;
+                case CtrlArrow.Down: buffers.PreviousItem(); break;
+                case CtrlArrow.Right: buffers.NextBuffer(); break;
+                case CtrlArrow.Left: buffers.PreviousBuffer(); break;
+            }
         }
 
         /// <summary>

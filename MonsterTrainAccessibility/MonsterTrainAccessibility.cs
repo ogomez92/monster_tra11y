@@ -31,6 +31,8 @@ namespace MonsterTrainAccessibility
         public static VirtualFocusManager FocusManager { get; private set; }
         public static InputInterceptor InputHandler { get; private set; }
         public static AccessibilityConfig AccessibilitySettings { get; private set; }
+        public static Core.Buffers.BufferManager Buffers { get; private set; }
+        public static MapNavigator MapNav { get; private set; }
 
         // Help and targeting systems
         public static HelpSystem HelpSystem { get; private set; }
@@ -72,6 +74,11 @@ namespace MonsterTrainAccessibility
                 BattleHandler = new BattleAccessibility();
                 DraftHandler = new CardDraftAccessibility();
                 MapHandler = new MapAccessibility();
+                MapNav = new MapNavigator();
+
+                // Review buffers (Ctrl+arrows): events history plus battle info
+                Buffers = new Core.Buffers.BufferManager();
+                Core.Buffers.BattleBuffers.Register(Buffers);
 
                 // Apply Harmony patches
                 _harmony = new Harmony(GUID);
@@ -150,6 +157,9 @@ namespace MonsterTrainAccessibility
             MaxHPBuffPatch.TryPatch(_harmony);
             MorselEatenPatch.TryPatch(_harmony);
             RoomDisabledPatch.TryPatch(_harmony);
+
+            // Input patches
+            CtrlNavigationSuppressionPatch.TryPatch(_harmony);
 
             // Card targeting patches
             CardTargetingPatches.TryPatch(_harmony);

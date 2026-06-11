@@ -20,59 +20,19 @@ namespace MonsterTrainAccessibility.Screens
         {
             try
             {
-                var hand = GetHandCards(cache);
-                if (hand == null || hand.Count == 0)
+                var cards = GetHandCardStrings(cache);
+                if (cards == null || cards.Count == 0)
                 {
                     MonsterTrainAccessibility.ScreenReader?.Speak("Hand is empty", false);
                     return;
                 }
 
                 var sb = new StringBuilder();
-                sb.Append($"Hand contains {hand.Count} cards. ");
-
-                int currentEnergy = ResourceReader.GetCurrentEnergy(cache);
-                var verbosity = MonsterTrainAccessibility.AccessibilitySettings.VerbosityLevel.Value;
-
-                for (int i = 0; i < hand.Count; i++)
+                sb.Append($"Hand contains {cards.Count} cards. ");
+                foreach (var card in cards)
                 {
-                    var card = hand[i];
-                    string name = GetCardTitle(cache, card);
-                    int cost = GetCardCost(cache, card);
-                    string cardType = GetCardType(card);
-                    string clanName = GetCardClan(card);
-                    string description = GetCardDescription(cache, card);
-                    bool upgraded = HasCardUpgrades(card);
-
-                    string playable = (currentEnergy >= 0 && cost > currentEnergy) ? ", unplayable" : "";
-                    string upgradePrefix = upgraded ? "Upgraded " : "";
-
-                    // Build card announcement based on verbosity
-                    if (verbosity == VerbosityLevel.Minimal)
-                    {
-                        sb.Append($"{i + 1}: {upgradePrefix}{name}, {cost} ember{playable}. ");
-                    }
-                    else
-                    {
-                        // Normal and Verbose include type, clan, and description
-                        string typeStr = !string.IsNullOrEmpty(cardType) ? $" ({cardType})" : "";
-                        string clanStr = !string.IsNullOrEmpty(clanName) ? $", {clanName}" : "";
-                        sb.Append($"{i + 1}: {upgradePrefix}{name}{typeStr}{clanStr}, {cost} ember{playable}. ");
-
-                        if (!string.IsNullOrEmpty(description))
-                        {
-                            sb.Append($"{description} ");
-                        }
-
-                        // At Verbose level, include keyword tooltips
-                        if (verbosity == VerbosityLevel.Verbose)
-                        {
-                            string keywords = GetCardKeywords(description);
-                            if (!string.IsNullOrEmpty(keywords))
-                            {
-                                sb.Append($"Keywords: {keywords} ");
-                            }
-                        }
-                    }
+                    sb.Append(card);
+                    sb.Append(" ");
                 }
 
                 MonsterTrainAccessibility.ScreenReader?.Speak(sb.ToString(), false);
@@ -82,6 +42,67 @@ namespace MonsterTrainAccessibility.Screens
                 MonsterTrainAccessibility.LogError($"Error announcing hand: {ex.Message}");
                 MonsterTrainAccessibility.ScreenReader?.Speak("Could not read hand", false);
             }
+        }
+
+        /// <summary>
+        /// Build one announcement string per card in hand. Used by AnnounceHand
+        /// and the Hand review buffer. Returns null if the hand is unavailable.
+        /// </summary>
+        internal static List<string> GetHandCardStrings(BattleManagerCache cache)
+        {
+            var hand = GetHandCards(cache);
+            if (hand == null)
+                return null;
+
+            var result = new List<string>();
+            int currentEnergy = ResourceReader.GetCurrentEnergy(cache);
+            var verbosity = MonsterTrainAccessibility.AccessibilitySettings.VerbosityLevel.Value;
+
+            for (int i = 0; i < hand.Count; i++)
+            {
+                var card = hand[i];
+                string name = GetCardTitle(cache, card);
+                int cost = GetCardCost(cache, card);
+                string cardType = GetCardType(card);
+                string clanName = GetCardClan(card);
+                string description = GetCardDescription(cache, card);
+                bool upgraded = HasCardUpgrades(card);
+
+                string playable = (currentEnergy >= 0 && cost > currentEnergy) ? ", unplayable" : "";
+                string upgradePrefix = upgraded ? "Upgraded " : "";
+
+                var sb = new StringBuilder();
+                if (verbosity == VerbosityLevel.Minimal)
+                {
+                    sb.Append($"{i + 1}: {upgradePrefix}{name}, {cost} ember{playable}.");
+                }
+                else
+                {
+                    // Normal and Verbose include type, clan, and description
+                    string typeStr = !string.IsNullOrEmpty(cardType) ? $" ({cardType})" : "";
+                    string clanStr = !string.IsNullOrEmpty(clanName) ? $", {clanName}" : "";
+                    sb.Append($"{i + 1}: {upgradePrefix}{name}{typeStr}{clanStr}, {cost} ember{playable}.");
+
+                    if (!string.IsNullOrEmpty(description))
+                    {
+                        sb.Append($" {description}");
+                    }
+
+                    // At Verbose level, include keyword tooltips
+                    if (verbosity == VerbosityLevel.Verbose)
+                    {
+                        string keywords = GetCardKeywords(description);
+                        if (!string.IsNullOrEmpty(keywords))
+                        {
+                            sb.Append($" Keywords: {keywords}");
+                        }
+                    }
+                }
+
+                result.Add(sb.ToString());
+            }
+
+            return result;
         }
 
         internal static List<object> GetHandCards(BattleManagerCache cache)

@@ -17,67 +17,83 @@ namespace MonsterTrainAccessibility.Screens
         {
             try
             {
-                var sb = new StringBuilder();
-
-                int energy = GetCurrentEnergy(cache);
-                if (energy >= 0)
+                var items = GetResourceStrings(cache);
+                if (items == null || items.Count == 0)
                 {
-                    sb.Append($"Ember: {energy}. ");
+                    MonsterTrainAccessibility.ScreenReader?.Speak("Could not read resources", false);
+                    return;
                 }
 
-                int gold = GetGold(cache);
-                if (gold >= 0)
-                {
-                    sb.Append($"Gold: {gold}. ");
-                }
-
-                int pyreHP = GetPyreHealth(cache);
-                int maxPyreHP = GetMaxPyreHealth(cache);
-                if (pyreHP >= 0)
-                {
-                    sb.Append($"Pyre: {pyreHP} of {maxPyreHP}. ");
-                }
-
-                // Pyre armor and attack
-                int pyreArmor = GetPyreStatusEffect(cache, "armor");
-                if (pyreArmor > 0)
-                {
-                    sb.Append($"Pyre Armor: {pyreArmor}. ");
-                }
-
-                int pyreAttack = GetPyreStatusEffect(cache, "attack");
-                if (pyreAttack > 0)
-                {
-                    sb.Append($"Pyre Attack: {pyreAttack}. ");
-                }
-
-                var hand = HandReader.GetHandCards(cache);
-                if (hand != null)
-                {
-                    sb.Append($"Cards in hand: {hand.Count}. ");
-                }
-
-                // Crystals and threat level (DLC)
-                string crystalInfo = GetCrystalAndThreatInfo(cache);
-                if (!string.IsNullOrEmpty(crystalInfo))
-                {
-                    sb.Append($"{crystalInfo}. ");
-                }
-
-                // Wave counter
-                string waveInfo = GetWaveInfo(cache);
-                if (!string.IsNullOrEmpty(waveInfo))
-                {
-                    sb.Append(waveInfo);
-                }
-
-                MonsterTrainAccessibility.ScreenReader?.Speak(sb.ToString(), false);
+                MonsterTrainAccessibility.ScreenReader?.Speak(string.Join(" ", items), false);
             }
             catch (Exception ex)
             {
                 MonsterTrainAccessibility.LogError($"Error announcing resources: {ex.Message}");
                 MonsterTrainAccessibility.ScreenReader?.Speak("Could not read resources", false);
             }
+        }
+
+        /// <summary>
+        /// Build one announcement string per resource. Used by AnnounceResources
+        /// and the Resources review buffer.
+        /// </summary>
+        internal static List<string> GetResourceStrings(BattleManagerCache cache)
+        {
+            var items = new List<string>();
+
+            int energy = GetCurrentEnergy(cache);
+            if (energy >= 0)
+            {
+                items.Add($"Ember: {energy}.");
+            }
+
+            int gold = GetGold(cache);
+            if (gold >= 0)
+            {
+                items.Add($"Gold: {gold}.");
+            }
+
+            int pyreHP = GetPyreHealth(cache);
+            int maxPyreHP = GetMaxPyreHealth(cache);
+            if (pyreHP >= 0)
+            {
+                items.Add($"Pyre: {pyreHP} of {maxPyreHP}.");
+            }
+
+            // Pyre armor and attack
+            int pyreArmor = GetPyreStatusEffect(cache, "armor");
+            if (pyreArmor > 0)
+            {
+                items.Add($"Pyre Armor: {pyreArmor}.");
+            }
+
+            int pyreAttack = GetPyreStatusEffect(cache, "attack");
+            if (pyreAttack > 0)
+            {
+                items.Add($"Pyre Attack: {pyreAttack}.");
+            }
+
+            var hand = HandReader.GetHandCards(cache);
+            if (hand != null)
+            {
+                items.Add($"Cards in hand: {hand.Count}.");
+            }
+
+            // Crystals and threat level (DLC)
+            string crystalInfo = GetCrystalAndThreatInfo(cache);
+            if (!string.IsNullOrEmpty(crystalInfo))
+            {
+                items.Add($"{crystalInfo}.");
+            }
+
+            // Wave counter
+            string waveInfo = GetWaveInfo(cache);
+            if (!string.IsNullOrEmpty(waveInfo))
+            {
+                items.Add(waveInfo);
+            }
+
+            return items;
         }
 
         /// <summary>

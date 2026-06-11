@@ -24,7 +24,9 @@ namespace MonsterTrainAccessibility.Help.Contexts
                    "V: Cycle verbosity level. " +
                    "Arrow keys: Navigate menus. " +
                    "Enter or Space: Activate selected item. " +
-                   "Escape: Go back or cancel.";
+                   "Escape: Go back or cancel. " +
+                   "Ctrl plus Up/Down: Review the current information buffer item by item. " +
+                   "Ctrl plus Left/Right: Switch between buffers, such as the events history.";
         }
     }
 }

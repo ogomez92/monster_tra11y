@@ -45,15 +45,18 @@ namespace MonsterTrainAccessibility.Patches
             {
                 ScreenStateTracker.SetScreen(Help.GameScreen.Map);
 
+                // Park the virtual map cursor at the train's position
+                MonsterTrainAccessibility.MapNav?.OnMapScreenShown();
+
                 // Try to get map progress from the MapScreen instance
                 string progressInfo = GetMapProgress(__instance);
                 if (!string.IsNullOrEmpty(progressInfo))
                 {
-                    MonsterTrainAccessibility.ScreenReader?.AnnounceScreen($"Map. {progressInfo} Press F1 for help.");
+                    MonsterTrainAccessibility.ScreenReader?.AnnounceScreen($"Map. {progressInfo} Ctrl plus arrows to browse the map. Press F1 for help.");
                 }
                 else
                 {
-                    MonsterTrainAccessibility.ScreenReader?.AnnounceScreen("Map. Press F1 for help.");
+                    MonsterTrainAccessibility.ScreenReader?.AnnounceScreen("Map. Ctrl plus arrows to browse the map. Press F1 for help.");
                 }
             }
             catch (Exception ex)

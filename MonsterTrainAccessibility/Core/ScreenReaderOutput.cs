@@ -274,7 +274,14 @@ namespace MonsterTrainAccessibility.Core
         /// </summary>
         public void LogCombatEvent(string text)
         {
-            if (_combatLogWriter == null || string.IsNullOrEmpty(text))
+            if (string.IsNullOrEmpty(text))
+                return;
+
+            // Every combat event is also recorded in the reviewable events buffer
+            // (Ctrl+Up/Down) so simultaneous announcements can be replayed.
+            MonsterTrainAccessibility.Buffers?.AddEvent(text);
+
+            if (_combatLogWriter == null)
                 return;
 
             try

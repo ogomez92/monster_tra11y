@@ -77,8 +77,15 @@ namespace MonsterTrainAccessibility.Battle
                 return;
             }
 
+            // Ctrl+arrows belong to the review buffers (InputInterceptor)
+            bool ctrlHeld = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
+
             // Arrow keys to cycle targets
-            if (Input.GetKeyDown(KeyCode.UpArrow) || Input.GetKeyDown(KeyCode.LeftArrow))
+            if (ctrlHeld)
+            {
+                // Fall through - no targeting input while Ctrl is held
+            }
+            else if (Input.GetKeyDown(KeyCode.UpArrow) || Input.GetKeyDown(KeyCode.LeftArrow))
             {
                 CycleTarget(-1);
                 _inputCooldown = INPUT_COOLDOWN_TIME;

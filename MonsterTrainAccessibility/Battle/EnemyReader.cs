@@ -107,6 +107,41 @@ namespace MonsterTrainAccessibility.Screens
         }
 
         /// <summary>
+        /// Build one detailed announcement string per unit on the train,
+        /// floor by floor with your units before enemies.
+        /// Used by the Units review buffer.
+        /// </summary>
+        internal static List<string> GetUnitStrings(BattleManagerCache cache, HashSet<string> announcedKeywords = null)
+        {
+            var result = new List<string>();
+
+            for (int roomIndex = 0; roomIndex <= 2; roomIndex++)
+            {
+                var room = FloorReader.GetRoom(cache, roomIndex);
+                if (room == null)
+                    continue;
+
+                string floorName = FloorReader.RoomIndexToFloorName(roomIndex);
+                var playerDescriptions = new List<string>();
+                var enemyDescriptions = new List<string>();
+
+                foreach (var unit in FloorReader.GetUnitsInRoom(room))
+                {
+                    string unitDesc = GetDetailedEnemyDescription(cache, unit, announcedKeywords);
+                    if (FloorReader.IsEnemyUnit(cache, unit))
+                        enemyDescriptions.Add($"{floorName}, enemy: {unitDesc}");
+                    else
+                        playerDescriptions.Add($"{floorName}, your unit: {unitDesc}");
+                }
+
+                result.AddRange(playerDescriptions);
+                result.AddRange(enemyDescriptions);
+            }
+
+            return result;
+        }
+
+        /// <summary>
         /// Get a detailed description of any unit (public wrapper for targeting)
         /// </summary>
         internal static string GetDetailedUnitDescription(BattleManagerCache cache, object unit)

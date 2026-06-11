@@ -17,9 +17,15 @@ namespace MonsterTrainAccessibility.Help.Contexts
         public string GetHelpText()
         {
             return "Map screen. Navigate your path through each ring. " +
-                   "Each node announces its coordinate (Ring number and position: Left, Center, or Right), " +
-                   "node type and description, and available directions you can go. " +
-                   "If you hear 'Current position', that's where you are now. " +
+                   "Map browsing with the virtual map cursor: " +
+                   "Ctrl plus Up: Move forward one ring toward the final boss. " +
+                   "Ctrl plus Down: Move back one ring. " +
+                   "Ctrl plus Left/Right: Step through the stops on that ring, " +
+                   "including which path they are on: left, right, or both. " +
+                   "Each ring announces its number, whether it is your current position, " +
+                   "the battle waiting at its end, and how many stops it has. " +
+                   "The cursor is for review only; it does not move your real selection. " +
+                   "Moving and selecting: " +
                    "Up/Down arrows: Move between rings. " +
                    "Left/Right arrows: Choose between left path, center battle, or right path. " +
                    "Enter: Select and go to the focused node. " +

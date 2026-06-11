@@ -72,6 +72,41 @@ A comprehensive accessibility mod for Monster Train that enables totally blind p
 | Tab | Read train stats (pyre health, gold, deck size) |
 | V | Cycle verbosity level (Minimal/Normal/Verbose) |
 
+### Review Buffers (Ctrl + Arrow Keys)
+
+Inspired by Say the Spire, the mod keeps reviewable buffers of information so you never lose an announcement to the flood of simultaneous combat events.
+
+| Key | Action |
+|-----|--------|
+| Ctrl + Up | Move forward through the current buffer |
+| Ctrl + Down | Move backward through the current buffer |
+| Ctrl + Right | Switch to the next buffer |
+| Ctrl + Left | Switch to the previous buffer |
+
+Available buffers:
+- **Events**: Every combat announcement (damage, deaths, status effects, card plays, turns) is recorded here. If several things were announced at once, step back through them at your own pace. Focusing the buffer starts at the newest event; Ctrl+Down goes back in history.
+- **Hand** (battle only): One item per card, with cost, type, and description.
+- **Floors** (battle only): One item per floor, with capacity, corruption, and units.
+- **Units** (battle only): One detailed item per unit on the train, floor by floor.
+- **Resources** (battle only): Ember, gold, pyre health, cards in hand, and DLC info as separate items.
+
+While Ctrl is held, the arrow keys never move the game's real selection, so reviewing is always safe. The buffer position is remembered per buffer while you switch around.
+
+### Map Browsing (Ctrl + Arrow Keys on the Map)
+
+On the map screen, the Ctrl+arrows drive a **virtual map cursor** instead, so you can explore the whole run without moving your real selection:
+
+| Key | Action |
+|-----|--------|
+| Ctrl + Up | Move forward one ring (toward the final boss). The first press announces your current ring. |
+| Ctrl + Down | Move back one ring |
+| Ctrl + Right | Next stop on this ring |
+| Ctrl + Left | Previous stop on this ring |
+
+Each ring announces its number ("Ring 3 of 8"), whether it's your current position or already traveled, which path was taken on branching rings, the battle waiting at the end of the ring (including boss battles), and how many stops it has. Each stop announces its name, which path it's on (left, right, or both), whether you've visited it, whether it's available right now, and what it does.
+
+The map cursor is review-only. To actually travel, use the normal arrow keys and Enter on the real map selection.
+
 ### Automatic Text Reading
 
 The mod automatically reads text when:
