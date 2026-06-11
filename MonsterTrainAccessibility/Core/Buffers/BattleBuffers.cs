@@ -30,7 +30,7 @@ namespace MonsterTrainAccessibility.Core.Buffers
                 var items = new List<string>();
                 for (int roomIndex = 0; roomIndex <= 3; roomIndex++)
                 {
-                    string summary = FloorReader.GetFloorSummary(cache, roomIndex, BattleAccessibility.AnnouncedKeywords);
+                    string summary = FloorReader.GetFloorSummary(cache, roomIndex, includeKeywords: true);
                     if (!string.IsNullOrEmpty(summary))
                         items.Add($"{FloorReader.RoomIndexToFloorName(roomIndex)}: {summary}");
                 }
@@ -42,7 +42,7 @@ namespace MonsterTrainAccessibility.Core.Buffers
                 var cache = GetBattleCache();
                 if (cache == null)
                     return null;
-                return EnemyReader.GetUnitStrings(cache, BattleAccessibility.AnnouncedKeywords);
+                return EnemyReader.GetUnitStrings(cache);
             });
 
             buffers.Register("Resources", () =>

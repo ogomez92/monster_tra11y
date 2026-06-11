@@ -64,7 +64,7 @@ namespace MonsterTrainAccessibility.Patches
                 sb.Append("Shop. ");
 
                 // Announce gold
-                int gold = InputInterceptor.GetCurrentGold();
+                int gold = RunInfoReader.GetGold();
                 if (gold >= 0)
                 {
                     sb.Append($"You have {gold} gold. ");
@@ -118,7 +118,7 @@ namespace MonsterTrainAccessibility.Patches
             catch (Exception ex)
             {
                 MonsterTrainAccessibility.LogError($"Error auto-reading shop: {ex.Message}");
-                int gold = InputInterceptor.GetCurrentGold();
+                int gold = RunInfoReader.GetGold();
                 string goldText = gold >= 0 ? $"You have {gold} gold." : "";
                 MonsterTrainAccessibility.ScreenReader?.AnnounceScreen($"Shop. {goldText} Press F1 for help.");
             }

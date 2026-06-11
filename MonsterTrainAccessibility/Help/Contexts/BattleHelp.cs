@@ -28,17 +28,21 @@ namespace MonsterTrainAccessibility.Help.Contexts
         {
             return "Battle screen. Play cards to defeat enemies and protect your Pyre. " +
                    "H: Read hand (all cards with costs and effects). " +
-                   "L: Read floors (floor capacity and units). " +
+                   "K: Read the selected floor. Shift plus K or L: Read all floors. " +
                    "U: Read all units (your monsters front-to-back, then enemies). " +
-                   "R: Read resources (ember, pyre health, deck/discard counts). " +
+                   "R: Read ember. " +
+                   "Ctrl plus G: Read gold. " +
+                   "Ctrl plus H: Read pyre health. " +
+                   "Ctrl plus R: Read pact shards. " +
                    "Enter: Play selected card. Some cards require floor or unit selection. " +
                    "Left/Right arrows: Select targets when playing spells. " +
-                   "E: End your turn and start combat phase. " +
-                   "C: Re-read current selection. " +
+                   "F: End your turn and start combat phase. " +
+                   "C: Re-read current selection; for cards this reads the full details. " +
                    "V: Cycle verbosity level. " +
-                   "Ctrl plus Left/Right: Switch review buffers: Events history, Hand, Floors, Units, Resources. " +
-                   "Ctrl plus Up/Down: Step through the current buffer one item at a time, " +
+                   "Ctrl plus Left/Right: Switch review buffers: UI, Events, Card, Creature, Artifact, Reward, Hand, Floors, Units, Resources. " +
+                   "Ctrl plus Up: Read the next item in the current buffer, " +
                    "for example each combat event or each card in hand. " +
+                   "Ctrl plus Down: Move back toward the top of the buffer. " +
                    "Enemies ascend each turn. Protect your Pyre on top floor!";
         }
     }

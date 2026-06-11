@@ -5,9 +5,14 @@ namespace MonsterTrainAccessibility.Core.Buffers
 {
     /// <summary>
     /// Manages the set of review buffers and handles the buffer hotkeys:
-    /// Ctrl+Up/Down move through the current buffer's items,
-    /// Ctrl+Left/Right switch between available buffers.
-    /// Modeled on Say the Spire's buffer system.
+    /// Ctrl+Up/Down move through the current buffer's items (Up reads the
+    /// current/top item first, then deeper into older events / further detail
+    /// lines; Down moves back toward the top), Ctrl+Left/Right switch between
+    /// available buffers.
+    /// Modeled on the Monster Train 2 accessibility mod's buffer system.
+    ///
+    /// Buffers are cycled in registration order; buffers whose refresher
+    /// reports no content are skipped.
     /// </summary>
     public class BufferManager
     {
@@ -17,7 +22,9 @@ namespace MonsterTrainAccessibility.Core.Buffers
         private int _currentIndex = -1;
 
         /// <summary>
-        /// History of game events (combat log). Always registered first.
+        /// History of game events (combat log). Created here so events can be
+        /// recorded from the start; registered into the cycle order by
+        /// FocusBuffers.Register.
         /// </summary>
         public AnnouncementBuffer Events { get; }
 
@@ -27,18 +34,26 @@ namespace MonsterTrainAccessibility.Core.Buffers
             {
                 FollowLatest = true
             };
-            _buffers.Add(Events);
         }
 
         /// <summary>
         /// Register a contextual buffer. The refresher rebuilds its items when
-        /// the buffer is focused; returning null marks it unavailable.
+        /// the buffer is used; returning null marks it unavailable.
         /// </summary>
         public AnnouncementBuffer Register(string name, Func<List<string>> refresher = null)
         {
             var buffer = new AnnouncementBuffer(name) { Refresher = refresher };
             _buffers.Add(buffer);
             return buffer;
+        }
+
+        /// <summary>
+        /// Register an existing buffer at the next cycle position.
+        /// </summary>
+        public void Register(AnnouncementBuffer buffer)
+        {
+            if (buffer != null && !_buffers.Contains(buffer))
+                _buffers.Add(buffer);
         }
 
         /// <summary>
@@ -55,22 +70,8 @@ namespace MonsterTrainAccessibility.Core.Buffers
             (_currentIndex >= 0 && _currentIndex < _buffers.Count) ? _buffers[_currentIndex] : null;
 
         /// <summary>
-        /// Ctrl+Up: move forward through the current buffer
-        /// </summary>
-        public void NextItem()
-        {
-            var buffer = EnsureCurrentBuffer();
-            if (buffer == null)
-                return;
-
-            if (buffer.MoveNext())
-                Speak(buffer.CurrentItem);
-            else
-                Speak(buffer.Count == 0 ? $"{buffer.Name}: empty" : $"End of {buffer.Name}");
-        }
-
-        /// <summary>
-        /// Ctrl+Down: move backward through the current buffer
+        /// Ctrl+Up: move deeper into the buffer (older events, further detail
+        /// lines). From the starting point this reads the buffer's current/top item.
         /// </summary>
         public void PreviousItem()
         {
@@ -78,10 +79,35 @@ namespace MonsterTrainAccessibility.Core.Buffers
             if (buffer == null)
                 return;
 
-            if (buffer.MovePrevious())
-                Speak(buffer.CurrentItem);
-            else
-                Speak(buffer.Count == 0 ? $"{buffer.Name}: empty" : $"Start of {buffer.Name}");
+            if (buffer.Count == 0)
+            {
+                Speak($"{buffer.Name}: empty");
+                return;
+            }
+
+            // At the end, re-read the last item instead of a boundary message
+            buffer.MoveDeeper();
+            SpeakItem(buffer);
+        }
+
+        /// <summary>
+        /// Ctrl+Down: move back toward the buffer's top item.
+        /// </summary>
+        public void NextItem()
+        {
+            var buffer = EnsureCurrentBuffer();
+            if (buffer == null)
+                return;
+
+            if (buffer.Count == 0)
+            {
+                Speak($"{buffer.Name}: empty");
+                return;
+            }
+
+            // At the top, re-read the top item instead of a boundary message
+            buffer.MoveTowardTop();
+            SpeakItem(buffer);
         }
 
         /// <summary>
@@ -127,7 +153,8 @@ namespace MonsterTrainAccessibility.Core.Buffers
 
         /// <summary>
         /// Make sure some buffer is focused before item navigation.
-        /// Returns null (after announcing) if nothing has content.
+        /// Returns null (after announcing) if nothing has content, or after
+        /// announcing the newly focused buffer so the user starts oriented.
         /// </summary>
         private AnnouncementBuffer EnsureCurrentBuffer()
         {
@@ -145,10 +172,9 @@ namespace MonsterTrainAccessibility.Core.Buffers
                 if (_buffers[i].Refresh())
                 {
                     _currentIndex = i;
-                    var buffer = _buffers[i];
-                    buffer.OnFocused();
+                    _buffers[i].OnFocused();
                     AnnounceCurrentBuffer();
-                    return null; // The focus announcement already read the current item
+                    return null; // Swallow the first move so the user starts oriented
                 }
             }
 
@@ -162,11 +188,13 @@ namespace MonsterTrainAccessibility.Core.Buffers
             if (buffer == null)
                 return;
 
-            string item = buffer.CurrentItem;
-            if (string.IsNullOrEmpty(item))
-                Speak($"{buffer.Name}: empty");
-            else
-                Speak($"{buffer.Name}, {buffer.Position} of {buffer.Count}: {item}");
+            string count = buffer.Count == 1 ? "1 item" : $"{buffer.Count} items";
+            Speak($"{buffer.Name}, {count}");
+        }
+
+        private static void SpeakItem(AnnouncementBuffer buffer)
+        {
+            Speak(buffer.CurrentItem);
         }
 
         private static void Speak(string text)

@@ -18,7 +18,7 @@ namespace MonsterTrainAccessibility
     {
         public const string GUID = "com.accessibility.monstertrain";
         public const string NAME = "Monster Train Accessibility";
-        public const string VERSION = "1.0.0";
+        public const string VERSION = "6.0.0";
 
         // Static reference for global access
         public static MonsterTrainAccessibility Instance { get; private set; }
@@ -76,8 +76,10 @@ namespace MonsterTrainAccessibility
                 MapHandler = new MapAccessibility();
                 MapNav = new MapNavigator();
 
-                // Review buffers (Ctrl+arrows): events history plus battle info
+                // Review buffers (Ctrl+arrows), cycled in MT2 order:
+                // UI, Events, Card, Creature, Artifact, Reward, then battle info
                 Buffers = new Core.Buffers.BufferManager();
+                Core.Buffers.FocusBuffers.Register(Buffers);
                 Core.Buffers.BattleBuffers.Register(Buffers);
 
                 // Apply Harmony patches
@@ -159,7 +161,7 @@ namespace MonsterTrainAccessibility
             RoomDisabledPatch.TryPatch(_harmony);
 
             // Input patches
-            CtrlNavigationSuppressionPatch.TryPatch(_harmony);
+            InputSuppressionPatch.TryPatch(_harmony);
 
             // Card targeting patches
             CardTargetingPatches.TryPatch(_harmony);

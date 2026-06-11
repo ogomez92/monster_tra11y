@@ -5,18 +5,27 @@ namespace MonsterTrainAccessibility.Core.Buffers
 {
     /// <summary>
     /// A reviewable list of announcements or information items, navigated with
-    /// Ctrl+Up/Down (modeled on Say the Spire's buffer system).
+    /// Ctrl+Up/Down (modeled on the Monster Train 2 accessibility mod's buffers).
+    ///
+    /// Items are stored in review order: index 0 is the current/top item (the
+    /// newest event, or the first detail line). The cursor starts at -1, one
+    /// step before the top, so the first Ctrl+Up reads the top item.
+    /// Ctrl+Up (MoveDeeper) walks deeper into the buffer (older events,
+    /// further detail lines); Ctrl+Down (MoveTowardTop) walks back toward
+    /// the top, matching the MT2 mod's direction convention.
+    ///
     /// Buffers either accumulate items over time (events buffer) or rebuild
-    /// their contents from game state via a Refresher when focused (hand,
-    /// floors, units, resources).
+    /// their contents from game state via a Refresher when used (UI, card,
+    /// hand, floors, and so on).
     /// </summary>
     public class AnnouncementBuffer
     {
         public string Name { get; }
 
         /// <summary>
-        /// When true, focusing this buffer jumps to the newest item instead of
-        /// staying at the saved position. Used by the events buffer.
+        /// When true, focusing this buffer moves the cursor back to the
+        /// starting point so the first Ctrl+Up reads the newest item.
+        /// Used by the events buffer.
         /// </summary>
         public bool FollowLatest { get; set; }
 
@@ -43,27 +52,23 @@ namespace MonsterTrainAccessibility.Core.Buffers
             (_position >= 0 && _position < _items.Count) ? _items[_position] : null;
 
         /// <summary>
-        /// 1-based position for "x of y" announcements
-        /// </summary>
-        public int Position => _position + 1;
-
-        /// <summary>
-        /// Append an item, trimming the oldest entries past the cap.
-        /// Keeps the review position pointing at the same item while reviewing.
+        /// Add a new item at the top of the buffer, trimming the oldest entries
+        /// past the cap. Keeps the cursor pointing at the same item while reviewing.
         /// </summary>
         public void Add(string item)
         {
             if (string.IsNullOrEmpty(item))
                 return;
 
-            _items.Add(item);
+            _items.Insert(0, item);
+            if (_position >= 0)
+                _position++;
 
             if (_maxItems > 0 && _items.Count > _maxItems)
             {
-                int removeCount = _items.Count - _maxItems;
-                _items.RemoveRange(0, removeCount);
-                if (_position >= 0)
-                    _position = Math.Max(0, _position - removeCount);
+                _items.RemoveRange(_maxItems, _items.Count - _maxItems);
+                if (_position >= _maxItems)
+                    _position = _maxItems - 1;
             }
         }
 
@@ -74,7 +79,9 @@ namespace MonsterTrainAccessibility.Core.Buffers
         }
 
         /// <summary>
-        /// Rebuild contents from the Refresher (if any), preserving position.
+        /// Rebuild contents from the Refresher (if any). When the content
+        /// actually changed (focus moved to a new element, hand changed),
+        /// the cursor returns to the starting point above the top item.
         /// Returns false if the refresher reports the buffer unavailable.
         /// </summary>
         public bool Refresh()
@@ -96,18 +103,16 @@ namespace MonsterTrainAccessibility.Core.Buffers
             if (fresh == null)
             {
                 // Context gone (e.g. battle ended) - drop stale items
-                _items.Clear();
-                _position = -1;
+                Clear();
                 return false;
             }
 
-            _items.Clear();
-            _items.AddRange(fresh);
-
-            if (_items.Count == 0)
+            if (!ContentEquals(fresh))
+            {
+                _items.Clear();
+                _items.AddRange(fresh);
                 _position = -1;
-            else if (_position >= _items.Count)
-                _position = _items.Count - 1;
+            }
 
             return _items.Count > 0;
         }
@@ -117,32 +122,19 @@ namespace MonsterTrainAccessibility.Core.Buffers
         /// </summary>
         public void OnFocused()
         {
-            if (_items.Count == 0)
-            {
-                _position = -1;
-                return;
-            }
-
             if (FollowLatest)
+                _position = -1;
+            else if (_position >= _items.Count)
                 _position = _items.Count - 1;
-            else if (_position < 0 || _position >= _items.Count)
-                _position = 0;
         }
 
         /// <summary>
-        /// Move toward the newest/last item. Returns false at the end (no wrap).
+        /// Ctrl+Up: move deeper into the buffer (older events, further detail
+        /// lines). From the starting point this reads the top (current/newest)
+        /// item. Returns false at the end (no wrap).
         /// </summary>
-        public bool MoveNext()
+        public bool MoveDeeper()
         {
-            if (_items.Count == 0)
-                return false;
-
-            if (_position < 0)
-            {
-                _position = 0;
-                return true;
-            }
-
             if (_position >= _items.Count - 1)
                 return false;
 
@@ -151,23 +143,37 @@ namespace MonsterTrainAccessibility.Core.Buffers
         }
 
         /// <summary>
-        /// Move toward the oldest/first item. Returns false at the start (no wrap).
+        /// Ctrl+Down: move back toward the top item. From the starting point
+        /// this settles on the top item. Returns false at the top (no wrap).
         /// </summary>
-        public bool MovePrevious()
+        public bool MoveTowardTop()
         {
-            if (_items.Count == 0)
-                return false;
-
             if (_position < 0)
             {
-                _position = _items.Count - 1;
+                if (_items.Count == 0)
+                    return false;
+
+                _position = 0;
                 return true;
             }
 
-            if (_position <= 0)
+            if (_position == 0)
                 return false;
 
             _position--;
+            return true;
+        }
+
+        private bool ContentEquals(List<string> other)
+        {
+            if (other.Count != _items.Count)
+                return false;
+
+            for (int i = 0; i < _items.Count; i++)
+            {
+                if (!string.Equals(_items[i], other[i], StringComparison.Ordinal))
+                    return false;
+            }
             return true;
         }
     }

@@ -60,6 +60,9 @@ namespace MonsterTrainAccessibility.Help
                 PreviousScreen = CurrentScreen;
                 CurrentScreen = screen;
                 MonsterTrainAccessibility.LogInfo($"Screen changed: {PreviousScreen} -> {CurrentScreen}");
+
+                // Contextual buffer content belongs to the screen it was read on
+                Core.Buffers.FocusBuffers.Clear();
             }
         }
 

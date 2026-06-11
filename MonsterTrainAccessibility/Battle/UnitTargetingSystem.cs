@@ -70,6 +70,13 @@ namespace MonsterTrainAccessibility.Battle
             if (!IsTargeting)
                 return;
 
+            // The help browser owns Up/Down/Enter/Escape while it is open,
+            // including the frame it closes (the closing key reads as pressed
+            // all frame and must not also confirm a target)
+            var help = MonsterTrainAccessibility.HelpSystem;
+            if (help != null && (help.IsBrowsing || help.ClosedThisFrame))
+                return;
+
             // Update cooldown
             if (_inputCooldown > 0)
             {

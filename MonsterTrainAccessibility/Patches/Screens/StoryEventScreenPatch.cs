@@ -135,6 +135,7 @@ namespace MonsterTrainAccessibility.Patches
                 {
                     MonsterTrainAccessibility.LogInfo($"Event narrative (choices): {narrative}");
                     MonsterTrainAccessibility.ScreenReader?.Speak(narrative);
+                    Core.Buffers.FocusBuffers.SetStory(narrative);
                 }
             }
             catch (Exception ex)
@@ -154,6 +155,7 @@ namespace MonsterTrainAccessibility.Patches
                 {
                     MonsterTrainAccessibility.LogInfo($"Event narrative (finished): {narrative}");
                     MonsterTrainAccessibility.ScreenReader?.Speak(narrative + ". Continue.");
+                    Core.Buffers.FocusBuffers.SetStory(narrative);
                 }
             }
             catch (Exception ex)

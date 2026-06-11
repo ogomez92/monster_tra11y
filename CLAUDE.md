@@ -53,11 +53,12 @@ MonsterTrainAccessibility/
 
 - **ScreenReaderOutput**: Wrapper for Tolk library - handles speech output, braille, and screen reader detection.
   - **IMPORTANT: Never use `interrupt = true`** - it cuts off previous announcements. Always use `Speak(text, false)` or just `Speak(text)`.
-- **InputInterceptor**: Unity MonoBehaviour that handles accessibility hotkeys (F1, C, T, H, L, U, R, V).
-- **AccessibilityConfig**: BepInEx configuration - verbosity levels, keybindings, announcement toggles.
+- **InputInterceptor**: Unity MonoBehaviour that handles accessibility hotkeys (F1, C, T, H, K, L, U, R, V, plus Ctrl+G/H/R). Routes input by mode: help browsing first, then Ctrl combos, then targeting, then plain hotkeys.
+- **AccessibilityConfig**: BepInEx configuration - verbosity levels, keybindings, announcement toggles. `ReadGoldKey`/`ReadPyreHealthKey`/`ReadPactShardsKey` are pressed together with Ctrl.
+- **RunInfoReader**: Cache-free SaveManager reads (gold, pyre health, pact shards) so the Ctrl resource hotkeys work on every screen, not just battle.
 - **KeywordManager**: Centralized keyword dictionary built from game localization at runtime (~107 keywords). Sources: `StatusEffectManager.StatusIdToLocalizationExpression`, `CharacterTriggerData.TriggerToLocalizationExpression`, known card trait names, plus a hardcoded fallback dict for mechanics not in the game's formal systems.
 - **FocusableItem / FocusContext / VirtualFocusManager**: Focus management and navigation context stacking.
-- **Buffers (`Core/Buffers/`)**: Say the Spire-style review buffers navigated with Ctrl+arrows. `AnnouncementBuffer` is a named list of items with a position; `BufferManager` owns the buffer list and handles Ctrl+Up/Down (item navigation) and Ctrl+Left/Right (buffer switching). The **Events** buffer is fed by `ScreenReaderOutput.LogCombatEvent` (every combat event), capped at 200 items, and follows the latest item when focused. `BattleBuffers` registers contextual battle buffers (Hand, Floors, Units, Resources) whose refreshers return null outside battle so they're skipped. `CtrlNavigationSuppressionPatch` suppresses arrows while Ctrl is held on BOTH game input paths: `BaseInput.GetAxisRaw`/`GetButtonDown` (EventSystem UI focus) and `ScreenManager.OnInputMappingSignaled` (the game's `Controls.Left/Right/Up/Down` enum mappings that screens like `HandUI` consume to cycle cards — keyboard arrow mappings only, WASD/gamepad pass through).
+- **Buffers (`Core/Buffers/`)**: Review buffers navigated with Ctrl+arrows, modeled on the MT2 accessibility mod's conventions. `AnnouncementBuffer` stores items in review order: index 0 is the current/top item (newest event or first detail line) and the cursor starts at -1 (a "starting point" before the top), so the first Ctrl+Up reads the current item; Ctrl+Up moves deeper (`MoveDeeper`: older events, further detail lines), Ctrl+Down moves back toward the top (`MoveTowardTop`), no wrap. Refreshing resets the cursor only when content actually changed. `BufferManager` owns the buffer list (cycle order = registration order) and handles Ctrl+Down/Up (items) and Ctrl+Left/Right (buffer switching; empty buffers are skipped; switching announces "Name, N items"). Registration order (MT2): **UI, Events, Card, Creature, Artifact, Reward, Story** (from `FocusBuffers`), then **Hand, Floors, Units, Resources** (from `BattleBuffers`, battle-only). The **Events** buffer is fed by `ScreenReaderOutput.LogCombatEvent` (every combat event), capped at 200 items, and resets to the newest item when focused. `FocusBuffers` is fed from `MenuAccessibility.CheckForSelectionChange` (UI/Card/Artifact/Reward via the domain readers), `CardTargetingPatches` (Creature, from the selected target's detailed description), and `StoryEventScreenPatch` (Story, the captured event narrative); content clears on screen change (`ScreenStateTracker.SetScreen`) and battle exit. **Focus announcements are concise, details go to buffers**: the card/shop/relic readers return a `FocusReadout` (Summary spoken on focus + Details items for the buffer + FullText for non-focus callers) — cards announce "Name, cost ember, stats" with rarity/type/clan/description/keywords in the Card buffer; shop items announce "Name, price, can afford/not enough gold"; relics announce "Artifact: Name". **Keyword explanations always live in buffer content and never in live announcements** — the old "seen this session/battle" HashSet tracking is gone; `GetUnitBriefDescription`/`GetDetailedEnemyDescription`/`GetFloorSummary` take `bool includeKeywords` (buffers pass true, hotkey reads and combat events pass false). `InputSuppressionPatch` (formerly CtrlNavigationSuppressionPatch) suppresses arrows while Ctrl is held — and arrows/Submit/Cancel while the F1 help list is open — on BOTH game input paths: `BaseInput.GetAxisRaw`/`GetButtonDown` (EventSystem UI focus) and `ScreenManager.OnInputMappingSignaled` (the game's `Controls.Left/Right/Up/Down` enum mappings that screens like `HandUI` consume to cycle cards — keyboard mappings only, WASD/gamepad pass through).
 
 ### Screen Handlers (`Screens/`)
 
@@ -110,7 +111,7 @@ All patches use manual patching via `TryPatch()` methods (no `[HarmonyPatch]` at
 - `EnemyMovementPatches` - Ascend/descend
 - `BattleFlowPatches` - Victory, pyre damage
 - `CombatPhaseChangePatch` - Phase transitions
-- `CombatMiscPatches` - Relics, healing, max HP buffs
+- `CombatMiscPatches` - Relics, healing, max HP buffs; `EnemyDialoguePatch` announces chatter speech bubbles via `ChatterExpression.Express` postfix (`__4` = final localized text) and merchant lines via `MerchantCharacterUI.ShowChatter` (gated by the `AnnounceDialogue` config)
 - `PreviewModeDetector` - Filters phantom damage from preview mode
 - `CharacterStateHelper` - Shared reflection helpers for CharacterState/CardState
 
@@ -128,6 +129,8 @@ All patches use manual patching via `TryPatch()` methods (no `[HarmonyPatch]` at
 ### Help System (`Help/`)
 
 Priority-based context-sensitive help. `HelpSystem` selects the highest-priority active `IHelpContext`. 18 contexts from `GlobalHelp` (priority 0) through `DialogHelp` (priority 110). Each context's `IsActive()` checks `ScreenStateTracker.CurrentScreen`.
+
+F1 opens a **browsable help list** (MT2-style): the context's help text is split into entries (`TextUtilities.SplitIntoSpeechItems`), Up/Down read one entry at a time, and F1/Enter/Escape/Space close it. While `HelpSystem.IsBrowsing` is true, `InputInterceptor` routes all input to the browser, the targeting systems skip their input handling, and `InputSuppressionPatch` keeps arrows/Submit/Cancel away from the game.
 
 ### Entry Point
 
@@ -157,25 +160,30 @@ To fix text extraction for a new UI element, add a reader method and insert it a
 ### Global Keys (all screens)
 | Key | Action |
 |-----|--------|
-| F1 | Context-sensitive help |
-| C | Re-read current focused item |
+| F1 | Browsable help list for the current screen (Up/Down read entries; F1/Enter/Escape/Space close) |
+| C | Re-read current focused item (cards/shop items/artifacts: reads the FullText details, not the concise summary) |
 | T | Read all text on screen |
 | Tab | Read train stats (pyre health, gold, deck size) |
 | V | Cycle verbosity level |
-| Ctrl+Up/Down | Review buffer: next/previous item (Events history; in battle also Hand, Floors, Units, Resources) |
-| Ctrl+Left/Right | Switch between review buffers |
+| Ctrl+G | Read gold |
+| Ctrl+H | Read pyre health |
+| Ctrl+R | Read pact shards and threat (The Last Divinity) |
+| Ctrl+Up | Review buffer: next item (first press reads the current/top item, further presses go deeper/older) |
+| Ctrl+Down | Review buffer: back toward the top |
+| Ctrl+Left/Right | Switch between review buffers (UI, Events, Card, Creature, Artifact, Reward, Story; in battle also Hand, Floors, Units, Resources) |
 
-On the map screen, Ctrl+arrows drive the virtual map cursor instead: Ctrl+Up/Down = forward/back one ring, Ctrl+Left/Right = stops within the ring. While Ctrl is held, arrows never reach the game (see `CtrlNavigationSuppressionPatch`).
+On the map screen, Ctrl+arrows drive the virtual map cursor instead: Ctrl+Up/Down = forward/back one ring, Ctrl+Left/Right = stops within the ring. While Ctrl is held, arrows never reach the game (see `InputSuppressionPatch`).
 
 ### Battle Keys
 | Key | Action |
 |-----|--------|
 | H | Read hand (all cards) |
-| L | Read floors (capacity and units) |
+| K | Read the selected floor (capacity and units). MT2 uses B, but B is this game's eaten pile key |
+| Shift+K or L | Read all floors |
 | U | Read all units with detail |
-| R | Read resources (ember, pyre, cards) |
+| R | Read ember |
 
-Note: F, E, and N are avoided (F = Toggle Unit Details, E = End Turn, N = Combat Speed Toggle).
+**Game keyboard defaults** (ground truth: `game/UserKeyMappingHelper.cs:130-172`): E/Enter = Submit, F = Context action, N = game speed, Z = deck, X = draw pile, C = discard pile, V = exhaust pile, B = eaten pile, M = minimap, H = synthesis tooltips, R = live presence, T = cheat, Y/U/I/O/P = emotes, Shift = preview mode, Q/Backspace = close. Mod letter keys may share letters with game controls that are inert on most screens, but avoid keys whose game action is disruptive (that is why the floor key is K, not MT2's B). The game's mapping system ignores modifiers, so `InputSuppressionPatch` swallows the keyboard mappings for the mod's Ctrl+G/H/R keys while Ctrl is held.
 
 ### Floor Targeting (when playing a card)
 | Key | Action |
@@ -371,6 +379,15 @@ Keywords from the game's localization are loaded automatically; only add to fall
 - **Trainworks2/**: Reference modding toolkit (not directly used, but useful for finding patch targets)
 
 ## Known Limitations / TODO
+
+### MT2 parity features intentionally not ported
+
+The buffers, map review, help browser, and resource keys follow the MT2 accessibility mod's conventions (docs: `t:\repos\amerikrainian\mt2-access\docs_src\src`). Skipped on purpose:
+
+- **Outcome predictions (I / Ctrl+I / Ctrl+Shift+I)**: MT1 only simulates combat inside its floor-targeting preview mode (`SaveManager.PreviewMode` + `CombatManager.DoRoomCombat`); invoking it ourselves would fire all combat patches with phantom events (see `PreviewModeDetector`).
+- **Jump to hand (G)**: MT1's hand focus lives in `CardSelectionBehaviour` (`FocusCard(int)`), not the EventSystem; G left untouched.
+- **Mod settings screen (Ctrl+M)**: configuration stays in the BepInEx config file.
+- **Controller bindings**: this mod is keyboard-only.
 
 ### The Last Divinity DLC (Hellforged)
 

@@ -15,6 +15,56 @@ namespace MonsterTrainAccessibility.Screens
     {
 
         /// <summary>
+        /// Two-part shop reading for focus changes: announce name, price and
+        /// affordability; the full item text becomes the reviewable detail items.
+        /// </summary>
+        internal static Core.Buffers.FocusReadout GetShopItemReadout(GameObject go)
+        {
+            string full = GetShopItemText(go);
+            if (string.IsNullOrEmpty(full))
+                return null;
+
+            return Core.Buffers.FocusReadout.FromFullText(full, BuildShopSummary(go, full));
+        }
+
+        /// <summary>
+        /// Build the concise focus summary for a shop item: "Name, 25 gold,
+        /// can afford". The name is the first sentence of the full reading,
+        /// minus the "(Rarity Type), Clan, cost" tail that card items carry.
+        /// </summary>
+        private static string BuildShopSummary(GameObject go, string fullText)
+        {
+            string name = fullText;
+            int firstPeriod = name.IndexOf('.');
+            if (firstPeriod > 0)
+                name = name.Substring(0, firstPeriod);
+            int paren = name.IndexOf(" (");
+            if (paren > 0)
+                name = name.Substring(0, paren);
+            name = name.Trim();
+
+            var parts = new List<string> { name };
+
+            string price = null;
+            try { price = GetPriceFromBuyButton(go); } catch { }
+            if (!string.IsNullOrEmpty(price))
+            {
+                parts.Add(price);
+
+                // Affordability for gold prices, read fresh from the save
+                var match = System.Text.RegularExpressions.Regex.Match(price, @"^(\d+) gold");
+                if (match.Success && int.TryParse(match.Groups[1].Value, out int cost))
+                {
+                    int gold = Core.RunInfoReader.GetGold();
+                    if (gold >= 0)
+                        parts.Add(gold >= cost ? "can afford" : "not enough gold");
+                }
+            }
+
+            return string.Join(", ", parts);
+        }
+
+        /// <summary>
         /// Get text for shop items (cards, relics, services/upgrades)
         /// </summary>
         internal static string GetShopItemText(GameObject go)

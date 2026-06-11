@@ -267,6 +267,16 @@ namespace MonsterTrainAccessibility.Screens
                     return;
 
                 int branches = InvokeInt(runState, "GetNumBranchesAtDistance", _cursorDistance);
+                int currentDistance = InvokeInt(saveManager, "GetCurrentDistance");
+                int chosen = branches > 1 ? InvokeInt(runState, "GetChosenBranchAtDistance", _cursorDistance) : -1;
+
+                // HasBeenVisited/CanBeTriggered are only meaningful once the ring's
+                // rewards exist - the game generates them on arrival at a distance.
+                // On future rings a merchant's empty goods list reads as "visited"
+                // (TrueForAll on empty) and gold merchants always report triggerable,
+                // so skip both there; "available" only matters on the current ring.
+                bool futureRing = _cursorDistance > currentDistance;
+                bool currentRing = _cursorDistance == currentDistance;
 
                 var left = GetNodesForBranch(saveManager, _cursorDistance, 0);
                 var right = branches > 1
@@ -290,7 +300,9 @@ namespace MonsterTrainAccessibility.Screens
                 foreach (var (data, location) in left)
                 {
                     if (sharedData.Contains(data))
-                        _ringNodes.Add(DescribeNode(saveManager, data, location, branches > 1 ? "both paths" : null));
+                        _ringNodes.Add(DescribeNode(saveManager, data, location, branches > 1 ? "both paths" : null,
+                            announceVisited: !futureRing,
+                            announceAvailable: currentRing));
                 }
                 foreach (var (data, location) in left)
                 {
@@ -298,13 +310,18 @@ namespace MonsterTrainAccessibility.Screens
                         continue;
                     // Hellforged pact nodes only live in branch 0's data but the
                     // game presents them as reachable from either path
-                    string label = branches <= 1 ? null : (IsHellforgedNode(data) ? "both paths" : "left path");
-                    _ringNodes.Add(DescribeNode(saveManager, data, location, label));
+                    bool eitherPath = branches <= 1 || IsHellforgedNode(data);
+                    string label = branches <= 1 ? null : (eitherPath ? "both paths" : "left path");
+                    _ringNodes.Add(DescribeNode(saveManager, data, location, label,
+                        announceVisited: !futureRing,
+                        announceAvailable: currentRing && (eitherPath || chosen != 1)));
                 }
                 foreach (var (data, location) in right)
                 {
                     if (!sharedData.Contains(data))
-                        _ringNodes.Add(DescribeNode(saveManager, data, location, "right path"));
+                        _ringNodes.Add(DescribeNode(saveManager, data, location, "right path",
+                            announceVisited: !futureRing,
+                            announceAvailable: currentRing && chosen != 0));
                 }
             }
             catch (Exception ex)
@@ -373,7 +390,8 @@ namespace MonsterTrainAccessibility.Screens
             return result;
         }
 
-        private string DescribeNode(object saveManager, object data, object location, string branchLabel)
+        private string DescribeNode(object saveManager, object data, object location, string branchLabel,
+            bool announceVisited, bool announceAvailable)
         {
             var parts = new List<string>();
 
@@ -386,13 +404,19 @@ namespace MonsterTrainAccessibility.Screens
             try
             {
                 var dataType = data.GetType();
-                var visitedMethod = dataType.GetMethod("HasBeenVisited");
-                if (visitedMethod != null && (bool)visitedMethod.Invoke(data, new[] { location, saveManager }))
-                    parts.Add("visited");
+                if (announceVisited)
+                {
+                    var visitedMethod = dataType.GetMethod("HasBeenVisited");
+                    if (visitedMethod != null && (bool)visitedMethod.Invoke(data, new[] { location, saveManager }))
+                        parts.Add("visited");
+                }
 
-                var canTriggerMethod = dataType.GetMethod("CanBeTriggered");
-                if (canTriggerMethod != null && (bool)canTriggerMethod.Invoke(data, new[] { location, saveManager }))
-                    parts.Add("available");
+                if (announceAvailable)
+                {
+                    var canTriggerMethod = dataType.GetMethod("CanBeTriggered");
+                    if (canTriggerMethod != null && (bool)canTriggerMethod.Invoke(data, new[] { location, saveManager }))
+                        parts.Add("available");
+                }
             }
             catch (Exception ex)
             {

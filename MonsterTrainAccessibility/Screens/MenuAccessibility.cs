@@ -23,6 +23,16 @@ namespace MonsterTrainAccessibility.Screens
         private float _pollTimer = 0f;
         private bool _isActive = true;
 
+        // Which detail domain the last GetTextFromGameObject match belonged to,
+        // so the contextual buffers (Card, Artifact) fill without re-running readers
+        private Core.Buffers.FocusDomain _lastFocusDomain = Core.Buffers.FocusDomain.None;
+        // Detail items from the last reader match (full description, keywords);
+        // announced text stays concise, these fill the review buffers
+        private List<string> _lastFocusDetails = null;
+        // Complete single-string reading from the last reader match, spoken
+        // when the user explicitly asks for details (the C key)
+        private string _lastFocusFullText = null;
+
         // Text content monitoring
         private string _lastScrollContent = null;
         private string _lastScreenTextHash = null;
@@ -951,6 +961,9 @@ namespace MonsterTrainAccessibility.Screens
                         // Clean sprite tags before announcing
                         text = TextUtilities.CleanSpriteTagsForSpeech(text);
                         MonsterTrainAccessibility.ScreenReader?.AnnounceFocus(text);
+
+                        // Feed the contextual review buffers (UI, Card, Artifact, Reward)
+                        Core.Buffers.FocusBuffers.OnFocusAnnounced(currentSelected, text, _lastFocusDomain, _lastFocusDetails);
                     }
 
                     // If this is a scroll area, remember the initial content
@@ -1226,6 +1239,10 @@ namespace MonsterTrainAccessibility.Screens
         /// </summary>
         private string GetTextFromGameObject(GameObject go)
         {
+            _lastFocusDomain = Core.Buffers.FocusDomain.None;
+            _lastFocusDetails = null;
+            _lastFocusFullText = null;
+
             if (go == null)
                 return null;
 
@@ -1260,18 +1277,29 @@ namespace MonsterTrainAccessibility.Screens
                 return text;
             }
 
-            // Check for cards in hand (CardUI component) - full card details
-            text = CardTextReader.GetCardUIText(go);
-            if (!string.IsNullOrEmpty(text))
+            // Check for cards in hand (CardUI component) - announce a short
+            // summary; rarity, description and keywords go to the Card buffer
+            var cardReadout = CardTextReader.GetCardUIReadout(go);
+            if (cardReadout != null && !string.IsNullOrEmpty(cardReadout.Summary))
             {
-                return text;
+                _lastFocusDomain = Core.Buffers.FocusDomain.Card;
+                _lastFocusDetails = cardReadout.Details;
+                _lastFocusFullText = cardReadout.FullText;
+                return cardReadout.Summary;
             }
 
-            // Check for shop items (MerchantGoodDetailsUI, MerchantServiceUI)
-            text = ShopTextReader.GetShopItemText(go);
-            if (!string.IsNullOrEmpty(text))
+            // Check for shop items (MerchantGoodDetailsUI, MerchantServiceUI) -
+            // announce name/price/affordability; full details go to the UI buffer
+            var shopReadout = ShopTextReader.GetShopItemReadout(go);
+            if (shopReadout != null && !string.IsNullOrEmpty(shopReadout.Summary))
             {
-                return text;
+                // Artifact items (shop relics, and relic draft elements that fall
+                // through the shop reader's relic fallback) fill the Artifact buffer
+                if (shopReadout.Summary.StartsWith("Artifact:", StringComparison.Ordinal))
+                    _lastFocusDomain = Core.Buffers.FocusDomain.Artifact;
+                _lastFocusDetails = shopReadout.Details;
+                _lastFocusFullText = shopReadout.FullText;
+                return shopReadout.Summary;
             }
 
             // 1. Check for Fight button on BattleIntro screen - get battle name
@@ -1281,11 +1309,15 @@ namespace MonsterTrainAccessibility.Screens
                 return text;
             }
 
-            // 1.6. Check for RelicInfoUI (artifact selection on RelicDraftScreen)
-            text = RelicTextReader.GetRelicInfoText(go);
-            if (!string.IsNullOrEmpty(text))
+            // 1.6. Check for RelicInfoUI (artifact selection on RelicDraftScreen) -
+            // announce "Artifact: Name"; description/keywords go to the Artifact buffer
+            var relicReadout = RelicTextReader.GetRelicInfoReadout(go);
+            if (relicReadout != null && !string.IsNullOrEmpty(relicReadout.Summary))
             {
-                return text;
+                _lastFocusDomain = Core.Buffers.FocusDomain.Artifact;
+                _lastFocusDetails = relicReadout.Details;
+                _lastFocusFullText = relicReadout.FullText;
+                return relicReadout.Summary;
             }
 
             // 2. Check for map node (battle/event/shop nodes on the map)
@@ -1316,10 +1348,12 @@ namespace MonsterTrainAccessibility.Screens
                 return text;
             }
 
-            // 2.7. Check for compendium relic grid items
+            // 2.7. Check for compendium relic grid items (logbook artifacts
+            // land in the Artifact buffer)
             text = CompendiumTextReader.GetCompendiumRelicText(go);
             if (!string.IsNullOrEmpty(text))
             {
+                _lastFocusDomain = Core.Buffers.FocusDomain.Artifact;
                 return text;
             }
 
@@ -1819,7 +1853,7 @@ namespace MonsterTrainAccessibility.Screens
                     }
 
                     // Get gold
-                    int gold = Core.InputInterceptor.GetCurrentGold();
+                    int gold = Core.RunInfoReader.GetGold();
                     if (gold >= 0)
                     {
                         sb.Append($"Gold: {gold}. ");
@@ -2354,15 +2388,20 @@ namespace MonsterTrainAccessibility.Screens
         }
 
         /// <summary>
-        /// Force re-read the current selection
+        /// Force re-read the current selection. Where the focus announcement
+        /// was a concise summary (cards, shop items, artifacts), this reads
+        /// the complete details - everything the matching buffer holds.
         /// </summary>
         public void RereadCurrentSelection()
         {
             if (EventSystem.current != null && EventSystem.current.currentSelectedGameObject != null)
             {
                 string text = GetTextFromGameObject(EventSystem.current.currentSelectedGameObject);
+                if (!string.IsNullOrEmpty(_lastFocusFullText))
+                    text = _lastFocusFullText;
                 if (!string.IsNullOrEmpty(text))
                 {
+                    text = TextUtilities.CleanSpriteTagsForSpeech(text);
                     MonsterTrainAccessibility.ScreenReader?.Speak(text, false);
                 }
                 else

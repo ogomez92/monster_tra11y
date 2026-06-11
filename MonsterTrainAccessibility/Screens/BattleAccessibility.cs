@@ -14,12 +14,6 @@ namespace MonsterTrainAccessibility.Screens
     /// </summary>
     public class BattleAccessibility
     {
-        /// <summary>
-        /// Tracks which keyword definitions have already been announced via floor/unit reading.
-        /// Persists for the entire game session so definitions are only spoken once.
-        /// </summary>
-        public static readonly HashSet<string> AnnouncedKeywords = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
         public bool IsInBattle { get; private set; }
 
         // Shared manager cache used by all reader classes
@@ -29,9 +23,6 @@ namespace MonsterTrainAccessibility.Screens
         /// Shared manager cache, exposed for the review buffer providers.
         /// </summary>
         internal BattleManagerCache Cache => _cache;
-
-        // Track which keyword descriptions have already been announced this battle
-        private HashSet<string> _announcedKeywords = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         public BattleAccessibility()
         {
@@ -61,6 +52,7 @@ namespace MonsterTrainAccessibility.Screens
         public void OnBattleExited()
         {
             IsInBattle = false;
+            Core.Buffers.FocusBuffers.ClearCreature();
             MonsterTrainAccessibility.LogInfo("Battle exited");
         }
 
@@ -95,103 +87,6 @@ namespace MonsterTrainAccessibility.Screens
         {
             MonsterTrainAccessibility.ScreenReader?.Speak("End turn. Combat phase.", false);
             MonsterTrainAccessibility.ScreenReader?.LogCombatEvent("End turn. Combat phase.");
-        }
-
-        /// <summary>
-        /// End the player's turn via UI button click or method call
-        /// </summary>
-        public void EndTurn()
-        {
-            if (!IsInBattle)
-            {
-                MonsterTrainAccessibility.ScreenReader?.Queue("Not in battle");
-                return;
-            }
-
-            try
-            {
-                // Try to find and click the End Turn button in the UI
-                // Look for BattleHud first, then find the end turn button within it
-                var battleHudType = Type.GetType("BattleHud, Assembly-CSharp");
-                if (battleHudType == null)
-                {
-                    foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-                    {
-                        battleHudType = assembly.GetType("BattleHud");
-                        if (battleHudType != null) break;
-                    }
-                }
-
-                if (battleHudType != null)
-                {
-                    var battleHud = GameObject.FindObjectOfType(battleHudType);
-                    if (battleHud != null)
-                    {
-                        // Try to find EndTurn method or button
-                        var endTurnMethod = battleHudType.GetMethod("EndTurn", Type.EmptyTypes)
-                            ?? battleHudType.GetMethod("OnEndTurnPressed", Type.EmptyTypes)
-                            ?? battleHudType.GetMethod("OnEndTurnClicked", Type.EmptyTypes);
-
-                        if (endTurnMethod != null)
-                        {
-                            endTurnMethod.Invoke(battleHud, null);
-                            MonsterTrainAccessibility.LogInfo("Ended turn via BattleHud method");
-                            return;
-                        }
-
-                        // Try to find the button component and click it
-                        var go = (battleHud as Component)?.gameObject;
-                        if (go != null)
-                        {
-                            // Search for a button named EndTurn or similar
-                            var buttons = go.GetComponentsInChildren<UnityEngine.UI.Button>(true);
-                            foreach (var button in buttons)
-                            {
-                                var name = button.gameObject.name.ToLower();
-                                if (name.Contains("endturn") || name.Contains("end turn") || name.Contains("pass"))
-                                {
-                                    button.onClick?.Invoke();
-                                    MonsterTrainAccessibility.LogInfo($"Clicked end turn button: {button.gameObject.name}");
-                                    return;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Fallback: try CombatManager.EndPlayerTurn
-                if (_cache.CombatManager != null)
-                {
-                    var combatType = _cache.CombatManager.GetType();
-                    var endTurnMethod = combatType.GetMethod("EndPlayerTurn", Type.EmptyTypes)
-                        ?? combatType.GetMethod("PlayerEndTurn", Type.EmptyTypes)
-                        ?? combatType.GetMethod("EndTurn", Type.EmptyTypes);
-
-                    if (endTurnMethod != null)
-                    {
-                        endTurnMethod.Invoke(_cache.CombatManager, null);
-                        MonsterTrainAccessibility.LogInfo("Ended turn via CombatManager");
-                        return;
-                    }
-                    else
-                    {
-                        // Log available methods for debugging
-                        var methods = combatType.GetMethods()
-                            .Where(m => m.Name.ToLower().Contains("turn") || m.Name.ToLower().Contains("end"))
-                            .Select(m => m.Name)
-                            .Distinct()
-                            .ToArray();
-                        MonsterTrainAccessibility.LogInfo($"CombatManager turn-related methods: {string.Join(", ", methods)}");
-                    }
-                }
-
-                MonsterTrainAccessibility.ScreenReader?.Queue("Could not find end turn button");
-            }
-            catch (Exception ex)
-            {
-                MonsterTrainAccessibility.LogError($"Error ending turn: {ex.Message}");
-                MonsterTrainAccessibility.ScreenReader?.Queue("Error ending turn");
-            }
         }
 
         /// <summary>
@@ -292,8 +187,8 @@ namespace MonsterTrainAccessibility.Screens
 
         // Floor Reading
         public static string RoomIndexToFloorName(int roomIndex) => FloorReader.RoomIndexToFloorName(roomIndex);
-        public void AnnounceAllFloors(HashSet<string> announcedKeywords = null) => FloorReader.AnnounceAllFloors(_cache, announcedKeywords);
-        public string GetFloorSummary(int roomIndex, HashSet<string> announcedKeywords = null) => FloorReader.GetFloorSummary(_cache, roomIndex, announcedKeywords);
+        public void AnnounceAllFloors() => FloorReader.AnnounceAllFloors(_cache);
+        public string GetFloorSummary(int roomIndex, bool includeKeywords = false) => FloorReader.GetFloorSummary(_cache, roomIndex, includeKeywords);
         public int GetSelectedFloor() => FloorReader.GetSelectedFloor(_cache);
         public bool SetSelectedFloor(int roomIndex) => FloorReader.SetSelectedFloor(_cache, roomIndex);
         public List<string> GetAllEnemies() => FloorReader.GetAllEnemies(_cache);
@@ -303,13 +198,14 @@ namespace MonsterTrainAccessibility.Screens
 
         // Resource Reading
         public void AnnounceResources() => ResourceReader.AnnounceResources(_cache);
+        public int GetCurrentEnergy() => ResourceReader.GetCurrentEnergy(_cache);
         public int GetPyreHealth() => ResourceReader.GetPyreHealth(_cache);
         public int GetMaxPyreHealth() => ResourceReader.GetMaxPyreHealth(_cache);
         public int GetDeckSize() => ResourceReader.GetDeckSize(_cache);
 
         // Enemy Reading
-        public void AnnounceEnemies(HashSet<string> announcedKeywords = null) => EnemyReader.AnnounceEnemies(_cache, announcedKeywords);
-        public string GetDetailedUnitDescription(object unit) => EnemyReader.GetDetailedUnitDescription(_cache, unit);
+        public void AnnounceEnemies() => EnemyReader.AnnounceEnemies(_cache);
+        public string GetDetailedUnitDescription(object unit, bool includeKeywords = false) => EnemyReader.GetDetailedUnitDescription(_cache, unit, includeKeywords);
 
         /// <summary>
         /// Strip rich text tags from text for screen reader output.
@@ -357,18 +253,9 @@ namespace MonsterTrainAccessibility.Screens
             if (!MonsterTrainAccessibility.AccessibilitySettings.AnnounceStatusEffects.Value)
                 return;
 
+            // Keyword explanations are reviewable via the buffers, so the live
+            // announcement stays short
             string message = $"{unitName} gains {effectName} {stacks}";
-
-            // Add keyword description only the first time this keyword is seen in this battle
-            if (_announcedKeywords.Add(effectName))
-            {
-                var keywords = Core.KeywordManager.GetKeywords();
-                if (keywords != null && keywords.TryGetValue(effectName, out string explanation))
-                {
-                    message += $". {explanation}";
-                }
-            }
-
             MonsterTrainAccessibility.ScreenReader?.Queue(message);
             MonsterTrainAccessibility.ScreenReader?.LogCombatEvent(message);
         }
@@ -453,9 +340,9 @@ namespace MonsterTrainAccessibility.Screens
         }
 
         /// <summary>
-        /// Announce enemy dialogue/chatter (speech bubbles)
+        /// Announce unit chatter (speech bubbles above units)
         /// </summary>
-        public void OnEnemyDialogue(string text)
+        public void OnUnitChatter(string speakerName, string text)
         {
             if (!IsInBattle)
                 return;
@@ -465,7 +352,8 @@ namespace MonsterTrainAccessibility.Screens
 
             if (!string.IsNullOrEmpty(text))
             {
-                string message = $"Enemy says: {text}";
+                string speaker = string.IsNullOrEmpty(speakerName) ? "Unit" : speakerName;
+                string message = $"{speaker} says: {text}";
                 MonsterTrainAccessibility.ScreenReader?.Queue(message);
                 MonsterTrainAccessibility.ScreenReader?.LogCombatEvent(message);
             }

@@ -80,7 +80,11 @@ namespace MonsterTrainAccessibility.Screens
             }
 
             // Crystals and threat level (DLC)
-            string crystalInfo = GetCrystalAndThreatInfo(cache);
+            if (cache.SaveManager == null)
+            {
+                cache.FindManagers();
+            }
+            string crystalInfo = GetCrystalAndThreatInfo(cache.SaveManager);
             if (!string.IsNullOrEmpty(crystalInfo))
             {
                 items.Add($"{crystalInfo}.");
@@ -98,25 +102,22 @@ namespace MonsterTrainAccessibility.Screens
 
         /// <summary>
         /// Get crystal count and threat level info (Last Divinity DLC).
-        /// Returns null if DLC is not active.
+        /// Returns null if DLC is not active. Works from any screen, so the
+        /// Ctrl+R pact shard hotkey can use it outside battle too.
         /// </summary>
-        private static string GetCrystalAndThreatInfo(BattleManagerCache cache)
+        internal static string GetCrystalAndThreatInfo(object saveManager)
         {
             try
             {
-                if (cache.SaveManager == null)
-                {
-                    cache.FindManagers();
-                }
-                if (cache.SaveManager == null) return null;
+                if (saveManager == null) return null;
 
-                var saveType = cache.SaveManager.GetType();
+                var saveType = saveManager.GetType();
 
                 // Check if DLC crystals are shown (ShowPactCrystals)
                 var showMethod = saveType.GetMethod("ShowPactCrystals", Type.EmptyTypes);
                 if (showMethod != null)
                 {
-                    bool show = (bool)showMethod.Invoke(cache.SaveManager, null);
+                    bool show = (bool)showMethod.Invoke(saveManager, null);
                     if (!show) return null;
                 }
 
@@ -146,7 +147,7 @@ namespace MonsterTrainAccessibility.Screens
                         if (dlcType != null)
                         {
                             var hellforgedValue = Enum.ToObject(dlcType, 1); // Hellforged = 1
-                            var dlcSaveData = genericMethod.Invoke(cache.SaveManager, new object[] { hellforgedValue });
+                            var dlcSaveData = genericMethod.Invoke(saveManager, new object[] { hellforgedValue });
                             if (dlcSaveData != null)
                             {
                                 var getCrystalsMethod = dlcSaveData.GetType().GetMethod("GetCrystals", Type.EmptyTypes);
@@ -167,14 +168,14 @@ namespace MonsterTrainAccessibility.Screens
                                         saveType.GetMethod("GetShardCount", Type.EmptyTypes);
                     if (getPactMethod != null)
                     {
-                        crystals = (int)getPactMethod.Invoke(cache.SaveManager, null);
+                        crystals = (int)getPactMethod.Invoke(saveManager, null);
                     }
                 }
 
                 if (crystals < 0) return null;
 
                 // Determine threat level based on crystal count
-                string threat = GetThreatLevelName(cache, crystals);
+                string threat = GetThreatLevelName(saveManager, crystals);
                 if (!string.IsNullOrEmpty(threat))
                 {
                     return $"Crystals: {crystals}. Threat: {threat}";
@@ -192,20 +193,20 @@ namespace MonsterTrainAccessibility.Screens
         /// Get the threat level name based on crystal count.
         /// Threat bands: 0=None, >0=Low, >=lowAmount=Moderate, >=warningAmount=Warning, >=dangerAmount=Danger
         /// </summary>
-        private static string GetThreatLevelName(BattleManagerCache cache, int crystals)
+        private static string GetThreatLevelName(object saveManager, int crystals)
         {
             try
             {
                 if (crystals <= 0) return "None";
 
-                if (cache.SaveManager == null) return "Low";
-                var saveType = cache.SaveManager.GetType();
+                if (saveManager == null) return "Low";
+                var saveType = saveManager.GetType();
 
                 // Try to get threat level thresholds from BalanceData
                 var getBalanceMethod = saveType.GetMethod("GetBalanceData", Type.EmptyTypes);
                 if (getBalanceMethod != null)
                 {
-                    var balanceData = getBalanceMethod.Invoke(cache.SaveManager, null);
+                    var balanceData = getBalanceMethod.Invoke(saveManager, null);
                     if (balanceData != null)
                     {
                         // GetHellforgedThreatLevelAtDistance returns a HellforgedThreatLevel with low/warning/danger amounts

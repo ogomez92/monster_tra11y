@@ -69,6 +69,13 @@ namespace MonsterTrainAccessibility.Battle
             // combat phase transitions, or SelectCardInternal(reselect: true).
             PollGameFloor();
 
+            // The help browser owns Enter/Escape while it is open, including
+            // the frame it closes (the closing key reads as pressed all frame
+            // and must not also confirm the floor)
+            var help = MonsterTrainAccessibility.HelpSystem;
+            if (help != null && (help.IsBrowsing || help.ClosedThisFrame))
+                return;
+
             // Update cooldown
             if (_inputCooldown > 0)
             {
@@ -242,7 +249,7 @@ namespace MonsterTrainAccessibility.Battle
             var battle = MonsterTrainAccessibility.BattleHandler;
             if (battle != null)
             {
-                return battle.GetFloorSummary(roomIndex, Screens.BattleAccessibility.AnnouncedKeywords);
+                return battle.GetFloorSummary(roomIndex);
             }
             return "";
         }

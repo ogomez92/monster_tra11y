@@ -27,18 +27,18 @@ namespace MonsterTrainAccessibility.Core
         public ConfigEntry<KeyCode> ReadTextKey { get; private set; }
         public ConfigEntry<KeyCode> ReadHandKey { get; private set; }
         public ConfigEntry<KeyCode> ReadFloorsKey { get; private set; }
+        public ConfigEntry<KeyCode> ReadCurrentFloorKey { get; private set; }
         public ConfigEntry<KeyCode> ReadEnemiesKey { get; private set; }
-        public ConfigEntry<KeyCode> ReadResourcesKey { get; private set; }
+        public ConfigEntry<KeyCode> ReadEmberKey { get; private set; }
         public ConfigEntry<KeyCode> ReadGoldKey { get; private set; }
+        public ConfigEntry<KeyCode> ReadPyreHealthKey { get; private set; }
+        public ConfigEntry<KeyCode> ReadPactShardsKey { get; private set; }
         public ConfigEntry<KeyCode> ToggleVerbosityKey { get; private set; }
         public ConfigEntry<KeyCode> HelpKey { get; private set; }
 
         // Map keys
         public ConfigEntry<KeyCode> ReadMapNodeKey { get; private set; }
         public ConfigEntry<KeyCode> ReadRunSummaryKey { get; private set; }
-
-        // Action keys
-        public ConfigEntry<KeyCode> EndTurnKey { get; private set; }
 
         // Announcement preferences
         public ConfigEntry<bool> AnnounceCardDraws { get; private set; }
@@ -156,6 +156,14 @@ namespace MonsterTrainAccessibility.Core
                 "Key to read all floor information (L for Levels). Note: F conflicts with game's Toggle Unit Details"
             );
 
+            ReadCurrentFloorKey = config.Bind(
+                "Keys.Information",
+                "ReadCurrentFloor",
+                KeyCode.K,
+                "Key to read the selected floor's capacity and units. With Shift held, reads every floor. " +
+                "The MT2 accessibility mod uses B, but B is this game's eaten pile key"
+            );
+
             ReadEnemiesKey = config.Bind(
                 "Keys.Information",
                 "ReadEnemies",
@@ -163,18 +171,32 @@ namespace MonsterTrainAccessibility.Core
                 "Key to read all units with detail (U for Units). Note: N conflicts with game's combat speed toggle"
             );
 
-            ReadResourcesKey = config.Bind(
+            ReadEmberKey = config.Bind(
                 "Keys.Information",
-                "ReadResources",
+                "ReadEmber",
                 KeyCode.R,
-                "Key to read ember, gold, and pyre health"
+                "Key to read current ember"
             );
 
             ReadGoldKey = config.Bind(
                 "Keys.Information",
                 "ReadGold",
                 KeyCode.G,
-                "Key to read current gold amount"
+                "Key to read current gold, pressed together with Ctrl"
+            );
+
+            ReadPyreHealthKey = config.Bind(
+                "Keys.Information",
+                "ReadPyreHealth",
+                KeyCode.H,
+                "Key to read current Pyre health, pressed together with Ctrl"
+            );
+
+            ReadPactShardsKey = config.Bind(
+                "Keys.Information",
+                "ReadPactShards",
+                KeyCode.R,
+                "Key to read pact shards and threat level (The Last Divinity), pressed together with Ctrl"
             );
 
             ToggleVerbosityKey = config.Bind(
@@ -204,14 +226,6 @@ namespace MonsterTrainAccessibility.Core
                 "ReadRunSummary",
                 KeyCode.S,
                 "Key to read run summary on the victory/defeat screen"
-            );
-
-            // ========== Action Keys ==========
-            EndTurnKey = config.Bind(
-                "Keys.Actions",
-                "EndTurn",
-                KeyCode.E,
-                "Key to end your turn during battle"
             );
 
             // ========== Announcement Preferences ==========

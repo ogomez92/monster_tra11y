@@ -31,9 +31,10 @@ namespace MonsterTrainAccessibility.Screens
         }
 
         /// <summary>
-        /// Announce all floors
+        /// Announce all floors. Keyword explanations stay out of the live
+        /// reading - they are always available in the review buffers.
         /// </summary>
-        internal static void AnnounceAllFloors(BattleManagerCache cache, HashSet<string> announcedKeywords = null)
+        internal static void AnnounceAllFloors(BattleManagerCache cache)
         {
             try
             {
@@ -64,7 +65,7 @@ namespace MonsterTrainAccessibility.Screens
                                 var unitDescs = new List<string>();
                                 foreach (var unit in pyreUnits)
                                 {
-                                    string unitDesc = GetUnitBriefDescription(cache, unit, announcedKeywords);
+                                    string unitDesc = GetUnitBriefDescription(cache, unit);
                                     bool isEnemy = IsEnemyUnit(cache, unit);
                                     string prefix = isEnemy ? "Enemy " : "";
                                     unitDescs.Add($"{prefix}{unitDesc}");
@@ -105,7 +106,7 @@ namespace MonsterTrainAccessibility.Screens
                                 var descriptions = new List<string>();
                                 foreach (var unit in units)
                                 {
-                                    string unitDesc = GetUnitBriefDescription(cache, unit, announcedKeywords);
+                                    string unitDesc = GetUnitBriefDescription(cache, unit);
                                     bool isEnemy = IsEnemyUnit(cache, unit);
                                     string prefix = isEnemy ? "Enemy " : "";
                                     descriptions.Add($"{prefix}{unitDesc}");
@@ -124,9 +125,10 @@ namespace MonsterTrainAccessibility.Screens
         }
 
         /// <summary>
-        /// Get a brief description of a unit including attack/health, status effects, abilities, and size
+        /// Get a brief description of a unit including attack/health, status effects, abilities, and size.
+        /// Keyword explanations are only included for buffer content (includeKeywords).
         /// </summary>
-        internal static string GetUnitBriefDescription(BattleManagerCache cache, object unit, HashSet<string> announcedKeywords = null)
+        internal static string GetUnitBriefDescription(BattleManagerCache cache, object unit, bool includeKeywords = false)
         {
             string name = GetUnitName(cache, unit);
             int hp = GetUnitHP(cache, unit);
@@ -156,10 +158,13 @@ namespace MonsterTrainAccessibility.Screens
             }
 
             // Add keyword explanations for status effects and abilities
-            string keywordExplanations = EnemyReader.GetUnitKeywordExplanations(statusEffects, abilities, announcedKeywords);
-            if (!string.IsNullOrEmpty(keywordExplanations))
+            if (includeKeywords)
             {
-                sb.Append($". Keywords: {keywordExplanations}");
+                string keywordExplanations = EnemyReader.GetUnitKeywordExplanations(statusEffects, abilities);
+                if (!string.IsNullOrEmpty(keywordExplanations))
+                {
+                    sb.Append($". Keywords: {keywordExplanations}");
+                }
             }
 
             // Add intent for enemies
@@ -189,7 +194,7 @@ namespace MonsterTrainAccessibility.Screens
             if (characterState == null) return null;
             try
             {
-                return GetUnitBriefDescription(cache, characterState, BattleAccessibility.AnnouncedKeywords);
+                return GetUnitBriefDescription(cache, characterState);
             }
             catch (Exception ex)
             {
@@ -628,8 +633,9 @@ namespace MonsterTrainAccessibility.Screens
         /// <summary>
         /// Get a text summary of what's on a specific floor (for floor targeting).
         /// Takes room index directly (0=bottom, 1=middle, 2=top, 3=pyre room).
+        /// Keyword explanations are only included for buffer content (includeKeywords).
         /// </summary>
-        internal static string GetFloorSummary(BattleManagerCache cache, int roomIndex, HashSet<string> announcedKeywords = null)
+        internal static string GetFloorSummary(BattleManagerCache cache, int roomIndex, bool includeKeywords = false)
         {
             try
             {
@@ -655,7 +661,7 @@ namespace MonsterTrainAccessibility.Screens
                     {
                         foreach (var unit in pyreUnits)
                         {
-                            string desc = GetUnitBriefDescription(cache, unit, announcedKeywords);
+                            string desc = GetUnitBriefDescription(cache, unit, includeKeywords);
                             bool isEnemy = IsEnemyUnit(cache, unit);
                             pyreParts.Add($"{(isEnemy ? "Enemy " : "")}{desc}");
                         }
@@ -704,7 +710,7 @@ namespace MonsterTrainAccessibility.Screens
                 foreach (var unit in units)
                 {
                     // Use GetUnitBriefDescription which includes abilities and intents
-                    string description = GetUnitBriefDescription(cache, unit, announcedKeywords);
+                    string description = GetUnitBriefDescription(cache, unit, includeKeywords);
 
                     if (IsEnemyUnit(cache, unit))
                     {

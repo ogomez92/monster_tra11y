@@ -102,7 +102,10 @@ namespace MonsterTrainAccessibility.Patches
                 // __result indicates if the card was successfully played
                 if (__result)
                 {
-                    // Card played successfully - handled elsewhere via chatter
+                    // Card played successfully - handled elsewhere via chatter.
+                    // Targeting is over, so the Creature buffer's snapshot of the
+                    // selected target (with pre-damage HP) is stale now.
+                    Core.Buffers.FocusBuffers.ClearCreature();
                     MonsterTrainAccessibility.LogInfo("Card played successfully");
                 }
                 else

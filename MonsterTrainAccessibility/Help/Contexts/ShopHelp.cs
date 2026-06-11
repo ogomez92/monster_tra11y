@@ -24,8 +24,11 @@ namespace MonsterTrainAccessibility.Help.Contexts
             return @"Shop Controls:
 Arrow keys: Browse shop items
 Enter: Purchase selected item
-C: Re-read current item and price
-G: Read current gold
+C: Read the focused item's full details and price
+Ctrl plus Up: Step through the item's details in the review buffer
+Ctrl plus Down: Move back toward the top of the buffer
+Ctrl plus Left/Right: Switch review buffers
+Ctrl plus G: Read current gold
 T: Read all text on screen
 Escape: Leave shop";
         }

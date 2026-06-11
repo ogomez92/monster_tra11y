@@ -121,6 +121,7 @@ namespace MonsterTrainAccessibility.Patches
                 if (targets == null || targets.Count == 0)
                 {
                     // No character targets - this is a room/floor target card, not unit targeting
+                    Core.Buffers.FocusBuffers.ClearCreature();
                     return;
                 }
 
@@ -139,6 +140,7 @@ namespace MonsterTrainAccessibility.Patches
                 if (!hasCharacterTargets)
                 {
                     // Monster placement card - don't announce unit targeting
+                    Core.Buffers.FocusBuffers.ClearCreature();
                     return;
                 }
 
@@ -153,6 +155,8 @@ namespace MonsterTrainAccessibility.Patches
 
                 MonsterTrainAccessibility.ScreenReader?.Speak(message, false);
                 MonsterTrainAccessibility.LogInfo($"Unit targeting started: {targets.Count} targets, selected={selectedIndex}");
+
+                UpdateCreatureBuffer(targets, selectedIndex);
             }
             catch (Exception ex)
             {
@@ -187,6 +191,8 @@ namespace MonsterTrainAccessibility.Patches
                     string message = $"{selectedIndex + 1} of {targets.Count}: {targetDesc}";
                     MonsterTrainAccessibility.ScreenReader?.Speak(message, false);
                 }
+
+                UpdateCreatureBuffer(targets, selectedIndex);
             }
             catch (Exception ex)
             {
@@ -200,6 +206,26 @@ namespace MonsterTrainAccessibility.Patches
         public static void ResetTracking()
         {
             _lastAnnouncedTargetIndex = -1;
+        }
+
+        /// <summary>
+        /// Keep the Creature review buffer in sync with the selected target so
+        /// Ctrl+arrows can read the unit's full details without moving targeting.
+        /// </summary>
+        private static void UpdateCreatureBuffer(System.Collections.IList targets, int index)
+        {
+            if (targets == null || index < 0 || index >= targets.Count)
+                return;
+
+            var character = GetCharacterFromTarget(targets[index]);
+            if (character == null)
+            {
+                Core.Buffers.FocusBuffers.ClearCreature();
+                return;
+            }
+
+            string details = MonsterTrainAccessibility.BattleHandler?.GetDetailedUnitDescription(character, includeKeywords: true);
+            Core.Buffers.FocusBuffers.SetCreature(details);
         }
 
         private static System.Collections.IList GetPossibleTargets(object instance)

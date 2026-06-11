@@ -71,9 +71,10 @@ namespace MonsterTrainAccessibility.Patches
     }
 
     /// <summary>
-    /// Detect enemy dialogue/chatter (speech bubbles like "These chains would suit you!")
-    /// This hooks into the Chatter system to read enemy dialogue
-    /// DisplayChatter signature: (ChatterExpressionType expressionType, CharacterState character, float delay, CharacterTriggerData+Trigger trigger)
+    /// Announce chatter - the speech bubbles above units in battle and the
+    /// merchant's lines in shops. ChatterExpression.Express receives the final
+    /// localized line as a parameter, so the postfix announces exactly what
+    /// the bubble shows.
     /// </summary>
     public static class EnemyDialoguePatch
     {
@@ -81,95 +82,58 @@ namespace MonsterTrainAccessibility.Patches
         {
             try
             {
-                // Try to find the Chatter or ChatterUI class that displays speech bubbles
-                var chatterType = AccessTools.TypeByName("Chatter");
-                if (chatterType != null)
+                // Combat bubbles: ChatterExpression.Express(Chatter, ChatterExpressionType,
+                // CharacterState character, float delay, string translatedText)
+                var expressionType = AccessTools.TypeByName("ChatterExpression");
+                var expressMethod = expressionType != null ? AccessTools.Method(expressionType, "Express") : null;
+                if (expressMethod != null)
                 {
-                    // Look for method that sets/displays the chatter text
-                    var method = AccessTools.Method(chatterType, "SetExpression") ??
-                                 AccessTools.Method(chatterType, "ShowExpression") ??
-                                 AccessTools.Method(chatterType, "DisplayChatter") ??
-                                 AccessTools.Method(chatterType, "Play");
-
-                    if (method != null)
-                    {
-                        // Log the parameters
-                        var parameters = method.GetParameters();
-                        MonsterTrainAccessibility.LogInfo($"Chatter.{method.Name} has {parameters.Length} parameters:");
-                        foreach (var p in parameters)
-                        {
-                            MonsterTrainAccessibility.LogInfo($"  {p.Name}: {p.ParameterType.Name}");
-                        }
-
-                        var postfix = new HarmonyMethod(typeof(EnemyDialoguePatch).GetMethod(nameof(PostfixChatter)));
-                        harmony.Patch(method, postfix: postfix);
-                        MonsterTrainAccessibility.LogInfo($"Patched Chatter method: {method.Name}");
-                    }
+                    var postfix = new HarmonyMethod(typeof(EnemyDialoguePatch).GetMethod(nameof(PostfixExpress)));
+                    harmony.Patch(expressMethod, postfix: postfix);
+                    MonsterTrainAccessibility.LogInfo("Patched ChatterExpression.Express");
                 }
 
-                // Also try ChatterUI
-                var chatterUIType = AccessTools.TypeByName("ChatterUI");
-                if (chatterUIType != null)
+                // Merchant bubbles: MerchantCharacterUI.ShowChatter(MerchantChatter, float, float)
+                var merchantUIType = AccessTools.TypeByName("MerchantCharacterUI");
+                var showChatterMethod = merchantUIType != null ? AccessTools.Method(merchantUIType, "ShowChatter") : null;
+                if (showChatterMethod != null)
                 {
-                    var method = AccessTools.Method(chatterUIType, "SetChatter") ??
-                                 AccessTools.Method(chatterUIType, "DisplayChatter") ??
-                                 AccessTools.Method(chatterUIType, "ShowChatter");
-
-                    if (method != null)
-                    {
-                        var postfix = new HarmonyMethod(typeof(EnemyDialoguePatch).GetMethod(nameof(PostfixChatterUI)));
-                        harmony.Patch(method, postfix: postfix);
-                        MonsterTrainAccessibility.LogInfo($"Patched ChatterUI method: {method.Name}");
-                    }
-                }
-
-                // Try CharacterChatterData which stores the dialogue expressions
-                var chatterDataType = AccessTools.TypeByName("CharacterChatterData");
-                if (chatterDataType != null)
-                {
-                    // Log available methods for debugging
-                    var methods = chatterDataType.GetMethods(BindingFlags.Public | BindingFlags.Instance);
-                    MonsterTrainAccessibility.LogInfo($"CharacterChatterData methods: {string.Join(", ", System.Linq.Enumerable.Select(System.Linq.Enumerable.Where(methods, m => m.Name.Contains("Expression") || m.Name.Contains("Chatter")), m => m.Name))}");
+                    var postfix = new HarmonyMethod(typeof(EnemyDialoguePatch).GetMethod(nameof(PostfixMerchantChatter)));
+                    harmony.Patch(showChatterMethod, postfix: postfix);
+                    MonsterTrainAccessibility.LogInfo("Patched MerchantCharacterUI.ShowChatter");
                 }
             }
             catch (Exception ex)
             {
-                MonsterTrainAccessibility.LogError($"Failed to patch enemy dialogue: {ex.Message}");
+                MonsterTrainAccessibility.LogError($"Failed to patch chatter: {ex.Message}");
             }
         }
 
-        // Use positional parameters: __0 = expressionType (enum), __1 = character (CharacterState)
-        public static void PostfixChatter(object __instance, object __0, object __1)
+        private static FieldInfo _associatedCharacterField;
+
+        // __2 = CharacterState character, __4 = string translatedText
+        public static void PostfixExpress(object __instance, object __2, string __4)
         {
             try
             {
-                // __0 is the expression type enum, __1 is the CharacterState
-                object expressionType = __0;
-                object character = __1;
-
-                if (expressionType == null) return;
-
-                // Try to get the chatter data from the character
-                string text = null;
-
-                // First try to get text from the expression type
-                text = GetExpressionText(expressionType);
-
-                // If that didn't work, try to get the character's name and log the expression type
-                if (string.IsNullOrEmpty(text))
-                {
-                    string charName = character != null ? GetCharacterName(character) : "Enemy";
-                    string exprTypeName = expressionType.ToString();
-                    MonsterTrainAccessibility.LogInfo($"Chatter: {charName} - {exprTypeName}");
-
-                    // Don't announce if we couldn't get the actual text
+                if (string.IsNullOrEmpty(__4))
                     return;
-                }
 
-                if (!string.IsNullOrEmpty(text))
-                {
-                    MonsterTrainAccessibility.BattleHandler?.OnEnemyDialogue(text);
-                }
+                // Express bails without showing anything when the expression is
+                // already associated with another character; a successful call
+                // leaves associatedCharacter == character
+                if (_associatedCharacterField == null)
+                    _associatedCharacterField = __instance.GetType().GetField("associatedCharacter",
+                        BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (_associatedCharacterField != null &&
+                    !ReferenceEquals(_associatedCharacterField.GetValue(__instance), __2))
+                    return;
+
+                string text = Utilities.TextUtilities.StripRichTextTags(__4).Trim();
+                if (text.Length == 0)
+                    return;
+
+                MonsterTrainAccessibility.BattleHandler?.OnUnitChatter(GetCharacterName(__2), text);
             }
             catch (Exception ex)
             {
@@ -177,79 +141,77 @@ namespace MonsterTrainAccessibility.Patches
             }
         }
 
+        // __0 = MerchantCharacterData.MerchantChatter; its dialogue field is a localization key
+        public static void PostfixMerchantChatter(object __instance, object __0)
+        {
+            try
+            {
+                if (__0 == null)
+                    return;
+                if (!MonsterTrainAccessibility.AccessibilitySettings.AnnounceDialogue.Value)
+                    return;
+                if (!MerchantChatterShown(__instance))
+                    return;
+
+                var dialogueField = __0.GetType().GetField("dialogue",
+                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                string key = dialogueField?.GetValue(__0) as string;
+                if (string.IsNullOrEmpty(key))
+                    return;
+
+                string text = Utilities.LocalizationHelper.Localize(key);
+                if (string.IsNullOrEmpty(text))
+                    return;
+
+                text = Utilities.TextUtilities.StripRichTextTags(text).Trim();
+                if (text.Length == 0)
+                    return;
+
+                MonsterTrainAccessibility.ScreenReader?.Queue($"Merchant says: {text}");
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in merchant chatter patch: {ex.Message}");
+            }
+        }
+
         private static string GetCharacterName(object character)
         {
             try
             {
-                var type = character.GetType();
-                var getNameMethod = type.GetMethod("GetName");
-                if (getNameMethod != null)
-                {
-                    return getNameMethod.Invoke(character, null) as string ?? "Enemy";
-                }
+                var getNameMethod = character?.GetType().GetMethod("GetName", Type.EmptyTypes);
+                string name = getNameMethod?.Invoke(character, null) as string;
+                if (!string.IsNullOrEmpty(name))
+                    return Utilities.TextUtilities.StripRichTextTags(name);
             }
             catch { }
-            return "Enemy";
+            return "Unit";
         }
 
-        public static void PostfixChatterUI(object __instance, string text)
+        /// <summary>
+        /// Mirror ShowChatter's own display gate: merchant bubbles are hidden
+        /// in Hell Rush (Matchmaker) runs unless the character opts in via
+        /// ShowInHR. Announces anyway if the gate can't be read.
+        /// </summary>
+        private static bool MerchantChatterShown(object merchantUI)
         {
             try
             {
-                if (!string.IsNullOrEmpty(text))
-                {
-                    MonsterTrainAccessibility.BattleHandler?.OnEnemyDialogue(text);
-                }
+                var uiType = merchantUI.GetType();
+                var data = uiType.GetField("data",
+                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(merchantUI);
+                if (data?.GetType().GetProperty("ShowInHR")?.GetValue(data) is bool showInHR && showInHR)
+                    return true;
+
+                var saveManager = uiType.GetField("saveManager",
+                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(merchantUI);
+                var runType = saveManager?.GetType().GetMethod("GetRunType", Type.EmptyTypes)?.Invoke(saveManager, null);
+                return runType?.ToString() != "Matchmaker";
             }
-            catch (Exception ex)
+            catch
             {
-                MonsterTrainAccessibility.LogError($"Error in chatter UI patch: {ex.Message}");
+                return true;
             }
-        }
-
-        private static string GetExpressionText(object expression)
-        {
-            try
-            {
-                var type = expression.GetType();
-
-                // Try common property/method names for getting the text
-                var getText = type.GetMethod("GetText") ?? type.GetMethod("GetLocalizedText");
-                if (getText != null)
-                {
-                    var text = getText.Invoke(expression, null) as string;
-                    if (!string.IsNullOrEmpty(text))
-                        return text;
-                }
-
-                // Try text property
-                var textProp = type.GetProperty("text") ?? type.GetProperty("Text");
-                if (textProp != null)
-                {
-                    var text = textProp.GetValue(expression) as string;
-                    if (!string.IsNullOrEmpty(text))
-                        return text;
-                }
-
-                // Try localization key
-                var getKey = type.GetMethod("GetLocalizationKey");
-                if (getKey != null)
-                {
-                    var key = getKey.Invoke(expression, null) as string;
-                    if (!string.IsNullOrEmpty(key))
-                    {
-                        // Try to localize
-                        var localizeMethod = typeof(string).GetMethod("Localize", new Type[] { typeof(string) });
-                        if (localizeMethod != null)
-                        {
-                            return localizeMethod.Invoke(null, new object[] { key }) as string ?? key;
-                        }
-                        return key;
-                    }
-                }
-            }
-            catch { }
-            return null;
         }
     }
 

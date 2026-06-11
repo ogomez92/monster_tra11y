@@ -66,31 +66,48 @@ A comprehensive accessibility mod for Monster Train that enables totally blind p
 ### Information Hotkeys
 | Key | Action |
 |-----|--------|
-| F1 | Context-sensitive help (shows available keys for current screen) |
-| C | Re-read current focused item |
+| F1 | Open the help list for the current screen (browse with Up/Down, close with F1, Enter, or Escape) |
+| C | Re-read current focused item (for cards, shop items, and artifacts this reads the full details, not just the short focus announcement) |
 | T | Read all text on screen (patch notes, descriptions, etc.) |
 | Tab | Read train stats (pyre health, gold, deck size) |
 | V | Cycle verbosity level (Minimal/Normal/Verbose) |
 
+### Run Information (works on any screen)
+| Key | Action |
+|-----|--------|
+| Ctrl + G | Read current gold |
+| Ctrl + H | Read current Pyre health |
+| Ctrl + R | Read pact shards and threat level (The Last Divinity runs) |
+
 ### Review Buffers (Ctrl + Arrow Keys)
 
-Inspired by Say the Spire, the mod keeps reviewable buffers of information so you never lose an announcement to the flood of simultaneous combat events.
+Buffers are review lists for extra information, working the same way as in the Monster Train 2 accessibility mod. They are separate from normal focus navigation: moving focus chooses what information is available, and the buffer commands let you inspect that information without moving focus away.
+
+Focus announcements stay short on purpose: cards announce their name, cost, and stats; shop items announce their name, price, and whether you can afford them; artifacts announce just their name. The full details - rarity, type, descriptions, and keyword explanations - are always waiting in the buffers below.
 
 | Key | Action |
 |-----|--------|
-| Ctrl + Up | Move forward through the current buffer |
-| Ctrl + Down | Move backward through the current buffer |
-| Ctrl + Right | Switch to the next buffer |
-| Ctrl + Left | Switch to the previous buffer |
+| Ctrl + Up | Read the next item in the current buffer |
+| Ctrl + Down | Move back toward the top of the buffer |
+| Ctrl + Right | Switch to the next available buffer |
+| Ctrl + Left | Switch to the previous available buffer |
+
+The current item sits at the Ctrl+Down side of a buffer: from the starting point, the first Ctrl+Up reads the current/top item (the newest event, or the first detail line), and further presses move up through the buffer. Ctrl+Down brings you back down toward the current item.
 
 Available buffers:
-- **Events**: Every combat announcement (damage, deaths, status effects, card plays, turns) is recorded here. If several things were announced at once, step back through them at your own pace. Focusing the buffer starts at the newest event; Ctrl+Down goes back in history.
+- **UI**: Text and details for the currently focused UI element.
+- **Events**: Every combat announcement (damage, deaths, status effects, card plays, turns) is recorded here. If several things were announced at once, step through them at your own pace; the first Ctrl+Up reads the newest event and further presses go back in history.
+- **Card**: Full details for the focused card (name, cost, effects, keywords).
+- **Creature**: Full details for the unit currently selected while targeting a spell.
+- **Artifact**: Full details for the focused artifact.
+- **Reward**: Details for the focused reward element.
+- **Story**: The current story event's narrative text, one piece at a time.
 - **Hand** (battle only): One item per card, with cost, type, and description.
 - **Floors** (battle only): One item per floor, with capacity, corruption, and units.
 - **Units** (battle only): One detailed item per unit on the train, floor by floor.
 - **Resources** (battle only): Ember, gold, pyre health, cards in hand, and DLC info as separate items.
 
-While Ctrl is held, the arrow keys never move the game's real selection, so reviewing is always safe. The buffer position is remembered per buffer while you switch around.
+Only buffers that currently have relevant information are available; the others are skipped when cycling. While Ctrl is held, the arrow keys never move the game's real selection, so reviewing is always safe. The buffer position is remembered per buffer while you switch around, and resets when the underlying content changes.
 
 ### Map Browsing (Ctrl + Arrow Keys on the Map)
 
@@ -113,14 +130,19 @@ The mod automatically reads text when:
 - **Scroll views**: When you focus on a scrollable area (like patch notes), the content is read automatically
 - **Dialogs/popups**: New dialogs, tooltips, and text panels are announced when they appear
 - **Content changes**: If text content updates while you're focused on it, the new content is announced
+- **Chatter**: The speech bubbles units show in battle ("These chains would suit you!") and the merchant's lines in shops are announced as "Name says: ..." (toggle with the AnnounceDialogue config setting)
 
 ### Battle Hotkeys
 | Key | Action |
 |-----|--------|
 | H | Read all cards in hand |
-| L | Read floor status (L for Levels) - floor capacity and all units |
+| K | Read the selected floor - capacity and units (the MT2 mod uses B, taken here by the game's eaten pile) |
+| Shift + K or L | Read all floors |
 | U | Read all units with detail (U for Units) - your monsters front-to-back, then enemies |
-| R | Read resources (ember, pyre health) |
+| R | Read current ember |
+| Ctrl + G | Read gold |
+| Ctrl + H | Read Pyre health |
+| Ctrl + R | Read pact shards (The Last Divinity) |
 | N | Toggle combat speed (game's native key) - announces the new speed |
 | Tab | Read train stats (pyre health, gold, deck size) |
 
@@ -143,37 +165,45 @@ The mod automatically reads text when:
 
 ## Monster Train Native Keyboard Shortcuts
 
-These are the game's built-in keyboard shortcuts that work with or without the accessibility mod.
+These are the game's built-in default key mappings (from the game's own input setup), which work with or without the accessibility mod. They can be rebound in the game's settings.
 
-### Navigation & Floor Management
+### Navigation
 
 | Action | Keyboard Shortcut |
 |--------|-------------------|
-| Move Floor Up | `Page Up` / `W` / `Up Arrow` |
-| Move Floor Down | `Page Down` / `S` / `Down Arrow` |
-| View Top Floor | `Home` |
-| View Bottom Floor | `End` |
-| Zoom In / Out | `Scroll Wheel` |
+| Submit / Activate | `E` / `Enter` |
+| Cancel / Settings | `Esc` |
+| Close panel | `Q` / `Backspace` |
+| Move | `Arrow keys` / `WASD` |
+| Scroll / Floor up and down | `Page Up` / `Page Down` |
+| Jump to start / end | `Home` / `End` |
 
 ### Combat & Card Actions
 
 | Action | Keyboard Shortcut |
 |--------|-------------------|
-| End Turn | `F` |
-| Undo Action | `Z` / `Ctrl + Z` (Only works for certain non-random actions) |
-| Speed Up Gameplay | `Spacebar` (Toggles between speeds during combat) |
-| Toggle Unit Details | `E` (on a unit) |
-| Show Draw Pile | `D` |
-| Show Discard Pile | `G` |
-| Show Exhaust/Consumed Pile | `X` |
+| Context action (e.g. end turn) | `F` |
+| Game speed toggle | `N` |
+| Hold for preview mode | `Left Shift` |
+| Select card slot 1-10 | `1` - `0` |
+| Show Deck | `Z` |
+| Show Draw Pile | `X` |
+| Show Discard Pile | `C` |
+| Show Exhaust Pile | `V` |
+| Show Eaten Pile | `B` |
+| Toggle synthesis tooltips | `H` |
 
 ### Menu & System
 
 | Action | Keyboard Shortcut |
 |--------|-------------------|
-| Open Menu / Settings | `Esc` |
-| Open Map | `M` |
+| Open Minimap | `M` |
+| Access HUD | `Tab` |
+| Emotes (multiplayer) | `Y` / `U` / `I` / `O` / `P` |
+| Feedback | `F8` |
 | Full Screen Toggle | `Alt + Enter` |
+
+Several mod hotkeys deliberately share letters with game controls that are inert on most screens (for example C also opens the discard pile in battle, and V the exhaust pile). The mod avoids claiming keys whose game action is disruptive - that is why the floor key is K rather than MT2's B (eaten pile), and gold is Ctrl+G.
 
 ### Note for Controller Users
 
@@ -201,12 +231,13 @@ You can edit this file to customize:
 The battle screen uses the game's native navigation. Use hotkeys for information:
 
 - Press **H** to hear all cards in your hand
-- Press **L** to hear floor status, capacity, and units (L for Levels)
+- Press **K** to hear the selected floor, **Shift+K** or **L** for all floors
 - Press **U** to hear all units with detail - your monsters front-to-back, then enemies (U for Units)
-- Press **R** to hear ember and pyre health
+- Press **R** to hear your current ember
+- Press **Ctrl+G**, **Ctrl+H**, or **Ctrl+R** for gold, pyre health, or pact shards
 - Press **N** to toggle combat speed (announces the new speed)
 - Press **Tab** to hear train stats (pyre health, gold, deck size)
-- Press **F1** for context-sensitive help listing all available keys
+- Press **F1** for a browsable help list of all available keys
 
 ### Playing Cards
 - Navigate to cards using the game's controls
@@ -219,13 +250,13 @@ The battle screen uses the game's native navigation. Use hotkeys for information
 
 ## Tips for Blind Players
 
-1. **Press F1 for Help**: On any screen, press F1 to hear all available keyboard shortcuts for that context
+1. **Press F1 for Help**: On any screen, press F1 to open the help list, then browse it with Up/Down
 2. **Start Simple**: Begin with the tutorial to learn the game flow
 3. **Read Text**: Press T to read patch notes, event descriptions, or any screen text
-4. **Use Battle Hotkeys**: H, L, U, R provide quick status updates during battle
-5. **Check Ember**: Press R regularly to know your available resources
+4. **Use Battle Hotkeys**: H, K, U, R provide quick status updates during battle
+5. **Check Ember**: Press R regularly to know how much you can play; Ctrl+G and Ctrl+H cover gold and pyre health
 6. **Enemy Intents**: Press U to hear what enemies plan to do next turn
-7. **Re-read Items**: Press C to re-read the currently focused menu item
+7. **Re-read Items**: Press C to re-read the currently focused menu item - for cards, shop items, and artifacts it reads the complete details in one go. Or step through the same details piece by piece with the UI and Card buffers (Ctrl+arrows)
 8. **Combat Speed**: Press N to toggle combat speed - the mod announces the new speed
 
 ## Troubleshooting
@@ -250,6 +281,7 @@ The battle screen uses the game's native navigation. Use hotkeys for information
 - Some UI animations may cause brief delays in announcements
 - Complex card effects may require verbose mode for full details
 - Multiplayer modes have limited accessibility support
+- Unlike the Monster Train 2 accessibility mod, there are no combat outcome predictions (I / Ctrl+I), no jump-to-hand key, and no in-game mod settings screen - configuration is done through the BepInEx config file
 
 ## Support
 

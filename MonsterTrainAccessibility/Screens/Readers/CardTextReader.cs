@@ -17,7 +17,14 @@ namespace MonsterTrainAccessibility.Screens
         /// <summary>
         /// Get full card details when arrowing over a card in the hand (CardUI component)
         /// </summary>
-        internal static string GetCardUIText(GameObject go)
+        internal static string GetCardUIText(GameObject go) => GetCardUIReadout(go)?.FullText;
+
+        /// <summary>
+        /// Two-part card reading for focus changes: a short summary to announce
+        /// (name, cost, unit stats), with rarity, type, clan, description and
+        /// keyword explanations as detail items for the Card buffer.
+        /// </summary>
+        internal static Core.Buffers.FocusReadout GetCardUIReadout(GameObject go)
         {
             try
             {
@@ -114,7 +121,9 @@ namespace MonsterTrainAccessibility.Screens
                 }
 
                 // Format the card details
-                string cardDetails = FormatCardDetails(cardState);
+                var readout = FormatCardReadout(cardState);
+                if (readout == null)
+                    return null;
 
                 var currentScreen = Help.ScreenStateTracker.CurrentScreen;
 
@@ -126,14 +135,16 @@ namespace MonsterTrainAccessibility.Screens
                     string upgradePath = FindUpgradePathName(cardUIComponent);
 
                     // Prepend upgrade path if found
-                    if (!string.IsNullOrEmpty(upgradePath) && !string.IsNullOrEmpty(cardDetails))
+                    if (!string.IsNullOrEmpty(upgradePath))
                     {
-                        return upgradePath + ": " + cardDetails;
+                        readout.Summary = upgradePath + ": " + readout.Summary;
+                        readout.FullText = upgradePath + ": " + readout.FullText;
+                        readout.Details.Insert(0, upgradePath);
                     }
                 }
 
                 // On deck view, add card position (e.g., "Card 3 of 20")
-                if (currentScreen == Help.GameScreen.DeckView && !string.IsNullOrEmpty(cardDetails))
+                if (currentScreen == Help.GameScreen.DeckView)
                 {
                     try
                     {
@@ -158,14 +169,17 @@ namespace MonsterTrainAccessibility.Screens
                             }
                             if (totalCards > 0)
                             {
-                                cardDetails = $"{cardDetails} Card {position} of {totalCards}.";
+                                string positionInfo = $"Card {position} of {totalCards}";
+                                readout.Summary = $"{readout.Summary}. {positionInfo}.";
+                                readout.FullText = $"{readout.FullText} {positionInfo}.";
+                                readout.Details.Add(positionInfo);
                             }
                         }
                     }
                     catch { }
                 }
 
-                return cardDetails;
+                return readout;
             }
             catch (Exception ex)
             {
@@ -267,11 +281,17 @@ namespace MonsterTrainAccessibility.Screens
         /// <summary>
         /// Format card details into a readable string (name, type, clan, cost, description)
         /// </summary>
-        internal static string FormatCardDetails(object cardState)
+        internal static string FormatCardDetails(object cardState) => FormatCardReadout(cardState)?.FullText;
+
+        /// <summary>
+        /// Format card details as a focus readout: a short summary (name, cost,
+        /// unit stats) plus detail items (full header with rarity/type/clan,
+        /// description, keyword explanations) for the Card buffer.
+        /// </summary>
+        internal static Core.Buffers.FocusReadout FormatCardReadout(object cardState)
         {
             try
             {
-                var sb = new StringBuilder();
                 var type = cardState.GetType();
 
                 MonsterTrainAccessibility.LogInfo($"FormatCardDetails called for type: {type.Name}");
@@ -532,34 +552,35 @@ namespace MonsterTrainAccessibility.Screens
                     }
                 }
 
-                // Build announcement: [Upgraded] Name (Rarity [Subtype] Type), Clan, Cost. Effect.
+                // Build the full header: [Upgraded] Name (Rarity [Subtype] Type), Clan, Cost
+                var header = new StringBuilder();
                 if (hasUpgrades)
-                    sb.Append("Upgraded ");
-                sb.Append(name);
+                    header.Append("Upgraded ");
+                header.Append(name);
                 if (!string.IsNullOrEmpty(cardType) || !string.IsNullOrEmpty(rarity))
                 {
-                    sb.Append(" (");
+                    header.Append(" (");
                     if (!string.IsNullOrEmpty(rarity))
                     {
-                        sb.Append(rarity);
+                        header.Append(rarity);
                         if (!string.IsNullOrEmpty(unitSubtype) || !string.IsNullOrEmpty(cardType))
-                            sb.Append(" ");
+                            header.Append(" ");
                     }
                     if (!string.IsNullOrEmpty(unitSubtype))
                     {
-                        sb.Append(unitSubtype);
+                        header.Append(unitSubtype);
                         if (!string.IsNullOrEmpty(cardType))
-                            sb.Append(" ");
+                            header.Append(" ");
                     }
                     if (!string.IsNullOrEmpty(cardType))
-                        sb.Append(cardType);
-                    sb.Append(")");
+                        header.Append(cardType);
+                    header.Append(")");
                 }
                 if (!string.IsNullOrEmpty(clanName))
                 {
-                    sb.Append($", {clanName}");
+                    header.Append($", {clanName}");
                 }
-                sb.Append($", {cost} ember");
+                header.Append($", {cost} ember");
 
                 if (!string.IsNullOrEmpty(description))
                 {
@@ -569,8 +590,9 @@ namespace MonsterTrainAccessibility.Screens
                     description = ResolveCardEffectPlaceholders(description, cardState, cardData);
                     // Add context to standalone numbers (e.g., "+2" -> "+2 ember" if it's the only content)
                     description = AddContextToEffectNumbers(description);
-                    sb.Append($". {description}");
                 }
+
+                string statsText = null;
 
                 // For unit cards, try to get attack and health stats
                 if (cardType == "Unit" || cardType == "Monster")
@@ -665,27 +687,52 @@ namespace MonsterTrainAccessibility.Screens
                         }
                     }
 
-                    // Append unit stats
+                    // Collect unit stats
                     if (attack >= 0 || health >= 0)
                     {
                         var stats = new List<string>();
                         if (attack >= 0) stats.Add($"{attack} attack");
                         if (health >= 0) stats.Add($"{health} health");
-                        sb.Append($". {string.Join(", ", stats)}");
+                        statsText = string.Join(", ", stats);
                     }
                 }
 
                 // Get keyword tooltips (Permafrost, Frozen, Regen, etc.)
                 // Pass the description we already have to avoid re-fetching
-                string keywordTooltips = GetCardKeywordTooltips(cardState, cardData, description);
-                if (!string.IsNullOrEmpty(keywordTooltips))
-                {
-                    sb.Append($". Keywords: {keywordTooltips}");
-                }
+                var keywords = GetCardKeywordTooltipList(cardState, cardData, description);
 
-                var result = sb.ToString();
-                MonsterTrainAccessibility.LogInfo($"FormatCardDetails result: {result}");
-                return result;
+                // Full text: header. description. stats. Keywords: ...
+                var full = new StringBuilder(header.ToString());
+                if (!string.IsNullOrEmpty(description))
+                    full.Append($". {description}");
+                if (!string.IsNullOrEmpty(statsText))
+                    full.Append($". {statsText}");
+                if (keywords.Count > 0)
+                    full.Append($". Keywords: {string.Join(". ", keywords)}");
+
+                // Summary announced on focus: [Upgraded] Name, cost, unit stats
+                var summary = new StringBuilder();
+                if (hasUpgrades)
+                    summary.Append("Upgraded ");
+                summary.Append(name);
+                summary.Append($", {cost} ember");
+                if (!string.IsNullOrEmpty(statsText))
+                    summary.Append($", {statsText}");
+
+                var readout = new Core.Buffers.FocusReadout
+                {
+                    Summary = summary.ToString(),
+                    FullText = full.ToString()
+                };
+                readout.Details.Add(header.ToString());
+                if (!string.IsNullOrEmpty(description))
+                    readout.Details.AddRange(TextUtilities.SplitIntoSpeechItems(description));
+                if (!string.IsNullOrEmpty(statsText))
+                    readout.Details.Add(statsText);
+                readout.Details.AddRange(keywords);
+
+                MonsterTrainAccessibility.LogInfo($"FormatCardDetails result: {readout.FullText}");
+                return readout;
             }
             catch (Exception ex)
             {
@@ -823,6 +870,16 @@ namespace MonsterTrainAccessibility.Screens
         /// </summary>
         internal static string GetCardKeywordTooltips(object cardState, object cardData, string cardDescription = null)
         {
+            var tooltips = GetCardKeywordTooltipList(cardState, cardData, cardDescription);
+            return tooltips.Count > 0 ? string.Join(". ", tooltips) : null;
+        }
+
+        /// <summary>
+        /// Get keyword tooltip definitions from a card as one item per keyword,
+        /// for the Card review buffer.
+        /// </summary>
+        internal static List<string> GetCardKeywordTooltipList(object cardState, object cardData, string cardDescription = null)
+        {
             try
             {
                 var tooltips = new List<string>();
@@ -903,16 +960,13 @@ namespace MonsterTrainAccessibility.Screens
                     }
                 }
 
-                if (tooltips.Count > 0)
-                {
-                    return string.Join(". ", tooltips.Distinct());
-                }
+                return tooltips.Distinct().ToList();
             }
             catch (Exception ex)
             {
                 MonsterTrainAccessibility.LogError($"Error getting keyword tooltips: {ex.Message}");
             }
-            return null;
+            return new List<string>();
         }
 
 

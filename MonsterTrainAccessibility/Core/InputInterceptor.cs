@@ -28,12 +28,6 @@ namespace MonsterTrainAccessibility.Core
         /// </summary>
         private int _browsingFloor = 0; // Start at bottom floor (room index 0)
 
-        /// <summary>
-        /// Tracks which keyword definitions have already been announced.
-        /// Persists for the entire game session so definitions are only spoken once.
-        /// Shared via BattleAccessibility.AnnouncedKeywords.
-        /// </summary>
-
         private void Update()
         {
             if (!IsEnabled)
@@ -55,32 +49,22 @@ namespace MonsterTrainAccessibility.Core
             if (config == null)
                 return;
 
-            // Ctrl+arrows: review buffers everywhere, map cursor on the map screen.
-            // Handled before the targeting check so buffers stay reviewable while
-            // targeting. While Ctrl is held no other hotkeys fire (so Ctrl+C etc.
-            // don't trigger plain letter hotkeys).
+            // While the help list is open it captures Up/Down/F1/Enter/Escape
+            // until closed (InputSuppressionPatch keeps those keys from the game)
+            var help = MonsterTrainAccessibility.HelpSystem;
+            if (help != null && help.IsBrowsing)
+            {
+                HandleHelpBrowseInput(config, help);
+                return;
+            }
+
+            // Ctrl combos: review buffers (map cursor on the map screen) on the
+            // arrows, run info on Ctrl+G/H/R. Handled before the targeting check
+            // so they stay available while targeting. While Ctrl is held no
+            // plain hotkeys fire (so Ctrl+C etc. don't trigger letter hotkeys).
             if (Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl))
             {
-                if (Input.GetKeyDown(KeyCode.UpArrow))
-                {
-                    HandleCtrlArrow(CtrlArrow.Up);
-                    _inputCooldown = INPUT_COOLDOWN_TIME;
-                }
-                else if (Input.GetKeyDown(KeyCode.DownArrow))
-                {
-                    HandleCtrlArrow(CtrlArrow.Down);
-                    _inputCooldown = INPUT_COOLDOWN_TIME;
-                }
-                else if (Input.GetKeyDown(KeyCode.LeftArrow))
-                {
-                    HandleCtrlArrow(CtrlArrow.Left);
-                    _inputCooldown = INPUT_COOLDOWN_TIME;
-                }
-                else if (Input.GetKeyDown(KeyCode.RightArrow))
-                {
-                    HandleCtrlArrow(CtrlArrow.Right);
-                    _inputCooldown = INPUT_COOLDOWN_TIME;
-                }
+                HandleCtrlHotkeys(config);
                 return;
             }
 
@@ -125,29 +109,27 @@ namespace MonsterTrainAccessibility.Core
             {
                 ReadFloors();
             }
+            else if (Input.GetKeyDown(config.ReadCurrentFloorKey.Value))
+            {
+                // B reads the selected floor; Shift+B reads every floor
+                if (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift))
+                    ReadFloors();
+                else
+                    ReadCurrentFloor();
+                _inputCooldown = INPUT_COOLDOWN_TIME;
+            }
             else if (Input.GetKeyDown(config.ReadEnemiesKey.Value))
             {
                 ReadEnemies();
             }
-            else if (Input.GetKeyDown(config.ReadResourcesKey.Value))
+            else if (Input.GetKeyDown(config.ReadEmberKey.Value))
             {
-                MonsterTrainAccessibility.LogInfo($"R key pressed - BattleHandler null: {MonsterTrainAccessibility.BattleHandler == null}, IsInBattle: {MonsterTrainAccessibility.BattleHandler?.IsInBattle}");
-                ReadResources();
-                _inputCooldown = INPUT_COOLDOWN_TIME;
-            }
-            else if (Input.GetKeyDown(config.ReadGoldKey.Value))
-            {
-                ReadGold();
+                ReadEmber();
                 _inputCooldown = INPUT_COOLDOWN_TIME;
             }
             else if (Input.GetKeyDown(config.ToggleVerbosityKey.Value))
             {
                 config.CycleVerbosity();
-            }
-            else if (Input.GetKeyDown(config.EndTurnKey.Value))
-            {
-                EndTurn();
-                _inputCooldown = INPUT_COOLDOWN_TIME;
             }
             else if (Input.GetKeyDown(KeyCode.Tab))
             {
@@ -199,8 +181,81 @@ namespace MonsterTrainAccessibility.Core
         private enum CtrlArrow { Up, Down, Left, Right }
 
         /// <summary>
+        /// Handle hotkeys while Ctrl is held: arrows drive the review buffers
+        /// (or the map cursor), Ctrl+G/H/R read gold, pyre health, and pact shards.
+        /// </summary>
+        private void HandleCtrlHotkeys(AccessibilityConfig config)
+        {
+            if (Input.GetKeyDown(KeyCode.UpArrow))
+            {
+                HandleCtrlArrow(CtrlArrow.Up);
+                _inputCooldown = INPUT_COOLDOWN_TIME;
+            }
+            else if (Input.GetKeyDown(KeyCode.DownArrow))
+            {
+                HandleCtrlArrow(CtrlArrow.Down);
+                _inputCooldown = INPUT_COOLDOWN_TIME;
+            }
+            else if (Input.GetKeyDown(KeyCode.LeftArrow))
+            {
+                HandleCtrlArrow(CtrlArrow.Left);
+                _inputCooldown = INPUT_COOLDOWN_TIME;
+            }
+            else if (Input.GetKeyDown(KeyCode.RightArrow))
+            {
+                HandleCtrlArrow(CtrlArrow.Right);
+                _inputCooldown = INPUT_COOLDOWN_TIME;
+            }
+            else if (Input.GetKeyDown(config.ReadGoldKey.Value))
+            {
+                ReadGold();
+                _inputCooldown = INPUT_COOLDOWN_TIME;
+            }
+            else if (Input.GetKeyDown(config.ReadPyreHealthKey.Value))
+            {
+                ReadPyreHealth();
+                _inputCooldown = INPUT_COOLDOWN_TIME;
+            }
+            else if (Input.GetKeyDown(config.ReadPactShardsKey.Value))
+            {
+                ReadPactShards();
+                _inputCooldown = INPUT_COOLDOWN_TIME;
+            }
+        }
+
+        /// <summary>
+        /// Handle keys while the F1 help list is open:
+        /// Up/Down browse entries, F1/Enter/Escape close.
+        /// </summary>
+        private void HandleHelpBrowseInput(AccessibilityConfig config, Help.HelpSystem help)
+        {
+            if (Input.GetKeyDown(config.HelpKey.Value) ||
+                Input.GetKeyDown(KeyCode.Escape) ||
+                Input.GetKeyDown(KeyCode.Return) ||
+                Input.GetKeyDown(KeyCode.KeypadEnter) ||
+                Input.GetKeyDown(KeyCode.Space))
+            {
+                help.CloseHelp();
+                _inputCooldown = INPUT_COOLDOWN_TIME;
+            }
+            else if (Input.GetKeyDown(KeyCode.UpArrow))
+            {
+                help.PreviousEntry();
+                _inputCooldown = INPUT_COOLDOWN_TIME;
+            }
+            else if (Input.GetKeyDown(KeyCode.DownArrow))
+            {
+                help.NextEntry();
+                _inputCooldown = INPUT_COOLDOWN_TIME;
+            }
+        }
+
+        /// <summary>
         /// Route Ctrl+arrow presses: on the map screen they drive the virtual
-        /// map cursor; everywhere else they drive the review buffers.
+        /// map cursor; everywhere else they drive the review buffers
+        /// (Ctrl+Up reads deeper into the buffer starting from the current/top
+        /// item, Ctrl+Down moves back toward the top, Ctrl+Left/Right switch
+        /// buffers - the MT2 mod's conventions).
         /// </summary>
         private void HandleCtrlArrow(CtrlArrow arrow)
         {
@@ -224,8 +279,8 @@ namespace MonsterTrainAccessibility.Core
 
             switch (arrow)
             {
-                case CtrlArrow.Up: buffers.NextItem(); break;
-                case CtrlArrow.Down: buffers.PreviousItem(); break;
+                case CtrlArrow.Up: buffers.PreviousItem(); break;
+                case CtrlArrow.Down: buffers.NextItem(); break;
                 case CtrlArrow.Right: buffers.NextBuffer(); break;
                 case CtrlArrow.Left: buffers.PreviousBuffer(); break;
             }
@@ -320,22 +375,6 @@ namespace MonsterTrainAccessibility.Core
         }
 
         /// <summary>
-        /// End the player's turn
-        /// </summary>
-        private void EndTurn()
-        {
-            var battle = MonsterTrainAccessibility.BattleHandler;
-            if (battle != null && battle.IsInBattle)
-            {
-                battle.EndTurn();
-            }
-            else
-            {
-                MonsterTrainAccessibility.ScreenReader?.Queue("Not in battle");
-            }
-        }
-
-        /// <summary>
         /// Browse floors with Page Up/Down when not in targeting mode.
         /// The game natively handles PageUp/PageDown as ScrollUp/ScrollDown to change
         /// the selected room. We just read the game's floor and announce it.
@@ -363,7 +402,7 @@ namespace MonsterTrainAccessibility.Core
             {
                 _browsingFloor = gameFloor;
                 string floorName = Screens.BattleAccessibility.RoomIndexToFloorName(_browsingFloor);
-                string summary = battle.GetFloorSummary(_browsingFloor, Screens.BattleAccessibility.AnnouncedKeywords) ?? "";
+                string summary = battle.GetFloorSummary(_browsingFloor) ?? "";
                 string message = string.IsNullOrEmpty(summary) ? floorName : $"{floorName}. {summary}";
                 MonsterTrainAccessibility.ScreenReader?.Speak(message, false);
             }
@@ -421,7 +460,7 @@ namespace MonsterTrainAccessibility.Core
             var battle = MonsterTrainAccessibility.BattleHandler;
             if (battle != null && battle.IsInBattle)
             {
-                battle.AnnounceAllFloors(Screens.BattleAccessibility.AnnouncedKeywords);
+                battle.AnnounceAllFloors();
             }
             else
             {
@@ -437,7 +476,7 @@ namespace MonsterTrainAccessibility.Core
             var battle = MonsterTrainAccessibility.BattleHandler;
             if (battle != null && battle.IsInBattle)
             {
-                battle.AnnounceEnemies(Screens.BattleAccessibility.AnnouncedKeywords);
+                battle.AnnounceEnemies();
             }
             else
             {
@@ -446,32 +485,28 @@ namespace MonsterTrainAccessibility.Core
         }
 
         /// <summary>
-        /// Read current resources (ember, pyre health, gold)
+        /// Read current ember (R, battle only)
         /// </summary>
-        private void ReadResources()
+        private void ReadEmber()
         {
-            MonsterTrainAccessibility.LogInfo("ReadResources called");
             var battle = MonsterTrainAccessibility.BattleHandler;
-            MonsterTrainAccessibility.LogInfo($"ReadResources: battle null: {battle == null}, IsInBattle: {battle?.IsInBattle}");
-            if (battle != null && battle.IsInBattle)
+            if (battle == null || !battle.IsInBattle)
             {
-                MonsterTrainAccessibility.LogInfo("Calling AnnounceResources");
-                battle.AnnounceResources();
-            }
-            else
-            {
-                MonsterTrainAccessibility.LogInfo("Not in battle, queueing message");
-                // Could also read gold/other resources outside battle
                 MonsterTrainAccessibility.ScreenReader?.Queue("Not in battle");
+                return;
             }
+
+            int ember = battle.GetCurrentEnergy();
+            MonsterTrainAccessibility.ScreenReader?.Speak(
+                ember >= 0 ? $"{ember} ember" : "Ember not available", false);
         }
 
         /// <summary>
-        /// Read current gold amount
+        /// Read current gold (Ctrl+G, works on any screen)
         /// </summary>
         private void ReadGold()
         {
-            int gold = GetCurrentGold();
+            int gold = RunInfoReader.GetGold();
             if (gold >= 0)
             {
                 MonsterTrainAccessibility.ScreenReader?.Speak($"{gold} gold", false);
@@ -483,76 +518,55 @@ namespace MonsterTrainAccessibility.Core
         }
 
         /// <summary>
-        /// Get the player's current gold from SaveManager
+        /// Read current pyre health (Ctrl+H, works on any screen)
         /// </summary>
-        public static int GetCurrentGold()
+        private void ReadPyreHealth()
         {
-            try
+            int hp = RunInfoReader.GetPyreHealth();
+            if (hp < 0)
             {
-                // Find SaveManager instance
-                var saveManagerType = System.Type.GetType("SaveManager, Assembly-CSharp");
-                if (saveManagerType == null)
-                {
-                    // Try finding it in loaded assemblies
-                    foreach (var assembly in System.AppDomain.CurrentDomain.GetAssemblies())
-                    {
-                        saveManagerType = assembly.GetType("SaveManager");
-                        if (saveManagerType != null) break;
-                    }
-                }
-
-                if (saveManagerType != null)
-                {
-                    // Try to get instance
-                    var instanceProp = saveManagerType.GetProperty("Instance",
-                        System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
-                    object saveManager = instanceProp?.GetValue(null);
-
-                    if (saveManager == null)
-                    {
-                        // Try FindObjectOfType
-                        var findMethod = typeof(UnityEngine.Object).GetMethod("FindObjectOfType",
-                            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static,
-                            null, new[] { typeof(System.Type) }, null);
-                        if (findMethod != null)
-                        {
-                            saveManager = findMethod.Invoke(null, new object[] { saveManagerType });
-                        }
-                    }
-
-                    if (saveManager != null)
-                    {
-                        // Try GetGold method
-                        var getGoldMethod = saveManagerType.GetMethod("GetGold", System.Type.EmptyTypes);
-                        if (getGoldMethod != null)
-                        {
-                            var result = getGoldMethod.Invoke(saveManager, null);
-                            if (result is int gold)
-                            {
-                                return gold;
-                            }
-                        }
-
-                        // Try gold field/property
-                        var goldProp = saveManagerType.GetProperty("Gold") ??
-                                      saveManagerType.GetProperty("CurrentGold");
-                        if (goldProp != null)
-                        {
-                            var result = goldProp.GetValue(saveManager);
-                            if (result is int gold)
-                            {
-                                return gold;
-                            }
-                        }
-                    }
-                }
-            }
-            catch (System.Exception ex)
-            {
-                MonsterTrainAccessibility.LogError($"Error getting gold: {ex.Message}");
+                MonsterTrainAccessibility.ScreenReader?.Queue("Pyre health not available");
+                return;
             }
 
-            return -1;
+            int max = RunInfoReader.GetMaxPyreHealth();
+            string message = max > 0 ? $"Pyre health {hp} of {max}" : $"Pyre health {hp}";
+            MonsterTrainAccessibility.ScreenReader?.Speak(message, false);
+        }
+
+        /// <summary>
+        /// Read pact shards and threat level (Ctrl+R, The Last Divinity runs)
+        /// </summary>
+        private void ReadPactShards()
+        {
+            string info = RunInfoReader.GetPactShardInfo();
+            MonsterTrainAccessibility.ScreenReader?.Speak(
+                string.IsNullOrEmpty(info) ? "Pact shards not available" : info, false);
+        }
+
+        /// <summary>
+        /// Read the currently selected floor's capacity and units (B, battle only)
+        /// </summary>
+        private void ReadCurrentFloor()
+        {
+            var battle = MonsterTrainAccessibility.BattleHandler;
+            if (battle == null || !battle.IsInBattle)
+            {
+                MonsterTrainAccessibility.ScreenReader?.Queue("Not in battle");
+                return;
+            }
+
+            int floor = battle.GetSelectedFloor();
+            if (floor < 0 || floor > 3)
+            {
+                MonsterTrainAccessibility.ScreenReader?.Queue("No floor selected");
+                return;
+            }
+
+            string floorName = Screens.BattleAccessibility.RoomIndexToFloorName(floor);
+            string summary = battle.GetFloorSummary(floor);
+            string message = string.IsNullOrEmpty(summary) ? floorName : $"{floorName}. {summary}";
+            MonsterTrainAccessibility.ScreenReader?.Speak(message, false);
         }
 
         /// <summary>

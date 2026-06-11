@@ -230,5 +230,29 @@ namespace MonsterTrainAccessibility.Utilities
                 return text;
             }
         }
+
+        /// <summary>
+        /// Split announcement text into short reviewable chunks for the
+        /// buffers and the help browser: one chunk per line, long lines
+        /// further split into sentences.
+        /// </summary>
+        public static System.Collections.Generic.List<string> SplitIntoSpeechItems(string text)
+        {
+            var items = new System.Collections.Generic.List<string>();
+            if (string.IsNullOrEmpty(text))
+                return items;
+
+            foreach (string line in text.Split('\n'))
+            {
+                foreach (string sentence in line.Split(new[] { ". " }, System.StringSplitOptions.RemoveEmptyEntries))
+                {
+                    string item = sentence.Trim().TrimEnd('.');
+                    if (item.Length > 0)
+                        items.Add(item);
+                }
+            }
+
+            return items;
+        }
     }
 }

@@ -15,9 +15,11 @@ namespace MonsterTrainAccessibility.Screens
     internal static class EnemyReader
     {
         /// <summary>
-        /// Announce all units (player monsters and enemies) on each floor
+        /// Announce all units (player monsters and enemies) on each floor.
+        /// Keyword explanations stay out of the live reading - they are always
+        /// available in the Units/Creature review buffers.
         /// </summary>
-        internal static void AnnounceEnemies(BattleManagerCache cache, HashSet<string> announcedKeywords = null)
+        internal static void AnnounceEnemies(BattleManagerCache cache)
         {
             try
             {
@@ -50,7 +52,7 @@ namespace MonsterTrainAccessibility.Screens
                     foreach (var unit in units)
                     {
                         bool isEnemy = FloorReader.IsEnemyUnit(cache, unit);
-                        string unitDesc = GetDetailedEnemyDescription(cache, unit, announcedKeywords);
+                        string unitDesc = GetDetailedEnemyDescription(cache, unit);
 
                         if (isEnemy)
                         {
@@ -111,7 +113,7 @@ namespace MonsterTrainAccessibility.Screens
         /// floor by floor with your units before enemies.
         /// Used by the Units review buffer.
         /// </summary>
-        internal static List<string> GetUnitStrings(BattleManagerCache cache, HashSet<string> announcedKeywords = null)
+        internal static List<string> GetUnitStrings(BattleManagerCache cache)
         {
             var result = new List<string>();
 
@@ -127,7 +129,7 @@ namespace MonsterTrainAccessibility.Screens
 
                 foreach (var unit in FloorReader.GetUnitsInRoom(room))
                 {
-                    string unitDesc = GetDetailedEnemyDescription(cache, unit, announcedKeywords);
+                    string unitDesc = GetDetailedEnemyDescription(cache, unit, includeKeywords: true);
                     if (FloorReader.IsEnemyUnit(cache, unit))
                         enemyDescriptions.Add($"{floorName}, enemy: {unitDesc}");
                     else
@@ -144,15 +146,16 @@ namespace MonsterTrainAccessibility.Screens
         /// <summary>
         /// Get a detailed description of any unit (public wrapper for targeting)
         /// </summary>
-        internal static string GetDetailedUnitDescription(BattleManagerCache cache, object unit)
+        internal static string GetDetailedUnitDescription(BattleManagerCache cache, object unit, bool includeKeywords = false)
         {
-            return GetDetailedEnemyDescription(cache, unit, BattleAccessibility.AnnouncedKeywords);
+            return GetDetailedEnemyDescription(cache, unit, includeKeywords);
         }
 
         /// <summary>
-        /// Get a detailed description of an enemy unit including stats, status effects, and intent
+        /// Get a detailed description of an enemy unit including stats, status effects, and intent.
+        /// Keyword explanations are only included for buffer content (includeKeywords).
         /// </summary>
-        internal static string GetDetailedEnemyDescription(BattleManagerCache cache, object unit, HashSet<string> announcedKeywords = null)
+        internal static string GetDetailedEnemyDescription(BattleManagerCache cache, object unit, bool includeKeywords = false)
         {
             try
             {
@@ -186,10 +189,13 @@ namespace MonsterTrainAccessibility.Screens
                 }
 
                 // Add keyword explanations for status effects and abilities
-                string keywordExplanations = GetUnitKeywordExplanations(statusEffects, abilities, announcedKeywords);
-                if (!string.IsNullOrEmpty(keywordExplanations))
+                if (includeKeywords)
                 {
-                    sb.Append($". Keywords: {keywordExplanations}");
+                    string keywordExplanations = GetUnitKeywordExplanations(statusEffects, abilities);
+                    if (!string.IsNullOrEmpty(keywordExplanations))
+                    {
+                        sb.Append($". Keywords: {keywordExplanations}");
+                    }
                 }
 
                 // Get intent (for bosses or units with visible intent)
@@ -1278,7 +1284,7 @@ namespace MonsterTrainAccessibility.Screens
         /// <summary>
         /// Look up keyword explanations for status effect and ability names found on a unit.
         /// </summary>
-        internal static string GetUnitKeywordExplanations(string statusEffects, string abilities, HashSet<string> announcedKeywords = null)
+        internal static string GetUnitKeywordExplanations(string statusEffects, string abilities)
         {
             var keywords = KeywordManager.GetKeywords();
             if (keywords == null || keywords.Count == 0) return null;
@@ -1301,9 +1307,6 @@ namespace MonsterTrainAccessibility.Screens
                     string keyName = Regex.Replace(trimmed, @"\s+\d+$", "").Trim();
                     if (string.IsNullOrEmpty(keyName) || seen.Contains(keyName)) continue;
                     seen.Add(keyName);
-
-                    // Skip if already announced in this browsing session
-                    if (announcedKeywords != null && !announcedKeywords.Add(keyName)) continue;
 
                     if (keywords.TryGetValue(keyName, out string explanation))
                     {

@@ -259,6 +259,24 @@ namespace MonsterTrainAccessibility.Screens
             return null;
         }
 
+        /// <summary>
+        /// Two-part relic reading for focus changes: announce "Artifact: Name";
+        /// description and keyword explanations go to the Artifact buffer.
+        /// </summary>
+        internal static Core.Buffers.FocusReadout GetRelicInfoReadout(GameObject go)
+        {
+            string full = GetRelicInfoText(go);
+            if (string.IsNullOrEmpty(full))
+                return null;
+
+            string summary = full;
+            int firstPeriod = full.IndexOf('.');
+            if (firstPeriod > 0)
+                summary = full.Substring(0, firstPeriod);
+
+            return Core.Buffers.FocusReadout.FromFullText(full, summary);
+        }
+
 
         /// <summary>
         /// Format relic/enhancer details from a RelicData or EnhancerData object.
