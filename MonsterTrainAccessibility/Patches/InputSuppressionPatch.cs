@@ -15,6 +15,12 @@ namespace MonsterTrainAccessibility.Patches
     /// - While the F1 help list is open, Up/Down browse help entries and
     ///   Enter/Escape close it, so those keys (and Submit/Cancel) must not
     ///   reach the game either.
+    /// - While the battle floor review is open, the arrows navigate floors
+    ///   and units, Enter reads details, and Escape closes it. The plain Up
+    ///   arrow that opens the review is claimed whenever it could open it
+    ///   (in battle, no targeting) - keyed off the physical key state like
+    ///   the Ctrl checks, because script execution order is undefined and
+    ///   the game could otherwise process the opening press first.
     ///
     /// Two input paths are suppressed:
     /// - UnityEngine.EventSystems.BaseInput.GetAxisRaw/GetButtonDown, which
@@ -75,7 +81,11 @@ namespace MonsterTrainAccessibility.Patches
 
         public static bool AxisPrefix(string __0, ref float __result)
         {
-            if ((IsCtrlHeld() || IsHelpOpen()) && IsNavigationAxis(__0))
+            bool suppress = (IsCtrlHeld() || IsHelpOpen() || IsReviewOpen()) && IsNavigationAxis(__0);
+            // The Up press that opens the floor review must not also move the UI focus
+            suppress |= __0 == "Vertical" && IsBattleUpArrowClaim();
+
+            if (suppress)
             {
                 __result = 0f;
                 return false;
@@ -85,9 +95,11 @@ namespace MonsterTrainAccessibility.Patches
 
         public static bool ButtonPrefix(string __0, ref bool __result)
         {
-            bool suppress = (IsCtrlHeld() || IsHelpOpen()) && IsNavigationAxis(__0);
-            // While help is open, Enter and Escape close it instead of acting on the game
-            suppress |= IsHelpOpen() && (__0 == "Submit" || __0 == "Cancel");
+            bool suppress = (IsCtrlHeld() || IsHelpOpen() || IsReviewOpen()) && IsNavigationAxis(__0);
+            suppress |= __0 == "Vertical" && IsBattleUpArrowClaim();
+            // While help or the floor review is open, Enter and Escape act on
+            // the modal instead of the game
+            suppress |= (IsHelpOpen() || IsReviewOpen()) && (__0 == "Submit" || __0 == "Cancel");
 
             if (suppress)
             {
@@ -104,7 +116,9 @@ namespace MonsterTrainAccessibility.Patches
         public static bool MappingPrefix(object __0)
         {
             bool helpOpen = IsHelpOpen();
-            if (__0 == null || (!IsCtrlHeld() && !helpOpen))
+            bool reviewOpen = IsReviewOpen();
+            bool upArrowClaim = IsBattleUpArrowClaim();
+            if (__0 == null || (!IsCtrlHeld() && !helpOpen && !reviewOpen && !upArrowClaim))
                 return true;
 
             try
@@ -124,7 +138,14 @@ namespace MonsterTrainAccessibility.Patches
 
                 bool isArrow = keyCode == KeyCode.UpArrow || keyCode == KeyCode.DownArrow ||
                                keyCode == KeyCode.LeftArrow || keyCode == KeyCode.RightArrow;
-                if (isArrow)
+                if (isArrow && (IsCtrlHeld() || helpOpen || reviewOpen))
+                    return false;
+
+                // The plain Up arrow opens the floor review in battle, so the
+                // game must never see it there (it would move navigation to
+                // the tower). Other arrows stay with the game until the
+                // review is actually open.
+                if (keyCode == KeyCode.UpArrow && upArrowClaim)
                     return false;
 
                 // The game's mappings ignore modifiers, so Ctrl+H/R/G would
@@ -137,6 +158,13 @@ namespace MonsterTrainAccessibility.Patches
                 if (helpOpen &&
                     (keyCode == KeyCode.Return || keyCode == KeyCode.KeypadEnter ||
                      keyCode == KeyCode.Escape || keyCode == KeyCode.Space))
+                {
+                    return false;
+                }
+
+                if (reviewOpen &&
+                    (keyCode == KeyCode.Return || keyCode == KeyCode.KeypadEnter ||
+                     keyCode == KeyCode.Escape))
                 {
                     return false;
                 }
@@ -178,6 +206,35 @@ namespace MonsterTrainAccessibility.Patches
         {
             var help = MonsterTrainAccessibility.HelpSystem;
             return help != null && (help.IsBrowsing || help.ClosedThisFrame);
+        }
+
+        /// <summary>
+        /// Includes the frame the floor review was closed, so the Escape that
+        /// closed it does not also pause the game.
+        /// </summary>
+        private static bool IsReviewOpen()
+        {
+            var review = MonsterTrainAccessibility.FloorReview;
+            return review != null && (review.IsActive || review.ClosedThisFrame);
+        }
+
+        /// <summary>
+        /// In battle the plain Up arrow belongs to the floor review (it opens
+        /// it). Checked from physical key state, not mod state, so the press
+        /// that opens the review is claimed regardless of script order.
+        /// </summary>
+        private static bool IsBattleUpArrowClaim()
+        {
+            if (MonsterTrainAccessibility.FloorReview == null)
+                return false;
+            if (!Input.GetKey(KeyCode.UpArrow))
+                return false;
+            // Only when the battle screen itself has focus - pile views,
+            // dialogs, and other overlays keep their arrow navigation
+            if (!Battle.FloorReviewSystem.IsBattleScreenFrontmost())
+                return false;
+            return Battle.FloorTargetingSystem.Instance?.IsTargeting != true &&
+                   Battle.UnitTargetingSystem.Instance?.IsTargeting != true;
         }
     }
 }

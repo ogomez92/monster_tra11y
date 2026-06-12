@@ -63,6 +63,11 @@ namespace MonsterTrainAccessibility.Help
 
                 // Contextual buffer content belongs to the screen it was read on
                 Core.Buffers.FocusBuffers.Clear();
+
+                // The floor review belongs to the battle screen; any overlay
+                // (pile view, dialog) takes the arrows back the moment it opens
+                if (screen != GameScreen.Battle)
+                    MonsterTrainAccessibility.FloorReview?.Close(announce: false);
             }
         }
 

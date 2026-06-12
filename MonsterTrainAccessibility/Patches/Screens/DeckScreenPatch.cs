@@ -29,11 +29,41 @@ namespace MonsterTrainAccessibility.Patches
                         harmony.Patch(method, postfix: postfix);
                         MonsterTrainAccessibility.LogInfo($"Patched DeckScreen.{method.Name}");
                     }
+
+                    var closeMethod = AccessTools.Method(targetType, "Close");
+                    if (closeMethod != null)
+                    {
+                        var closePostfix = new HarmonyMethod(typeof(DeckScreenPatch).GetMethod(nameof(ClosePostfix)));
+                        harmony.Patch(closeMethod, postfix: closePostfix);
+                        MonsterTrainAccessibility.LogInfo("Patched DeckScreen.Close");
+                    }
                 }
             }
             catch (Exception ex)
             {
                 MonsterTrainAccessibility.LogError($"Failed to patch DeckScreen: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// The pile views (deck, draw, discard, exhaust, eaten) overlay the
+        /// battle without re-initializing it, so closing one mid-battle must
+        /// restore the screen state by hand - the floor review and the F1
+        /// battle help are gated on GameScreen.Battle.
+        /// </summary>
+        public static void ClosePostfix()
+        {
+            try
+            {
+                if (ScreenStateTracker.CurrentScreen == Help.GameScreen.DeckView &&
+                    MonsterTrainAccessibility.BattleHandler?.IsInBattle == true)
+                {
+                    ScreenStateTracker.SetScreen(Help.GameScreen.Battle);
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in DeckScreen close patch: {ex.Message}");
             }
         }
 

@@ -93,6 +93,17 @@ namespace MonsterTrainAccessibility.Core.Buffers
         }
 
         /// <summary>
+        /// Called by the battle floor review cursor when it lands on a floor
+        /// or unit: the UI buffer holds the focused item's full details, and
+        /// units also fill the Creature buffer.
+        /// </summary>
+        public static void SetReviewFocus(string details, bool isCreature)
+        {
+            _uiItems = SplitIntoItems(TextUtilities.CleanSpriteTagsForSpeech(details ?? ""));
+            _creatureItems = isCreature ? _uiItems : null;
+        }
+
+        /// <summary>
         /// Drop all contextual content, e.g. on screen transitions.
         /// </summary>
         public static void Clear()

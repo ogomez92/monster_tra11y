@@ -53,6 +53,7 @@ namespace MonsterTrainAccessibility.Screens
         {
             IsInBattle = false;
             Core.Buffers.FocusBuffers.ClearCreature();
+            MonsterTrainAccessibility.FloorReview?.Close(announce: false);
             MonsterTrainAccessibility.LogInfo("Battle exited");
         }
 
@@ -95,6 +96,7 @@ namespace MonsterTrainAccessibility.Screens
         public void OnBattleWon()
         {
             IsInBattle = false;
+            MonsterTrainAccessibility.FloorReview?.Close(announce: false);
             MonsterTrainAccessibility.ScreenReader?.Speak("Victory! Battle won.", false);
         }
 
@@ -104,6 +106,7 @@ namespace MonsterTrainAccessibility.Screens
         public void OnBattleLost()
         {
             IsInBattle = false;
+            MonsterTrainAccessibility.FloorReview?.Close(announce: false);
             MonsterTrainAccessibility.ScreenReader?.Speak("Defeat. The pyre has been destroyed.", false);
         }
 

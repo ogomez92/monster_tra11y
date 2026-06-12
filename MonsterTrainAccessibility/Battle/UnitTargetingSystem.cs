@@ -150,6 +150,9 @@ namespace MonsterTrainAccessibility.Battle
         /// <param name="onCancel">Called when targeting is cancelled</param>
         public void StartTargeting(object card, Action<int> onConfirm, Action onCancel)
         {
+            // The plain-arrow floor review must not stay open under targeting
+            MonsterTrainAccessibility.FloorReview?.Close(announce: false);
+
             _pendingCard = card;
             _onConfirm = onConfirm;
             _onCancel = onCancel;

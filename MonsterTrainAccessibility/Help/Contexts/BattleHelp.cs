@@ -30,6 +30,7 @@ namespace MonsterTrainAccessibility.Help.Contexts
                    "H: Read hand (all cards with costs and effects). " +
                    "K: Read the selected floor. Shift plus K or L: Read all floors. " +
                    "U: Read all units (your monsters front-to-back, then enemies). " +
+                   "Up arrow: Open floor review, a cursor to walk the floors and their units with the arrow keys. " +
                    "R: Read ember. " +
                    "Ctrl plus G: Read gold. " +
                    "Ctrl plus H: Read pyre health. " +

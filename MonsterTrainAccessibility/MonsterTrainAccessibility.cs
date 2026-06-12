@@ -38,6 +38,7 @@ namespace MonsterTrainAccessibility
         public static HelpSystem HelpSystem { get; private set; }
         public static FloorTargetingSystem FloorTargeting { get; private set; }
         public static UnitTargetingSystem UnitTargeting { get; private set; }
+        public static FloorReviewSystem FloorReview { get; private set; }
 
         // Screen-specific handlers
         public static MenuAccessibility MenuHandler { get; private set; }
@@ -75,6 +76,7 @@ namespace MonsterTrainAccessibility
                 DraftHandler = new CardDraftAccessibility();
                 MapHandler = new MapAccessibility();
                 MapNav = new MapNavigator();
+                FloorReview = new FloorReviewSystem();
 
                 // Review buffers (Ctrl+arrows), cycled in MT2 order:
                 // UI, Events, Card, Creature, Artifact, Reward, then battle info
@@ -213,6 +215,7 @@ namespace MonsterTrainAccessibility
                 new BattleIntroHelp(),      // Priority 85 - pre-battle screen
                 new BattleHelp(),           // Priority 90
                 new TutorialHelp(),         // Priority 95 - tutorial popups
+                new FloorReviewHelp(),      // Priority 96 - floor review cursor
                 new BattleTargetingHelp(),  // Priority 100 - floor targeting
                 new UnitTargetingHelp(),    // Priority 101 - unit targeting (highest)
                 new DialogHelp()            // Priority 110 - dialog/popup (highest priority screen)

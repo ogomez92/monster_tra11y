@@ -82,6 +82,28 @@ namespace MonsterTrainAccessibility.Core
                 return;
             }
 
+            // Floor review: in battle the plain Up arrow opens a virtual
+            // cursor over the floors; while it is open the arrows, Enter,
+            // and Escape belong to it (InputSuppressionPatch keeps them from
+            // the game). Unclaimed keys fall through so F1 and the letter
+            // hotkeys keep working.
+            var review = MonsterTrainAccessibility.FloorReview;
+            if (review != null && review.IsActive)
+            {
+                if (review.HandleInput())
+                {
+                    _inputCooldown = INPUT_COOLDOWN_TIME;
+                    return;
+                }
+            }
+            else if (review != null && Input.GetKeyDown(KeyCode.UpArrow) &&
+                     FloorReviewSystem.IsBattleScreenFrontmost())
+            {
+                review.Open();
+                _inputCooldown = INPUT_COOLDOWN_TIME;
+                return;
+            }
+
             // Help key (F1) - always available
             if (Input.GetKeyDown(config.HelpKey.Value))
             {
