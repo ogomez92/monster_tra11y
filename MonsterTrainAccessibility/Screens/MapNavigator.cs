@@ -240,7 +240,8 @@ namespace MonsterTrainAccessibility.Screens
         {
             if (_cursorNodeIndex >= 0 && _cursorNodeIndex < _ringNodes.Count)
             {
-                Speak($"Stop {_cursorNodeIndex + 1} of {_ringNodes.Count}: {_ringNodes[_cursorNodeIndex]}");
+                // Position info always trails the content (user preference)
+                Speak($"{_ringNodes[_cursorNodeIndex]}. Stop {_cursorNodeIndex + 1} of {_ringNodes.Count}");
             }
         }
 

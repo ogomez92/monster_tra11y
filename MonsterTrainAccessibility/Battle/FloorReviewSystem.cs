@@ -285,7 +285,8 @@ namespace MonsterTrainAccessibility.Battle
             string body = brief
                 ? FloorReader.GetUnitBriefDescription(cache, entry.Unit)
                 : EnemyReader.GetDetailedUnitDescription(cache, entry.Unit, includeKeywords: true);
-            return $"{side} {entry.Rank} of {entry.TeamCount}{position}: {body}";
+            // Position info always trails the content (user preference)
+            return $"{body}. {side} {entry.Rank} of {entry.TeamCount}{position}";
         }
 
         /// <summary>

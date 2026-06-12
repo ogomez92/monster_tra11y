@@ -295,7 +295,8 @@ namespace MonsterTrainAccessibility.Battle
         {
             if (_targets.Count > 0 && SelectedIndex < _targets.Count)
             {
-                string message = $"Target {SelectedIndex + 1} of {_targets.Count}: {_targets[SelectedIndex]}";
+                // Position info always trails the content (user preference)
+                string message = $"{_targets[SelectedIndex]}. Target {SelectedIndex + 1} of {_targets.Count}";
                 MonsterTrainAccessibility.ScreenReader?.Speak(message, false);
             }
         }
