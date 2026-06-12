@@ -782,6 +782,16 @@ namespace MonsterTrainAccessibility.Screens
                     }
                 }
 
+                // EnhancerData extends RelicData: the pedestal text the game
+                // shows ("Upgrade a spell to gain Spellchain.") is the relic
+                // description, localized with effect placeholders resolved -
+                // prefer it over reconstructing from upgrade internals, which
+                // yields raw trait names ("Gain CopyOnPlay")
+                if (string.IsNullOrEmpty(description))
+                {
+                    description = SettingsTextReader.GetRelicDescription(enhancerData);
+                }
+
                 // Try to get upgrade info from the CardUpgradeData
                 if (string.IsNullOrEmpty(description))
                 {
@@ -1054,28 +1064,14 @@ namespace MonsterTrainAccessibility.Screens
                         {
                             var traitType = trait.GetType();
 
-                            // Log trait type methods once for debugging
-                            MonsterTrainAccessibility.LogInfo($"Trait type: {traitType.Name}");
-                            foreach (var m in traitType.GetMethods(BindingFlags.Public | BindingFlags.Instance))
-                            {
-                                if (m.GetParameters().Length == 0 && m.ReturnType == typeof(string))
-                                {
-                                    var result = m.Invoke(trait, null) as string;
-                                    MonsterTrainAccessibility.LogInfo($"  {m.Name}() = {result}");
-                                }
-                            }
-
-                            // Try to get localized trait name first
+                            // GetTraitStateName returns the internal trait state
+                            // type ("CardTraitCopyOnPlay")
                             string traitName = null;
-
-                            // Try GetTraitStateName which might return localized name
-                            var getLocalizedMethod = traitType.GetMethod("GetTraitStateName", Type.EmptyTypes);
-                            if (getLocalizedMethod != null)
+                            var getStateNameMethod = traitType.GetMethod("GetTraitStateName", Type.EmptyTypes);
+                            if (getStateNameMethod != null)
                             {
-                                traitName = getLocalizedMethod.Invoke(trait, null) as string;
+                                traitName = getStateNameMethod.Invoke(trait, null) as string;
                             }
-
-                            // Fallback to GetName
                             if (string.IsNullOrEmpty(traitName))
                             {
                                 var getNameMethod = traitType.GetMethod("GetName", Type.EmptyTypes);
@@ -1087,10 +1083,21 @@ namespace MonsterTrainAccessibility.Screens
 
                             if (!string.IsNullOrEmpty(traitName))
                             {
-                                // Format trait name - strip internal prefixes
-                                traitName = traitName.Replace("CardTraitState", "").Replace("CardTrait", "").Replace("State", "");
-                                // Map internal names to display names
-                                traitName = MapTraitToDisplayName(traitName);
+                                // The game's trait keyword key pattern (CardTraitData
+                                // .GetTraitCardTextLocalizationKey) is "{state}_CardText":
+                                // CardTraitCopyOnPlay -> "Spellchain",
+                                // CardTraitIgnoreArmor -> "Piercing"
+                                string localized = Core.KeywordManager.TryLocalize(traitName + "_CardText");
+                                if (!string.IsNullOrEmpty(localized))
+                                {
+                                    traitName = TextUtilities.StripRichTextTags(localized).Trim();
+                                }
+                                else
+                                {
+                                    // Fallback: strip internal prefixes and map known names
+                                    traitName = traitName.Replace("CardTraitState", "").Replace("CardTrait", "").Replace("State", "");
+                                    traitName = MapTraitToDisplayName(traitName);
+                                }
                                 bonuses.Add($"Gain {traitName}");
                             }
                         }

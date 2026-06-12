@@ -22,13 +22,14 @@ namespace MonsterTrainAccessibility.Core
         public static int GetMaxPyreHealth() => InvokeInt("GetMaxTowerHP");
 
         /// <summary>
-        /// Pact shard count and threat level (The Last Divinity DLC), or null
+        /// Pact shard count, threat level, The Last Divinity requirement and
+        /// the game's threat explanation (The Last Divinity DLC), or null
         /// when the DLC run feature is not active.
         /// </summary>
         public static string GetPactShardInfo()
         {
             return Screens.ResourceReader.GetCrystalAndThreatInfo(
-                ReflectionHelper.FindManager("SaveManager"));
+                ReflectionHelper.FindManager("SaveManager"), includeDescription: true);
         }
 
         private static int InvokeInt(string methodName)

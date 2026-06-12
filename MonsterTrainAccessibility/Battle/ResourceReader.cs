@@ -105,7 +105,7 @@ namespace MonsterTrainAccessibility.Screens
         /// Returns null if DLC is not active. Works from any screen, so the
         /// Ctrl+R pact shard hotkey can use it outside battle too.
         /// </summary>
-        internal static string GetCrystalAndThreatInfo(object saveManager)
+        internal static string GetCrystalAndThreatInfo(object saveManager, bool includeDescription = false)
         {
             try
             {
@@ -170,13 +170,20 @@ namespace MonsterTrainAccessibility.Screens
 
                 if (crystals < 0) return null;
 
-                // Determine threat level based on crystal count
-                string threat = GetThreatLevelName(saveManager, crystals);
-                if (!string.IsNullOrEmpty(threat))
+                int band = GetThreatBand(saveManager, crystals);
+                string result = $"Pact shards: {crystals}. Threat: {GetThreatLevelName(band)}";
+
+                if (includeDescription)
                 {
-                    return $"Pact shards: {crystals}. Threat: {threat}";
+                    string goal = GetLastDivinityRequirement(saveManager, crystals);
+                    if (!string.IsNullOrEmpty(goal))
+                        result += $". {goal}";
+
+                    EnsureThreatTexts();
+                    if (!string.IsNullOrEmpty(_threatBody))
+                        result += $". {_threatBody}";
                 }
-                return $"Pact shards: {crystals}";
+                return result;
             }
             catch (Exception ex)
             {
@@ -186,60 +193,139 @@ namespace MonsterTrainAccessibility.Screens
         }
 
         /// <summary>
-        /// Get the threat level name based on crystal count.
-        /// Threat bands: 0=None, >0=Low, >=lowAmount=Moderate, >=warningAmount=Warning, >=dangerAmount=Danger
+        /// Threat band for the current ring: 0 none, 1 low, 2 moderate,
+        /// 3 warning, 4 danger. Thresholds come from the game's
+        /// HellforgedThreatLevel at the CURRENT distance - they vary by
+        /// ring, so a fixed table can be wildly wrong.
         /// </summary>
-        private static string GetThreatLevelName(object saveManager, int crystals)
+        private static int GetThreatBand(object saveManager, int crystals)
         {
+            if (crystals <= 0)
+                return 0;
+
+            int low = 10, warning = 50, danger = 80; // rough fallbacks
             try
             {
-                if (crystals <= 0) return "None";
-
-                if (saveManager == null) return "Low";
                 var saveType = saveManager.GetType();
-
-                // Try to get threat level thresholds from BalanceData
-                var getBalanceMethod = saveType.GetMethod("GetBalanceData", Type.EmptyTypes);
-                if (getBalanceMethod != null)
+                int distance = saveType.GetMethod("GetCurrentDistance", Type.EmptyTypes)
+                    ?.Invoke(saveManager, null) is int dist ? Math.Max(0, dist) : 0;
+                var balanceData = saveType.GetMethod("GetBalanceData", Type.EmptyTypes)
+                    ?.Invoke(saveManager, null);
+                var threatData = balanceData?.GetType()
+                    .GetMethod("GetHellforgedThreatLevelAtDistance")
+                    ?.Invoke(balanceData, new object[] { distance });
+                if (threatData != null)
                 {
-                    var balanceData = getBalanceMethod.Invoke(saveManager, null);
-                    if (balanceData != null)
-                    {
-                        // GetHellforgedThreatLevelAtDistance returns a HellforgedThreatLevel with low/warning/danger amounts
-                        var getThreatMethod = balanceData.GetType().GetMethod("GetHellforgedThreatLevelAtDistance");
-                        if (getThreatMethod != null)
-                        {
-                            // Pass 0 for current distance - threat levels may vary by ring
-                            var threatData = getThreatMethod.Invoke(balanceData, new object[] { 0 });
-                            if (threatData != null)
-                            {
-                                var threatType = threatData.GetType();
-                                var lowField = threatType.GetField("lowAmount") ?? threatType.GetField("low");
-                                var warnField = threatType.GetField("warningAmount") ?? threatType.GetField("warning");
-                                var dangerField = threatType.GetField("dangerAmount") ?? threatType.GetField("danger");
-
-                                int low = lowField != null ? (int)lowField.GetValue(threatData) : 10;
-                                int warning = warnField != null ? (int)warnField.GetValue(threatData) : 50;
-                                int danger = dangerField != null ? (int)dangerField.GetValue(threatData) : 80;
-
-                                if (crystals >= danger) return "Danger";
-                                if (crystals >= warning) return "Warning";
-                                if (crystals >= low) return "Moderate";
-                                return "Low";
-                            }
-                        }
-                    }
+                    // The threshold fields are private; the properties are public
+                    var threatType = threatData.GetType();
+                    if (threatType.GetProperty("LowAmount")?.GetValue(threatData) is int l) low = l;
+                    if (threatType.GetProperty("WarningAmount")?.GetValue(threatData) is int w) warning = w;
+                    if (threatType.GetProperty("DangerAmount")?.GetValue(threatData) is int d) danger = d;
                 }
-
-                // Fallback: rough estimate based on typical values
-                if (crystals >= 80) return "Danger";
-                if (crystals >= 50) return "Warning";
-                if (crystals >= 25) return "Moderate";
-                return "Low";
             }
             catch (Exception ex)
             {
-                MonsterTrainAccessibility.LogError($"Error getting threat level: {ex.Message}");
+                MonsterTrainAccessibility.LogInfo($"Threat thresholds unavailable, using defaults: {ex.Message}");
+            }
+
+            if (crystals >= danger) return 4;
+            if (crystals >= warning) return 3;
+            if (crystals >= low) return 2;
+            return 1;
+        }
+
+        private static readonly string[] FallbackThreatNames = { "None", "Low", "Moderate", "Warning", "Danger" };
+
+        private static string[] _threatNames; // the game's localized band names
+        private static string _threatBody;    // the in-game threat explanation text
+
+        private static string GetThreatLevelName(int band)
+        {
+            EnsureThreatTexts();
+            var names = _threatNames ?? FallbackThreatNames;
+            return names[Math.Max(0, Math.Min(band, names.Length - 1))];
+        }
+
+        /// <summary>
+        /// Read the localized threat band names ("Extreme" etc.) and the
+        /// tooltip explanation from a live HellforgedThreatLevelUI - its
+        /// serialized localization key fields are the same ones the game's
+        /// HUD uses. Retried until found (the HUD may not exist yet).
+        /// </summary>
+        private static void EnsureThreatTexts()
+        {
+            if (_threatNames != null)
+                return;
+
+            try
+            {
+                var uiType = Utilities.ReflectionHelper.FindType("HellforgedThreatLevelUI");
+                if (uiType == null)
+                    return;
+                var instances = UnityEngine.Object.FindObjectsOfType(uiType);
+                if (instances == null || instances.Length == 0)
+                    return;
+                var ui = instances[0];
+
+                string Localize(string fieldName)
+                {
+                    var field = uiType.GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+                    var key = field?.GetValue(ui) as string;
+                    string text = string.IsNullOrEmpty(key) ? null : Core.KeywordManager.TryLocalize(key);
+                    return string.IsNullOrEmpty(text) ? null : Utilities.TextUtilities.StripRichTextTags(text).Trim();
+                }
+
+                var names = new[]
+                {
+                    Localize("threatNoneKey"),
+                    Localize("threatLowKey"),
+                    Localize("threatModerateKey"),
+                    Localize("threatWarningKey"),
+                    Localize("threatDangerKey"),
+                };
+                if (Array.TrueForAll(names, n => !string.IsNullOrEmpty(n)))
+                {
+                    _threatBody = Localize("tooltipBodyKey");
+                    _threatNames = names;
+                    MonsterTrainAccessibility.LogInfo($"Threat names: {string.Join(", ", names)}");
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogInfo($"Threat texts unavailable: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// The Last Divinity gate: the final ring's NodeState carries the
+        /// pact shard count needed to face the true final boss (the /100 on
+        /// the game's HUD meter).
+        /// </summary>
+        private static string GetLastDivinityRequirement(object saveManager, int crystals)
+        {
+            try
+            {
+                var saveType = saveManager.GetType();
+                if (!(saveType.GetMethod("GetRunLength", Type.EmptyTypes)?.Invoke(saveManager, null) is int runLength) || runLength <= 0)
+                    return null;
+                var runState = saveType.GetMethod("GetRunState", Type.EmptyTypes)?.Invoke(saveManager, null);
+                var node = runState?.GetType().GetMethod("GetNodeStateAtDistance")
+                    ?.Invoke(runState, new object[] { runLength - 1 });
+                if (node == null)
+                    return null;
+
+                var nodeType = node.GetType();
+                bool requiresDlc = nodeType.GetField("RequiresHellforgedDlc")?.GetValue(node) is bool b && b;
+                int required = nodeType.GetField("requiredCrystals")?.GetValue(node) is int r ? r : 0;
+                if (!requiresDlc || required <= 0)
+                    return null;
+
+                return crystals >= required
+                    ? $"{required} reached: The Last Divinity awaits beyond the final boss"
+                    : $"{required} needed to face The Last Divinity";
+            }
+            catch
+            {
                 return null;
             }
         }

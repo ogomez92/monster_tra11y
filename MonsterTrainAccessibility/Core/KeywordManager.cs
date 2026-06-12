@@ -200,35 +200,55 @@ namespace MonsterTrainAccessibility.Core
         }
 
         /// <summary>
-        /// Load keywords from known card trait state names.
-        /// No master dictionary exists in game, so we use a known list.
+        /// Load keywords from card trait state names. No master dictionary
+        /// exists in game; the game's localization key pattern is
+        /// "{traitStateType}_CardText" / "_TooltipText" (see CardTraitData
+        /// .GetTraitCardTextLocalizationKey), and trait state types are the
+        /// CardTrait* class names - so enumerate those from the game
+        /// assembly to cover DLC traits (CopyOnPlay = Spellchain,
+        /// IgnoreArmor = Piercing, StrongerMagicPower = Attuned...)
+        /// automatically. Traits with no translation are skipped.
         /// </summary>
         private static int LoadCardTraitKeywords()
         {
             int count = 0;
 
-            var traitNames = new[]
+            var traitNames = new HashSet<string>(StringComparer.Ordinal)
             {
+                // Known names kept as a safety net for the assembly scan
                 "CardTraitExhaustState",
                 "CardTraitIntrinsicState",
-                "CardTraitRetainState",
-                "CardTraitSelfPurgeState",
+                "CardTraitRetain",
+                "CardTraitSelfPurge",
                 "CardTraitFreeze",
-                "CardTraitPermafrostState",
+                "CardTraitPermafrost",
                 "CardTraitUnplayable",
                 "CardTraitCopyOnPlay",
                 "CardTraitIgnoreArmor",
                 "CardTraitCorruptRestricted",
-                "CardTraitScalingAddDamage",
-                "CardTraitScalingAddStatusEffect",
-                "CardTraitScalingBuffDamage",
-                "CardTraitScalingHeal",
-                "CardTraitScalingReduceCost",
-                "CardTraitScalingUpgradeUnitAttack",
-                "CardTraitScalingUpgradeUnitHealth",
-                "CardTraitScalingUpgradeUnitSize",
-                "CardTraitScalingUpgradeUnitStatusEffect",
+                "CardTraitStrongerMagicPower",
             };
+
+            try
+            {
+                var baseType = FindTypeInAssemblies("CardTraitState");
+                if (baseType != null)
+                {
+                    foreach (var type in baseType.Assembly.GetTypes())
+                    {
+                        if (type.Name.StartsWith("CardTrait") &&
+                            type.Name != "CardTraitData" &&
+                            !type.IsAbstract && baseType.IsAssignableFrom(type))
+                        {
+                            traitNames.Add(type.Name);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogWarning($"KeywordManager: trait type scan failed: {ex.Message}");
+            }
 
             foreach (string traitName in traitNames)
             {
