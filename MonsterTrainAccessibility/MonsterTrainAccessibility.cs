@@ -119,6 +119,8 @@ namespace MonsterTrainAccessibility
             CompendiumScreenPatch.TryPatch(_harmony);
             CompendiumSectionPatch.TryPatch(_harmony);
             CompendiumPageTurnPatch.TryPatch(_harmony);
+            ChecklistPageTogglePatch.TryPatch(_harmony);
+            StatsPageTogglePatch.TryPatch(_harmony);
             ScreenManagerPatch.TryPatch(_harmony);
 
             // New screen patches
@@ -199,6 +201,7 @@ namespace MonsterTrainAccessibility
                 new MainMenuHelp(),         // Priority 40
                 new ClanSelectionHelp(),    // Priority 50
                 new MapHelp(),              // Priority 60
+                new CompendiumHelp(),       // Priority 65 - logbook/compendium
                 new SynthesisHelp(),        // Priority 70 - unit synthesis (DLC)
                 new ShopHelp(),             // Priority 70
                 new EventHelp(),            // Priority 70

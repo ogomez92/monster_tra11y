@@ -1378,11 +1378,14 @@ namespace MonsterTrainAccessibility.Screens
                 return text;
             }
 
-            // 2.91. Check for clan checklist section (clan progress with unlock conditions/meter)
-            text = CompendiumTextReader.GetClanChecklistText(go);
-            if (!string.IsNullOrEmpty(text))
+            // 2.91. Check for clan checklist section (clan progress rows) -
+            // concise announcement; XP/champions/victories/cards go to the UI buffer
+            var clanReadout = CompendiumTextReader.GetClanChecklistReadout(go);
+            if (clanReadout != null && !string.IsNullOrEmpty(clanReadout.Summary))
             {
-                return text;
+                _lastFocusDetails = clanReadout.Details;
+                _lastFocusFullText = clanReadout.FullText;
+                return clanReadout.Summary;
             }
 
             // 2.93. Check for subclan victory items in compendium checklist
@@ -1394,6 +1397,21 @@ namespace MonsterTrainAccessibility.Screens
 
             // 2.95. Check for compendium sort/filter buttons
             text = CompendiumTextReader.GetCompendiumSortButtonText(go);
+            if (!string.IsNullOrEmpty(text))
+            {
+                return text;
+            }
+
+            // 2.96. Check for leaderboard pagination buttons
+            text = CompendiumTextReader.GetPaginationButtonText(go);
+            if (!string.IsNullOrEmpty(text))
+            {
+                return text;
+            }
+
+            // 2.97. Compendium tooltip fallback (win streaks, covenant rank
+            // meter, challenge progress, card mastery meters)
+            text = CompendiumTextReader.GetCompendiumTooltipText(go);
             if (!string.IsNullOrEmpty(text))
             {
                 return text;
@@ -1985,6 +2003,19 @@ namespace MonsterTrainAccessibility.Screens
         {
             try
             {
+                // The logbook's Checklist and Statistics sections get a
+                // structured meta progression summary instead of the raw dump
+                if (Help.ScreenStateTracker.CurrentScreen == Help.GameScreen.Compendium)
+                {
+                    string summary = MetaProgressReader.BuildCompendiumSummary();
+                    if (!string.IsNullOrEmpty(summary))
+                    {
+                        MonsterTrainAccessibility.ScreenReader?.Speak(
+                            TextUtilities.CleanSpriteTagsForSpeech(summary), false);
+                        return;
+                    }
+                }
+
                 var collectedTexts = new HashSet<string>();
                 var sb = new StringBuilder();
 

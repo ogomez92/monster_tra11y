@@ -1,3 +1,4 @@
+using MonsterTrainAccessibility.Core.Buffers;
 using MonsterTrainAccessibility.Utilities;
 using System.Collections.Generic;
 using System.Linq;
@@ -385,19 +386,11 @@ namespace MonsterTrainAccessibility.Screens
                         if (component == null) continue;
                         if (component.GetType().Name == "UpgradeTreeUI")
                         {
-                            // Get titleLabel field
+                            // Get titleLabel field (rendered text)
                             var titleField = component.GetType().GetField("titleLabel", BindingFlags.NonPublic | BindingFlags.Instance);
                             if (titleField != null)
                             {
-                                var titleLabel = titleField.GetValue(component);
-                                if (titleLabel != null)
-                                {
-                                    var textProp = titleLabel.GetType().GetProperty("text", BindingFlags.Public | BindingFlags.Instance);
-                                    if (textProp != null)
-                                    {
-                                        treeTitle = textProp.GetValue(titleLabel) as string;
-                                    }
-                                }
+                                treeTitle = UITextHelper.GetRenderedTMPLabelText(titleField.GetValue(component));
                             }
                             break;
                         }
@@ -492,6 +485,7 @@ namespace MonsterTrainAccessibility.Screens
                 string rank = null;
                 string playerName = null;
                 string value = null;
+                bool isCurrentPlayer = false;
 
                 var playerStatsProp = rowType.GetProperty("playerStats", BindingFlags.Public | BindingFlags.Instance);
                 if (playerStatsProp != null)
@@ -515,6 +509,16 @@ namespace MonsterTrainAccessibility.Screens
                         {
                             playerName = nameProp.GetValue(playerStats) as string;
                         }
+
+                        // Mark the player's own row
+                        var idProp = statsType.GetProperty("PlayerId", BindingFlags.Public | BindingFlags.Instance);
+                        string rowPlayerId = idProp?.GetValue(playerStats) as string;
+                        if (!string.IsNullOrEmpty(rowPlayerId))
+                        {
+                            var saveManager = ReflectionHelper.FindManager("SaveManager");
+                            var idMethod = saveManager?.GetType().GetMethod("GetAnalyticsUserId", Type.EmptyTypes);
+                            isCurrentPlayer = idMethod?.Invoke(saveManager, null) as string == rowPlayerId;
+                        }
                     }
                     else
                     {
@@ -523,16 +527,13 @@ namespace MonsterTrainAccessibility.Screens
                     }
                 }
 
-                // Read the displayed value from the TMP label (it's formatted by the game with the correct stat)
+                // Read the displayed value from the TMP label (it's formatted by
+                // the game with the correct stat). Must use the rendered text -
+                // the .text property still holds the prefab placeholder.
                 var valueField = rowType.GetField("valueLabel", BindingFlags.NonPublic | BindingFlags.Instance);
                 if (valueField != null)
                 {
-                    var valueLabel = valueField.GetValue(playerStatRow);
-                    if (valueLabel != null)
-                    {
-                        var textProp = valueLabel.GetType().GetProperty("text", BindingFlags.Public | BindingFlags.Instance);
-                        if (textProp != null) value = textProp.GetValue(valueLabel) as string;
-                    }
+                    value = UITextHelper.GetRenderedTMPLabelText(valueField.GetValue(playerStatRow));
                 }
 
                 if (string.IsNullOrEmpty(playerName) && string.IsNullOrEmpty(rank))
@@ -547,6 +548,10 @@ namespace MonsterTrainAccessibility.Screens
                 {
                     if (sb.Length > 0) sb.Append(", ");
                     sb.Append(playerName);
+                }
+                if (isCurrentPlayer)
+                {
+                    sb.Append(", you");
                 }
                 if (!string.IsNullOrEmpty(value))
                 {
@@ -596,22 +601,14 @@ namespace MonsterTrainAccessibility.Screens
                 var sectionType = checklistSection.GetType();
                 var sb = new StringBuilder();
 
-                // Get clan name
+                // Get clan name (rendered text - .text may hold the prefab placeholder)
                 var clanNameField = sectionType.GetField("clanNameLabel", BindingFlags.NonPublic | BindingFlags.Instance);
                 if (clanNameField != null)
                 {
-                    var clanNameLabel = clanNameField.GetValue(checklistSection);
-                    if (clanNameLabel != null)
+                    string clanName = UITextHelper.GetRenderedTMPLabelText(clanNameField.GetValue(checklistSection));
+                    if (!string.IsNullOrEmpty(clanName))
                     {
-                        var textProp = clanNameLabel.GetType().GetProperty("text", BindingFlags.Public | BindingFlags.Instance);
-                        if (textProp != null)
-                        {
-                            string clanName = textProp.GetValue(clanNameLabel) as string;
-                            if (!string.IsNullOrEmpty(clanName))
-                            {
-                                sb.Append(clanName);
-                            }
-                        }
+                        sb.Append(clanName);
                     }
                 }
 
@@ -622,50 +619,31 @@ namespace MonsterTrainAccessibility.Screens
                     var unlockRoot = unlockRootField.GetValue(checklistSection) as GameObject;
                     if (unlockRoot != null && unlockRoot.activeSelf)
                     {
-                        // Get unlock condition label
+                        // Get unlock condition label (rendered text)
                         var condLabelField = sectionType.GetField("unlockConditionsLabel", BindingFlags.NonPublic | BindingFlags.Instance);
                         if (condLabelField != null)
                         {
-                            var condLabel = condLabelField.GetValue(checklistSection);
-                            if (condLabel != null)
+                            string condText = UITextHelper.GetRenderedTMPLabelText(condLabelField.GetValue(checklistSection));
+                            if (!string.IsNullOrEmpty(condText))
                             {
-                                var textProp = condLabel.GetType().GetProperty("text", BindingFlags.Public | BindingFlags.Instance);
-                                if (textProp != null)
-                                {
-                                    string condText = textProp.GetValue(condLabel) as string;
-                                    if (!string.IsNullOrEmpty(condText))
-                                    {
-                                        if (sb.Length > 0) sb.Append(". ");
-                                        sb.Append(condText);
-                                    }
-                                }
+                                if (sb.Length > 0) sb.Append(". ");
+                                sb.Append(condText);
                             }
                         }
 
                         // Get meter value from unlockConditionsMeter.countLabel
+                        // (set via SetTextSafe - must read the rendered text)
                         var meterField = sectionType.GetField("unlockConditionsMeter", BindingFlags.NonPublic | BindingFlags.Instance);
                         if (meterField != null)
                         {
                             var meter = meterField.GetValue(checklistSection);
                             if (meter != null)
                             {
-                                var meterType = meter.GetType();
-                                var countLabelField = meterType.GetField("countLabel", BindingFlags.NonPublic | BindingFlags.Instance);
-                                if (countLabelField != null)
+                                var countLabelField = meter.GetType().GetField("countLabel", BindingFlags.NonPublic | BindingFlags.Instance);
+                                string meterText = UITextHelper.GetRenderedTMPLabelText(countLabelField?.GetValue(meter));
+                                if (!string.IsNullOrEmpty(meterText))
                                 {
-                                    var countLabel = countLabelField.GetValue(meter);
-                                    if (countLabel != null)
-                                    {
-                                        var textProp = countLabel.GetType().GetProperty("text", BindingFlags.Public | BindingFlags.Instance);
-                                        if (textProp != null)
-                                        {
-                                            string meterText = textProp.GetValue(countLabel) as string;
-                                            if (!string.IsNullOrEmpty(meterText))
-                                            {
-                                                sb.Append($" {meterText}");
-                                            }
-                                        }
-                                    }
+                                    sb.Append($" {meterText}");
                                 }
                             }
                         }
@@ -741,6 +719,54 @@ namespace MonsterTrainAccessibility.Screens
             catch (Exception ex)
             {
                 MonsterTrainAccessibility.LogError($"Error getting clan checklist text: {ex.Message}");
+            }
+            return null;
+        }
+
+
+        /// <summary>
+        /// Focus readout for clan rows in the logbook checklist: the concise
+        /// label/level is announced, while the full progression (XP, champion
+        /// unlocks, allied clan victories, card collection) goes to the UI
+        /// buffer for Ctrl+arrow review and the C key.
+        /// </summary>
+        internal static FocusReadout GetClanChecklistReadout(GameObject go)
+        {
+            try
+            {
+                var checklistSection = FindComponentInParents(go, "ClanChecklistSection");
+                if (checklistSection == null)
+                    return null;
+
+                string summary = GetClanChecklistText(go);
+                if (string.IsNullOrEmpty(summary))
+                    return null;
+
+                var readout = new FocusReadout { Summary = summary, FullText = summary };
+
+                // Detail lines come from save data for the row's clan
+                var classDataField = checklistSection.GetType().GetField("classData",
+                    BindingFlags.NonPublic | BindingFlags.Instance);
+                var includeDlcField = checklistSection.GetType().GetField("includeDlcContent",
+                    BindingFlags.NonPublic | BindingFlags.Instance);
+                var classData = classDataField?.GetValue(checklistSection);
+                bool includeDlc = includeDlcField != null && includeDlcField.GetValue(checklistSection) is bool b && b;
+
+                if (classData != null)
+                {
+                    var details = MetaProgressReader.BuildClanDetails(classData, includeDlc);
+                    if (details.Count > 0)
+                    {
+                        readout.Details = details;
+                        readout.FullText = $"{summary}. {string.Join(" ", details)}";
+                    }
+                }
+
+                return readout;
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting clan checklist readout: {ex.Message}");
             }
             return null;
         }
@@ -935,30 +961,14 @@ namespace MonsterTrainAccessibility.Screens
                     return null;
 
                 var rowType = runStatRow.GetType();
-                string statName = null;
-                string statValue = null;
 
+                // Rendered text, not .text - these labels are set via SetTextSafe
+                // and .text keeps the prefab placeholder
                 var nameField = rowType.GetField("statNameLabel", BindingFlags.NonPublic | BindingFlags.Instance);
-                if (nameField != null)
-                {
-                    var label = nameField.GetValue(runStatRow);
-                    if (label != null)
-                    {
-                        var textProp = label.GetType().GetProperty("text", BindingFlags.Public | BindingFlags.Instance);
-                        if (textProp != null) statName = textProp.GetValue(label) as string;
-                    }
-                }
+                string statName = UITextHelper.GetRenderedTMPLabelText(nameField?.GetValue(runStatRow));
 
                 var valueField = rowType.GetField("statValueLabel", BindingFlags.NonPublic | BindingFlags.Instance);
-                if (valueField != null)
-                {
-                    var label = valueField.GetValue(runStatRow);
-                    if (label != null)
-                    {
-                        var textProp = label.GetType().GetProperty("text", BindingFlags.Public | BindingFlags.Instance);
-                        if (textProp != null) statValue = textProp.GetValue(label) as string;
-                    }
-                }
+                string statValue = UITextHelper.GetRenderedTMPLabelText(valueField?.GetValue(runStatRow));
 
                 if (string.IsNullOrEmpty(statName))
                     return null;
@@ -1012,24 +1022,17 @@ namespace MonsterTrainAccessibility.Screens
                 if (filterOptionButton != null)
                 {
                     var filterType = filterOptionButton.GetType();
+                    string selectedSuffix = IsFilterOptionSelected(filterOptionButton, filterType) ? ", selected" : "";
 
-                    // Try label TMP_Text field first
+                    // Try label TMP_Text field first (rendered text)
                     var labelField = filterType.GetField("label", BindingFlags.NonPublic | BindingFlags.Instance);
                     if (labelField != null)
                     {
-                        var label = labelField.GetValue(filterOptionButton);
-                        if (label != null)
+                        string labelText = UITextHelper.GetRenderedTMPLabelText(labelField.GetValue(filterOptionButton));
+                        if (!string.IsNullOrEmpty(labelText) && labelText != "?" && !DialogTextReader.IsGarbageText(labelText))
                         {
-                            var textProp = label.GetType().GetProperty("text", BindingFlags.Public | BindingFlags.Instance);
-                            if (textProp != null)
-                            {
-                                string labelText = textProp.GetValue(label) as string;
-                                if (!string.IsNullOrEmpty(labelText) && labelText != "?" && !DialogTextReader.IsGarbageText(labelText))
-                                {
-                                    MonsterTrainAccessibility.LogInfo($"FilterOptionButton label: {labelText}");
-                                    return labelText.Trim();
-                                }
-                            }
+                            MonsterTrainAccessibility.LogInfo($"FilterOptionButton label: {labelText}");
+                            return labelText + selectedSuffix;
                         }
                     }
 
@@ -1056,7 +1059,7 @@ namespace MonsterTrainAccessibility.Screens
                                         if (!string.IsNullOrEmpty(title))
                                         {
                                             MonsterTrainAccessibility.LogInfo($"FilterOptionButton tooltip: {title}");
-                                            return title.Trim();
+                                            return title.Trim() + selectedSuffix;
                                         }
                                     }
                                 }
@@ -1069,21 +1072,21 @@ namespace MonsterTrainAccessibility.Screens
                 string goName = go.name;
                 if (goName.ToLower().Contains("button"))
                 {
-                    // Look for TMP text in children
+                    // Sort tabs (Covenant Rank/Score/Wins/Win Streak) report
+                    // Activated state on their GameUISelectableButton
+                    string activeSuffix = IsSelectableButtonActivated(go) ? ", active" : "";
+
+                    // Look for TMP text in children (rendered text)
                     foreach (var component in go.GetComponentsInChildren<Component>())
                     {
                         if (component == null) continue;
                         string typeName = component.GetType().Name;
                         if (typeName == "TextMeshProUGUI" || typeName == "ExtendedTextMeshProUGUI" || typeName == "TextMeshPro")
                         {
-                            var textProp = component.GetType().GetProperty("text", BindingFlags.Public | BindingFlags.Instance);
-                            if (textProp != null)
+                            string text = UITextHelper.GetRenderedTMPLabelText(component);
+                            if (!string.IsNullOrEmpty(text) && !DialogTextReader.IsGarbageText(text))
                             {
-                                string text = textProp.GetValue(component) as string;
-                                if (!string.IsNullOrEmpty(text) && text.Trim().Length > 0 && !DialogTextReader.IsGarbageText(text))
-                                {
-                                    return text.Trim();
-                                }
+                                return text + activeSuffix;
                             }
                         }
                     }
@@ -1092,13 +1095,249 @@ namespace MonsterTrainAccessibility.Screens
                     string cleanName = UITextHelper.CleanGameObjectName(goName);
                     if (!string.IsNullOrEmpty(cleanName) && cleanName.Length > 1)
                     {
-                        return cleanName;
+                        return cleanName + activeSuffix;
                     }
                 }
             }
             catch (Exception ex)
             {
                 MonsterTrainAccessibility.LogError($"Error getting compendium sort button text: {ex.Message}");
+            }
+            return null;
+        }
+
+
+        /// <summary>
+        /// Get text for the leaderboard pagination buttons (first/previous/
+        /// next/last page and jump-to-your-rank), with the current page
+        /// position appended.
+        /// </summary>
+        internal static string GetPaginationButtonText(GameObject go)
+        {
+            try
+            {
+                if (!IsInCompendiumContext(go))
+                    return null;
+
+                var pagination = FindComponentInParents(go, "PaginationControls");
+                if (pagination == null)
+                    return null;
+
+                var paginationType = pagination.GetType();
+
+                // Identify which serialized button the focused selectable is
+                string label = null;
+                var buttonNames = new Dictionary<string, string>
+                {
+                    { "firstButton", "First page" },
+                    { "prevButton", "Previous page" },
+                    { "nextButton", "Next page" },
+                    { "lastButton", "Last page" },
+                    { "focusPlayerButton", "Jump to your rank" },
+                };
+                foreach (var entry in buttonNames)
+                {
+                    var field = paginationType.GetField(entry.Key, BindingFlags.NonPublic | BindingFlags.Instance);
+                    var button = field?.GetValue(pagination) as Component;
+                    if (button == null) continue;
+                    if (go.transform == button.transform || go.transform.IsChildOf(button.transform))
+                    {
+                        label = entry.Value;
+                        break;
+                    }
+                }
+
+                if (label == null)
+                    return null;
+
+                // Append the page label ("Page 1 of 3") when populated.
+                // Rendered text - .text keeps the prefab placeholder.
+                var pageLabelField = paginationType.GetField("pageLabel", BindingFlags.NonPublic | BindingFlags.Instance);
+                string pageText = UITextHelper.GetRenderedTMPLabelText(pageLabelField?.GetValue(pagination));
+                if (!string.IsNullOrEmpty(pageText) && !DialogTextReader.IsGarbageText(pageText))
+                    label = $"{label}. {TextUtilities.StripRichTextTags(pageText)}";
+
+                MonsterTrainAccessibility.LogInfo($"PaginationControls button: {label}");
+                return label;
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting pagination button text: {ex.Message}");
+            }
+            return null;
+        }
+
+
+        /// <summary>
+        /// Compendium fallback for tooltip-driven widgets (win streaks,
+        /// covenant rank meter, challenge progress, card mastery meters):
+        /// read every tooltip on the nearest enabled TooltipProviderComponent.
+        /// </summary>
+        internal static string GetCompendiumTooltipText(GameObject go)
+        {
+            try
+            {
+                if (!IsInCompendiumContext(go))
+                    return null;
+
+                // Self and ancestors first; then direct children (serialized
+                // tooltip providers often live on a child of the selectable)
+                Component provider = FindTooltipProvider(go.transform);
+                if (provider == null)
+                {
+                    foreach (Transform child in go.transform)
+                    {
+                        provider = FindTooltipProvider(child, searchParents: false);
+                        if (provider != null) break;
+                    }
+                }
+
+                if (provider == null)
+                    return null;
+
+                string text = ReadAllTooltips(provider);
+                if (!string.IsNullOrEmpty(text))
+                {
+                    MonsterTrainAccessibility.LogInfo($"Compendium tooltip text: {text}");
+                    return text;
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting compendium tooltip text: {ex.Message}");
+            }
+            return null;
+        }
+
+
+        /// <summary>
+        /// Find an enabled TooltipProviderComponent with content on the given
+        /// transform (and optionally its ancestors).
+        /// </summary>
+        private static Component FindTooltipProvider(Transform start, bool searchParents = true)
+        {
+            Transform current = start;
+            while (current != null)
+            {
+                foreach (var component in current.GetComponents<Component>())
+                {
+                    if (component == null) continue;
+                    if (component.GetType().Name != "TooltipProviderComponent") continue;
+                    // Disabled providers keep stale text - skip them
+                    if (component is Behaviour behaviour && !behaviour.enabled) continue;
+                    return component;
+                }
+                if (!searchParents) break;
+                current = current.parent;
+            }
+            return null;
+        }
+
+
+        /// <summary>
+        /// Read every tooltip (title and body) from a tooltip provider.
+        /// </summary>
+        private static string ReadAllTooltips(Component provider)
+        {
+            var providerType = provider.GetType();
+            var tooltipsProp = providerType.GetProperty("tooltips", BindingFlags.Public | BindingFlags.Instance);
+            var tooltipsList = tooltipsProp?.GetValue(provider) as System.Collections.IList;
+            if (tooltipsList == null || tooltipsList.Count == 0)
+            {
+                var tooltipsField = providerType.GetField("_tooltips",
+                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                tooltipsList = tooltipsField?.GetValue(provider) as System.Collections.IList;
+            }
+            if (tooltipsList == null || tooltipsList.Count == 0)
+                return null;
+
+            var sb = new StringBuilder();
+            foreach (var tooltip in tooltipsList)
+            {
+                if (tooltip == null) continue;
+                var tooltipType = tooltip.GetType();
+
+                string title = GetTooltipMember(tooltip, tooltipType, "title");
+                string body = GetTooltipMember(tooltip, tooltipType, "body");
+
+                if (!string.IsNullOrEmpty(title))
+                {
+                    if (sb.Length > 0) sb.Append(" ");
+                    sb.Append(TextUtilities.StripRichTextTags(title).Trim());
+                    sb.Append(".");
+                }
+                if (!string.IsNullOrEmpty(body))
+                {
+                    if (sb.Length > 0) sb.Append(" ");
+                    sb.Append(TextUtilities.StripRichTextTags(body).Trim());
+                    if (!body.TrimEnd().EndsWith(".")) sb.Append(".");
+                }
+            }
+
+            return sb.Length > 0 ? sb.ToString() : null;
+        }
+
+
+        private static string GetTooltipMember(object tooltip, Type tooltipType, string name)
+        {
+            var field = tooltipType.GetField(name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            if (field?.GetValue(tooltip) is string fromField && !string.IsNullOrEmpty(fromField))
+                return fromField;
+            var prop = tooltipType.GetProperty(name, BindingFlags.Public | BindingFlags.Instance);
+            if (prop?.GetValue(tooltip) is string fromProp && !string.IsNullOrEmpty(fromProp))
+                return fromProp;
+            return null;
+        }
+
+
+        /// <summary>
+        /// A FilterOptionButton shows its selectedBase image when active.
+        /// </summary>
+        private static bool IsFilterOptionSelected(Component filterOptionButton, Type filterType)
+        {
+            try
+            {
+                var selectedBaseField = filterType.GetField("selectedBase", BindingFlags.NonPublic | BindingFlags.Instance);
+                var selectedBase = selectedBaseField?.GetValue(filterOptionButton) as Behaviour;
+                return selectedBase != null && selectedBase.enabled;
+            }
+            catch { return false; }
+        }
+
+
+        /// <summary>
+        /// Check whether the GameUISelectableButton on the object or an
+        /// ancestor reports the Activated state (used by the leaderboard
+        /// sort tabs to mark the active sort).
+        /// </summary>
+        private static bool IsSelectableButtonActivated(GameObject go)
+        {
+            try
+            {
+                var button = FindComponentInParents(go, "GameUISelectableButton");
+                if (button == null)
+                    return false;
+                var stateProp = button.GetType().GetProperty("state", BindingFlags.Public | BindingFlags.Instance);
+                return stateProp?.GetValue(button)?.ToString() == "Activated";
+            }
+            catch { return false; }
+        }
+
+
+        /// <summary>
+        /// Find a component by type name on the GameObject or any ancestor.
+        /// </summary>
+        private static Component FindComponentInParents(GameObject go, string typeName)
+        {
+            Transform current = go.transform;
+            while (current != null)
+            {
+                foreach (var component in current.GetComponents<Component>())
+                {
+                    if (component != null && component.GetType().Name == typeName)
+                        return component;
+                }
+                current = current.parent;
             }
             return null;
         }

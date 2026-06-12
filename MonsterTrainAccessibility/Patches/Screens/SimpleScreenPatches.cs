@@ -89,7 +89,11 @@ namespace MonsterTrainAccessibility.Patches
             try
             {
                 ScreenStateTracker.SetScreen(Help.GameScreen.Compendium);
-                MonsterTrainAccessibility.ScreenReader?.AnnounceScreen("Logbook. Use Page Up and Page Down to switch sections. Left and Right arrows to turn pages.");
+                MonsterTrainAccessibility.ScreenReader?.AnnounceScreen(
+                    "Logbook. Sections: Checklist, Cards, Champion Upgrades, Artifacts, Card Frames, and Statistics. " +
+                    "Press Page Down or Enter to open the first section, Page Up and Page Down to switch sections, " +
+                    "Left and Right arrows to turn pages, T to read a summary of the current section, " +
+                    "F1 for help, Escape to close.");
             }
             catch (Exception ex)
             {
@@ -145,6 +149,9 @@ namespace MonsterTrainAccessibility.Patches
                         string message = string.IsNullOrEmpty(pageInfo)
                             ? sectionName
                             : $"{sectionName}. {pageInfo}";
+                        string hint = SectionHint(section?.ToString());
+                        if (!string.IsNullOrEmpty(hint))
+                            message = $"{message}. {hint}";
                         MonsterTrainAccessibility.ScreenReader?.Speak(message, false);
                     }
                 }
@@ -168,6 +175,37 @@ namespace MonsterTrainAccessibility.Patches
                 case "Stats": return "Statistics";
                 default: return section;
             }
+        }
+
+        internal static string SectionHint(string section)
+        {
+            switch (section)
+            {
+                case "Checklist":
+                    string hint = "Your meta progression. Arrow keys move between clans and progress meters, " +
+                                  "T reads the full summary";
+                    if (IsHellforgedInstalled())
+                        hint += ", F switches to The Last Divinity page";
+                    return hint + ".";
+                case "Stats":
+                    return "Stats Leaderboard page. F switches between Stats Leaderboard and Personal Records, " +
+                           "T reads the visible entries.";
+                default:
+                    return null;
+            }
+        }
+
+        private static bool IsHellforgedInstalled()
+        {
+            try
+            {
+                var saveManager = global::MonsterTrainAccessibility.Utilities.ReflectionHelper.FindManager("SaveManager");
+                var dlcType = global::MonsterTrainAccessibility.Utilities.ReflectionHelper.FindType("DLC");
+                if (saveManager == null || dlcType == null) return false;
+                var method = saveManager.GetType().GetMethod("IsDlcInstalled", new[] { dlcType });
+                return method?.Invoke(saveManager, new[] { Enum.Parse(dlcType, "Hellforged") }) is bool b && b;
+            }
+            catch { return false; }
         }
 
         internal static string GetPageInfo(object screen, Type screenType)
@@ -265,6 +303,125 @@ namespace MonsterTrainAccessibility.Patches
             catch (Exception ex)
             {
                 MonsterTrainAccessibility.LogError($"Error in CompendiumSection.TurnPage patch: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Announce switching between the standard progress page and The Last
+    /// Divinity page in the logbook Checklist section (the F key / page button).
+    /// Patches CompendiumSectionChecklist.RefreshPage, which only runs when
+    /// the page actually changes.
+    /// </summary>
+    public static class ChecklistPageTogglePatch
+    {
+        public static void TryPatch(Harmony harmony)
+        {
+            try
+            {
+                var targetType = AccessTools.TypeByName("CompendiumSectionChecklist");
+                var method = targetType != null ? AccessTools.Method(targetType, "RefreshPage") : null;
+                if (method != null)
+                {
+                    var postfix = new HarmonyMethod(typeof(ChecklistPageTogglePatch).GetMethod(nameof(Postfix)));
+                    harmony.Patch(method, postfix: postfix);
+                    MonsterTrainAccessibility.LogInfo("Patched CompendiumSectionChecklist.RefreshPage");
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Failed to patch CompendiumSectionChecklist.RefreshPage: {ex.Message}");
+            }
+        }
+
+        public static void Postfix(object __instance)
+        {
+            try
+            {
+                var type = __instance.GetType();
+
+                // Skip the initial page set during screen initialization: the
+                // compendium's currentSection is still NONE at that point
+                var screenField = AccessTools.Field(type, "compendiumScreen") ??
+                                  AccessTools.Field(type.BaseType, "compendiumScreen");
+                var compendiumScreen = screenField?.GetValue(__instance);
+                if (compendiumScreen == null)
+                    return;
+                var sectionField = compendiumScreen.GetType().GetField("currentSection",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                if (sectionField?.GetValue(compendiumScreen)?.ToString() != "Checklist")
+                    return;
+
+                var currentPage = AccessTools.Field(type, "currentPage")?.GetValue(__instance);
+                var hellforgedPage = AccessTools.Field(type, "hellforgedChecklistPage")?.GetValue(__instance);
+                bool isDlcPage = currentPage != null && ReferenceEquals(currentPage, hellforgedPage);
+                MonsterTrainAccessibility.ScreenReader?.Speak(
+                    isDlcPage ? "The Last Divinity progress page. T reads the full summary."
+                              : "Standard progress page. T reads the full summary.", false);
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in ChecklistPageToggle patch: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Announce switching between the Stats Leaderboard and Personal Records
+    /// pages in the logbook Statistics section (the F key / page buttons).
+    /// Patches CompendiumSectionStats.ChangePage, capturing the previous page
+    /// so only real changes are spoken.
+    /// </summary>
+    public static class StatsPageTogglePatch
+    {
+        public static void TryPatch(Harmony harmony)
+        {
+            try
+            {
+                var targetType = AccessTools.TypeByName("CompendiumSectionStats");
+                var method = targetType != null ? AccessTools.Method(targetType, "ChangePage") : null;
+                if (method != null)
+                {
+                    var prefix = new HarmonyMethod(typeof(StatsPageTogglePatch).GetMethod(nameof(Prefix)));
+                    var postfix = new HarmonyMethod(typeof(StatsPageTogglePatch).GetMethod(nameof(Postfix)));
+                    harmony.Patch(method, prefix: prefix, postfix: postfix);
+                    MonsterTrainAccessibility.LogInfo("Patched CompendiumSectionStats.ChangePage");
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Failed to patch CompendiumSectionStats.ChangePage: {ex.Message}");
+            }
+        }
+
+        public static void Prefix(object __instance, out object __state)
+        {
+            __state = null;
+            try
+            {
+                __state = AccessTools.Field(__instance.GetType(), "currentPage")?.GetValue(__instance);
+            }
+            catch { }
+        }
+
+        public static void Postfix(object __instance, object __state)
+        {
+            try
+            {
+                var type = __instance.GetType();
+                var currentPage = AccessTools.Field(type, "currentPage")?.GetValue(__instance);
+                if (currentPage == null || ReferenceEquals(currentPage, __state))
+                    return;
+
+                var runStatsPage = AccessTools.Field(type, "runStatsPage")?.GetValue(__instance);
+                bool isRecords = ReferenceEquals(currentPage, runStatsPage);
+                MonsterTrainAccessibility.ScreenReader?.Speak(
+                    isRecords ? "Personal Records page. T reads all records."
+                              : "Stats Leaderboard page. T reads the visible entries.", false);
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in StatsPageToggle patch: {ex.Message}");
             }
         }
     }

@@ -80,7 +80,8 @@ Each reader extracts text from a specific UI domain. Called from `MenuAccessibil
 | `BattleIntroTextReader` | Pre-battle boss info, run opening screen |
 | `MapTextReader` | Map nodes, branch choices |
 | `RelicTextReader` | RelicInfoUI for artifact selection |
-| `CompendiumTextReader` | Logbook items, relics grid, stats, clan checklists, sort buttons |
+| `CompendiumTextReader` | Logbook items, relics grid, stats, clan checklists (FocusReadout: level spoken, XP/champions/victories/cards to UI buffer), leaderboard rows ("you" marker), sort/filter buttons with active state, pagination buttons, tooltip fallback for meters |
+| `MetaProgressReader` | Logbook meta progression summaries from SaveManager state (not UI): T-key full summary for Checklist (covenant rank, win streaks, challenges, per-clan level/XP/champions/victories/collections, clanless and DLC extras) and Statistics (leaderboard rows or personal records); also feeds clan row focus details |
 | `SettingsTextReader` | Settings dropdowns, sliders, toggles |
 | `EventTextReader` | Story event elements, continue button, choices |
 | `DialogTextReader` | Dialog/popup text |
@@ -102,6 +103,8 @@ Each reader extracts text from a specific UI domain. Called from `MenuAccessibil
 All patches use manual patching via `TryPatch()` methods (no `[HarmonyPatch]` attributes). They use runtime reflection to find game methods. See `PATCH_TARGETS.md` for verified targets.
 
 **Screen patches** (`Patches/Screens/`): One file per screen. Each patches the screen's `Initialize`/`Setup`/`Show` method to call `ScreenStateTracker.SetScreen()` and announce the transition. ~20 screen patches.
+
+The logbook gets extra patches in `SimpleScreenPatches.cs`: `CompendiumSectionPatch` (section changes, with per-section key hints for Checklist/Statistics), `CompendiumPageTurnPatch` (page turns), `ChecklistPageTogglePatch` (postfix on `CompendiumSectionChecklist.RefreshPage`, which only runs on real page changes; skips the initial set by checking `currentSection` is still NONE during screen init), and `StatsPageTogglePatch` (prefix captures `currentPage` into `__state`, postfix announces Leaderboard vs Personal Records only when it changed).
 
 **Combat patches** (`Patches/Combat/`): Detect battle events and call `BattleAccessibility` methods.
 - `PlayerTurnPatches` - Turn start/end
@@ -128,13 +131,13 @@ All patches use manual patching via `TryPatch()` methods (no `[HarmonyPatch]` at
 
 ### Help System (`Help/`)
 
-Priority-based context-sensitive help. `HelpSystem` selects the highest-priority active `IHelpContext`. 18 contexts from `GlobalHelp` (priority 0) through `DialogHelp` (priority 110). Each context's `IsActive()` checks `ScreenStateTracker.CurrentScreen`.
+Priority-based context-sensitive help. `HelpSystem` selects the highest-priority active `IHelpContext`. 19 contexts from `GlobalHelp` (priority 0) through `DialogHelp` (priority 110). Each context's `IsActive()` checks `ScreenStateTracker.CurrentScreen`.
 
 F1 opens a **browsable help list** (MT2-style): the context's help text is split into entries (`TextUtilities.SplitIntoSpeechItems`), Up/Down read one entry at a time, and F1/Enter/Escape/Space close it. While `HelpSystem.IsBrowsing` is true, `InputInterceptor` routes all input to the browser, the targeting systems skip their input handling, and `InputSuppressionPatch` keeps arrows/Submit/Cancel away from the game.
 
 ### Entry Point
 
-`MonsterTrainAccessibility.cs` is the BepInEx plugin entry. `Awake()` initializes all systems, `ApplyPatches()` registers ~55 Harmony patches, `CreateHandlers()` creates persistent MonoBehaviour GameObjects, `RegisterHelpContexts()` registers all 18 help contexts.
+`MonsterTrainAccessibility.cs` is the BepInEx plugin entry. `Awake()` initializes all systems, `ApplyPatches()` registers ~57 Harmony patches, `CreateHandlers()` creates persistent MonoBehaviour GameObjects, `RegisterHelpContexts()` registers all 19 help contexts.
 
 ## Text Extraction Chain
 
@@ -162,7 +165,7 @@ To fix text extraction for a new UI element, add a reader method and insert it a
 |-----|--------|
 | F1 | Browsable help list for the current screen (Up/Down read entries; F1/Enter/Escape/Space close) |
 | C | Re-read current focused item (cards/shop items/artifacts: reads the FullText details, not the concise summary) |
-| T | Read all text on screen |
+| T | Read all text on screen (on the logbook Checklist/Statistics sections: structured meta progression summary via `MetaProgressReader` instead of the raw dump) |
 | Tab | Read train stats (pyre health, gold, deck size) |
 | V | Cycle verbosity level |
 | Ctrl+G | Read gold |
@@ -371,6 +374,7 @@ Keywords from the game's localization are loaded automatically; only add to fall
 - **Preview mode phantom events**: The game simulates damage during floor targeting. Check `FloorTargetingSystem.IsTargeting` or `PreviewMode` before announcing combat events.
 - **Game state changes silently**: The game can change the selected room/floor through many mechanisms (card play resolution, combat phase transitions, `SelectCardInternal(reselect: true)`). Don't rely solely on key detection — poll game state to catch all changes. See `FloorTargetingSystem.PollGameFloor()`.
 - **Tooltip text persists when disabled**: `TooltipProviderComponent` retains its text even when `enabled = false`. Check the `enabled` property before using tooltip text.
+- **TMP `.text` returns prefab placeholders**: The game's `SetTextSafe` extension calls `TMP_Text.SetText()`, which updates the rendered char buffer but NOT the `text` property — reading `.text` returns the prefab's design-time placeholder (e.g. leaderboard values reading "12345" while the screen shows "0"). Use `UITextHelper.GetRenderedTMPLabelText()` (tries `GetParsedText()`, falls back to `.text`) for any label the game fills at runtime.
 - **Game names are confusing**: `Team.Type.Heroes` = enemies, `Team.Type.Monsters` = player's units.
 
 ## Key Integration Points

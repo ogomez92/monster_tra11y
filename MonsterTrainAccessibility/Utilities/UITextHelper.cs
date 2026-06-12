@@ -70,6 +70,43 @@ namespace MonsterTrainAccessibility.Utilities
         }
 
         /// <summary>
+        /// Get the rendered text from a TMP label obtained via reflection.
+        /// The game's SetTextSafe extension uses TMP_Text.SetText(), which
+        /// updates the rendered char buffer but NOT the text property - so
+        /// reading .text returns the prefab's placeholder (e.g. "12345").
+        /// GetParsedText() returns what is actually on screen; .text is the
+        /// fallback for labels that haven't been rendered yet.
+        /// </summary>
+        public static string GetRenderedTMPLabelText(object tmpLabel)
+        {
+            if (tmpLabel == null) return null;
+            var type = tmpLabel.GetType();
+
+            try
+            {
+                var getParsed = type.GetMethod("GetParsedText", Type.EmptyTypes);
+                if (getParsed != null)
+                {
+                    string parsed = getParsed.Invoke(tmpLabel, null) as string;
+                    if (!string.IsNullOrWhiteSpace(parsed))
+                        return parsed.Trim();
+                }
+            }
+            catch { }
+
+            try
+            {
+                var textProp = type.GetProperty("text");
+                string text = textProp?.GetValue(tmpLabel) as string;
+                if (!string.IsNullOrWhiteSpace(text))
+                    return text.Trim();
+            }
+            catch { }
+
+            return null;
+        }
+
+        /// <summary>
         /// Clean up GameObject name to be more readable (removes Clone, Button suffixes, adds spaces).
         /// </summary>
         public static string CleanGameObjectName(string name)
