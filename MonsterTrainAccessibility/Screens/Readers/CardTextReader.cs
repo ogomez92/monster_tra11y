@@ -701,7 +701,10 @@ namespace MonsterTrainAccessibility.Screens
                 // Pass the description we already have to avoid re-fetching
                 var keywords = GetCardKeywordTooltipList(cardState, cardData, description);
 
-                // Full text: header. description. stats. Keywords: ...
+                // Lore (flavor text) when the game's Lore Tooltips setting is on
+                string lore = Utilities.LoreHelper.GetLore(cardState);
+
+                // Full text: header. description. stats. Keywords: ... Lore: ...
                 var full = new StringBuilder(header.ToString());
                 if (!string.IsNullOrEmpty(description))
                     full.Append($". {description}");
@@ -709,6 +712,8 @@ namespace MonsterTrainAccessibility.Screens
                     full.Append($". {statsText}");
                 if (keywords.Count > 0)
                     full.Append($". Keywords: {string.Join(". ", keywords)}");
+                if (!string.IsNullOrEmpty(lore))
+                    full.Append($". Lore: {lore}");
 
                 // Summary announced on focus: [Upgraded] Name, cost, unit stats
                 var summary = new StringBuilder();
@@ -730,6 +735,8 @@ namespace MonsterTrainAccessibility.Screens
                 if (!string.IsNullOrEmpty(statsText))
                     readout.Details.Add(statsText);
                 readout.Details.AddRange(keywords);
+                if (!string.IsNullOrEmpty(lore))
+                    readout.Details.Add($"Lore: {lore}");
 
                 MonsterTrainAccessibility.LogInfo($"FormatCardDetails result: {readout.FullText}");
                 return readout;

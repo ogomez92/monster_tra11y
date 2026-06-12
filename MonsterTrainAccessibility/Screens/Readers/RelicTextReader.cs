@@ -320,6 +320,13 @@ namespace MonsterTrainAccessibility.Screens
                     }
                 }
 
+                string lore = Utilities.LoreHelper.GetLore(relicData);
+                if (!string.IsNullOrEmpty(lore))
+                {
+                    if (sb.Length > 0) sb.Append(". ");
+                    sb.Append($"Lore: {lore}");
+                }
+
                 return sb.Length > 0 ? sb.ToString() : null;
             }
             catch (Exception ex)

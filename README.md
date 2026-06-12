@@ -111,6 +111,8 @@ Available buffers:
 - **Units** (battle only): One detailed item per unit on the train, floor by floor.
 - **Resources** (battle only): Ember, gold, pyre health, cards in hand, and DLC info as separate items.
 
+When the game's **Lore Tooltips** setting is enabled (game settings), the flavor text the game shows for cards, units, and artifacts is included as a final "Lore:" item in the Card, Creature, and Artifact details.
+
 Only buffers that currently have relevant information are available; the others are skipped when cycling. While Ctrl is held, the arrow keys never move the game's real selection, so reviewing is always safe. The buffer position is remembered per buffer while you switch around, and resets when the underlying content changes.
 
 ### Map Browsing (Ctrl + Arrow Keys on the Map)

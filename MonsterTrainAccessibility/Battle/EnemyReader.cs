@@ -205,6 +205,16 @@ namespace MonsterTrainAccessibility.Screens
                     sb.Append($". Intent: {intent}");
                 }
 
+                // Lore lives in buffer content only, like keyword explanations
+                if (includeKeywords)
+                {
+                    string lore = Utilities.LoreHelper.GetLore(unit);
+                    if (!string.IsNullOrEmpty(lore))
+                    {
+                        sb.Append($". Lore: {lore}");
+                    }
+                }
+
                 return sb.ToString();
             }
             catch (Exception ex)
