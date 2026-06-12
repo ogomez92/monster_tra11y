@@ -305,12 +305,14 @@ namespace MonsterTrainAccessibility.Screens
                             announceVisited: !futureRing,
                             announceAvailable: currentRing));
                 }
+                // Hellforged pact nodes (Divine Hoard/Temple/Boon) are pulled
+                // out of whichever branch list they live in by the game's
+                // MapSection.ExtractPactMapNodeData and shown on dedicated
+                // no-branch slots - reachable from either path
                 foreach (var (data, location) in left)
                 {
                     if (sharedData.Contains(data))
                         continue;
-                    // Hellforged pact nodes only live in branch 0's data but the
-                    // game presents them as reachable from either path
                     bool eitherPath = branches <= 1 || IsHellforgedNode(data);
                     string label = branches <= 1 ? null : (eitherPath ? "both paths" : "left path");
                     _ringNodes.Add(DescribeNode(saveManager, data, location, label,
@@ -319,10 +321,12 @@ namespace MonsterTrainAccessibility.Screens
                 }
                 foreach (var (data, location) in right)
                 {
-                    if (!sharedData.Contains(data))
-                        _ringNodes.Add(DescribeNode(saveManager, data, location, "right path",
-                            announceVisited: !futureRing,
-                            announceAvailable: currentRing && chosen != 0));
+                    if (sharedData.Contains(data))
+                        continue;
+                    bool eitherPath = IsHellforgedNode(data);
+                    _ringNodes.Add(DescribeNode(saveManager, data, location, eitherPath ? "both paths" : "right path",
+                        announceVisited: !futureRing,
+                        announceAvailable: currentRing && (eitherPath || chosen != 0)));
                 }
             }
             catch (Exception ex)
