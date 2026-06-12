@@ -279,6 +279,11 @@ namespace MonsterTrainAccessibility.Screens
                 bool futureRing = _cursorDistance > currentDistance;
                 bool currentRing = _cursorDistance == currentDistance;
 
+                // Prefer the nodes the game actually placed on the map section -
+                // its slot caps and pact-node extraction applied - over raw run data
+                if (TryBuildRingFromMapUI(saveManager, branches, currentRing, futureRing, chosen))
+                    return;
+
                 var left = GetNodesForBranch(saveManager, _cursorDistance, 0);
                 var right = branches > 1
                     ? GetNodesForBranch(saveManager, _cursorDistance, 1)
@@ -332,6 +337,103 @@ namespace MonsterTrainAccessibility.Screens
             catch (Exception ex)
             {
                 MonsterTrainAccessibility.LogError($"Error building map ring: {ex.Message}");
+            }
+        }
+
+        private static Type _mapSectionType;
+        private static FieldInfo _mapSectionDistanceField;
+        private static FieldInfo _mapSectionNodesByBranchField;
+        private static FieldInfo _mapNodeUIDataField;
+        private static FieldInfo _mapNodeUILocationField;
+
+        /// <summary>
+        /// Build the ring from the live map UI: MapSection.mapNodesByBranch
+        /// holds exactly the nodes the game placed (UI slot caps applied,
+        /// Hellforged pact nodes already extracted to the no-branch group),
+        /// so the review lists what a sighted player actually sees. Returns
+        /// false when this ring's section isn't loaded - the raw run data
+        /// path is the fallback.
+        /// </summary>
+        private bool TryBuildRingFromMapUI(object saveManager, int branches, bool currentRing, bool futureRing, int chosen)
+        {
+            try
+            {
+                if (_mapSectionType == null)
+                {
+                    _mapSectionType = ReflectionHelper.FindType("MapSection");
+                    var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+                    _mapSectionDistanceField = _mapSectionType?.GetField("mapDistance", flags);
+                    _mapSectionNodesByBranchField = _mapSectionType?.GetField("mapNodesByBranch", flags);
+                }
+                if (_mapSectionDistanceField == null || _mapSectionNodesByBranchField == null)
+                    return false;
+
+                object section = null;
+                foreach (var candidate in UnityEngine.Object.FindObjectsOfType(_mapSectionType))
+                {
+                    if (_mapSectionDistanceField.GetValue(candidate) is int d && d == _cursorDistance)
+                    {
+                        section = candidate;
+                        break;
+                    }
+                }
+                if (section == null)
+                    return false;
+
+                if (!(_mapSectionNodesByBranchField.GetValue(section) is IDictionary nodesByBranch))
+                    return false;
+
+                // MapScreen.BranchSelection: NoBranch = -1 (shared and pact
+                // nodes, reachable from either path), Left = 0, Right = 1
+                var groups = new List<(int branch, IList nodes)>();
+                foreach (DictionaryEntry entry in nodesByBranch)
+                {
+                    if (entry.Value is IList nodes && nodes.Count > 0)
+                        groups.Add((Convert.ToInt32(entry.Key), nodes));
+                }
+                groups.Sort((a, b) => a.branch.CompareTo(b.branch));
+
+                foreach (var (branch, nodes) in groups)
+                {
+                    string label = branch switch
+                    {
+                        0 => branches > 1 ? "left path" : null,
+                        1 => "right path",
+                        _ => branches > 1 ? "both paths" : null
+                    };
+                    bool available = currentRing && branch switch
+                    {
+                        0 => chosen != 1,
+                        1 => chosen != 0,
+                        _ => true
+                    };
+
+                    foreach (var nodeUI in nodes)
+                    {
+                        if (nodeUI == null)
+                            continue;
+                        if (_mapNodeUIDataField == null || _mapNodeUILocationField == null)
+                        {
+                            var uiType = nodeUI.GetType();
+                            var uiFlags = BindingFlags.Instance | BindingFlags.NonPublic;
+                            _mapNodeUIDataField = uiType.GetField("data", uiFlags);
+                            _mapNodeUILocationField = uiType.GetField("location", uiFlags);
+                        }
+                        var data = _mapNodeUIDataField?.GetValue(nodeUI);
+                        var location = _mapNodeUILocationField?.GetValue(nodeUI);
+                        if (data == null || location == null)
+                            continue;
+                        _ringNodes.Add(DescribeNode(saveManager, data, location, label,
+                            announceVisited: !futureRing,
+                            announceAvailable: available));
+                    }
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogInfo($"Map UI read failed, using run data: {ex.Message}");
+                return false;
             }
         }
 
