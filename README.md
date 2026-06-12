@@ -63,6 +63,10 @@ A comprehensive accessibility mod for Monster Train that enables totally blind p
 | Space | Alternate select key |
 | Escape | Go back / Cancel |
 
+### Main Menu: The Last Divinity Toggle
+
+If you own The Last Divinity DLC, the main menu has a toggle that enables or disables it for your next run. From the menu options, press the **Right arrow**, then **Up**, to reach the toggle. Press **Enter** to switch it - the toggle announces whether the DLC is on or off. Press the **Left arrow** to return to the menu options.
+
 ### Information Hotkeys
 | Key | Action |
 |-----|--------|
