@@ -140,11 +140,29 @@ The mod automatically reads text when:
 | Shift + K or L | Read all floors |
 | U | Read all units with detail (U for Units) - your monsters front-to-back, then enemies |
 | R | Read current ember |
+| Up arrow | Open floor review - a cursor to walk the floors and their units (see below) |
 | Ctrl + G | Read gold |
 | Ctrl + H | Read Pyre health |
 | Ctrl + R | Read pact shards (The Last Divinity) |
 | N | Toggle combat speed (game's native key) - announces the new speed |
 | Tab | Read train stats (pyre health, gold, deck size) |
+
+### Floor Review (Up arrow in battle)
+
+Monster Train 1 has no keyboard way to inspect units in place - hovering with the mouse is the game's only option. The floor review fills that gap: press the **Up arrow** during battle to open a virtual cursor over the floors. Opening it announces the current floor and reminds you that Escape closes it.
+
+| Key | Action |
+|-----|--------|
+| Up/Down arrows | Move between floors (bottom floor, middle, top, then the Pyre room) |
+| Left/Right arrows | Step through the units on the floor in their battle positions |
+| Enter | Read the focused floor or unit with full details |
+| Escape | Close the review |
+
+Each floor first announces an overview: capacity (or pyre health in the Pyre room), frozen state, corruption, and the unit names. Pressing Right then walks the lineup in spatial order - your units from back to front, then the enemies from front to back, so the middle of the lineup is where the frontmost fighters meet. Each unit announces its name and stats, with its position ("Your unit 2 of 3", "Enemy 1 of 2, front") at the end. Pressing Left past the first unit returns to the floor overview.
+
+Full details are always waiting in the buffers: the focused floor or unit feeds the **UI** buffer (and units also the **Creature** buffer), so Ctrl+Up/Down can step through status effects with keyword explanations, abilities, enemy intents, and floor corruption or enchantments piece by piece.
+
+The review cursor is review-only - it never moves the game's real selection, and the view is re-read on every keypress so it stays current while units move or die. It closes automatically when a card starts targeting, when a pile view or menu opens, or when the battle ends. Other battle hotkeys (H, K, U, R, F1...) keep working while it is open.
 
 ### Unit Targeting (when playing spells that target units)
 | Key | Action |
@@ -233,6 +251,7 @@ The battle screen uses the game's native navigation. Use hotkeys for information
 - Press **H** to hear all cards in your hand
 - Press **K** to hear the selected floor, **Shift+K** or **L** for all floors
 - Press **U** to hear all units with detail - your monsters front-to-back, then enemies (U for Units)
+- Press the **Up arrow** to open the floor review and walk the floors and units with the arrow keys (see Floor Review above)
 - Press **R** to hear your current ember
 - Press **Ctrl+G**, **Ctrl+H**, or **Ctrl+R** for gold, pyre health, or pact shards
 - Press **N** to toggle combat speed (announces the new speed)

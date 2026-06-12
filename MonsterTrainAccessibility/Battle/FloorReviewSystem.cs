@@ -76,7 +76,7 @@ namespace MonsterTrainAccessibility.Battle
             _roomIndex = floor >= 0 && floor <= 3 ? floor : 0;
             _unitIndex = -1;
             IsActive = true;
-            AnnounceFocus("Floor review. ");
+            AnnounceFocus("Floor review. ", ". Press Escape to close");
         }
 
         /// <summary>
@@ -177,7 +177,7 @@ namespace MonsterTrainAccessibility.Battle
         /// Announce the focused floor or unit concisely and feed its full
         /// details to the review buffers.
         /// </summary>
-        private void AnnounceFocus(string prefix = "")
+        private void AnnounceFocus(string prefix = "", string suffix = "")
         {
             try
             {
@@ -191,12 +191,12 @@ namespace MonsterTrainAccessibility.Battle
                 if (isCreature)
                 {
                     var entry = lineup[_unitIndex];
-                    announcement = prefix + DescribeUnit(entry, brief: true);
+                    announcement = prefix + DescribeUnit(entry, brief: true) + suffix;
                     details = DescribeUnit(entry, brief: false);
                 }
                 else
                 {
-                    announcement = prefix + GetFloorOverview(lineup);
+                    announcement = prefix + GetFloorOverview(lineup) + suffix;
                     details = GetFloorDetails();
                 }
 
@@ -366,26 +366,26 @@ namespace MonsterTrainAccessibility.Battle
         #region Battle screen frontmost check
 
         private static object _screenManager;
-        private static MethodInfo _getScreenActiveMethod;
-        private static object[] _overlayScreenNames;
+        private static FieldInfo _activeScreensSortedField;
+        private static FieldInfo _screenDataNameField;
         private static int _frontmostFrame = -1;
         private static bool _frontmostResult;
 
-        /// <summary>
-        /// ScreenName enum values (from the decompiled game source) of
-        /// screens that can overlay the battle and need the arrow keys:
-        /// Deck (also the draw/discard/exhaust/eaten pile views), Cheat,
-        /// Minimap, Settings (also the pause menu), Dialog, ModSettings,
-        /// Compendium, KeyMapping, RunHistory.
-        /// </summary>
-        private static readonly int[] OverlayScreenNameValues = { 3, 8, 17, 18, 19, 20, 25, 30, 35 };
+        // ScreenName enum values from the decompiled game source
+        private const int ScreenNameGame = 1; // the battle screen
+        private const int ScreenNameHud = 14; // always-on overlay, never takes the arrows
 
         /// <summary>
-        /// True when the battle screen itself has input focus: in battle
-        /// with no overlay screen open above it. The plain Up arrow is only
-        /// claimed then. Asks the game's ScreenManager directly because
-        /// ScreenStateTracker only sees screens opening, not closing.
-        /// Cached per frame - this runs from the input suppression patches.
+        /// True when the battle screen itself has input focus: combat is
+        /// active and ScreenName.Game is on top of the game's screen stack,
+        /// ignoring the always-on Hud. The plain Up arrow is only claimed
+        /// then. Walks ScreenManager.activeScreensSorted - the same
+        /// top-down stack the game routes input through - so ANY covering
+        /// screen (pile views, dialogs, pause, rewards, drafts, run
+        /// summary...) gives the arrows back without being known by name.
+        /// ScreenStateTracker can't do this: it only sees screens opening,
+        /// not closing. Cached per frame - this runs from the input
+        /// suppression patches.
         /// </summary>
         internal static bool IsBattleScreenFrontmost()
         {
@@ -408,32 +408,32 @@ namespace MonsterTrainAccessibility.Battle
                 if (_screenManager == null || _screenManager.Equals(null))
                 {
                     _screenManager = ReflectionHelper.FindManager("ScreenManager");
-                    _getScreenActiveMethod = _screenManager?.GetType().GetMethod("GetScreenActive");
-
-                    var screenNameType = ReflectionHelper.FindType("ScreenName");
-                    if (screenNameType != null)
-                    {
-                        _overlayScreenNames = new object[OverlayScreenNameValues.Length];
-                        for (int i = 0; i < OverlayScreenNameValues.Length; i++)
-                            _overlayScreenNames[i] = Enum.ToObject(screenNameType, OverlayScreenNameValues[i]);
-                    }
+                    _activeScreensSortedField = _screenManager?.GetType().GetField(
+                        "activeScreensSorted", BindingFlags.Instance | BindingFlags.NonPublic);
+                    _screenDataNameField = null;
                 }
 
-                if (_screenManager == null || _getScreenActiveMethod == null || _overlayScreenNames == null)
+                var stack = _activeScreensSortedField?.GetValue(_screenManager)
+                    as System.Collections.IEnumerable;
+                if (stack == null)
                 {
                     // Fall back to the tracker (DeckScreenPatch.ClosePostfix
                     // restores it to Battle when a pile view closes mid-battle)
                     return Help.ScreenStateTracker.CurrentScreen == Help.GameScreen.Battle;
                 }
 
-                var args = new object[1];
-                foreach (var screenName in _overlayScreenNames)
+                foreach (var entry in stack)
                 {
-                    args[0] = screenName;
-                    if (_getScreenActiveMethod.Invoke(_screenManager, args) is bool active && active)
-                        return false;
+                    if (entry == null)
+                        continue;
+                    if (_screenDataNameField == null)
+                        _screenDataNameField = entry.GetType().GetField("name");
+                    int name = Convert.ToInt32(_screenDataNameField.GetValue(entry));
+                    if (name == ScreenNameHud)
+                        continue;
+                    return name == ScreenNameGame;
                 }
-                return true;
+                return false;
             }
             catch (Exception ex)
             {
