@@ -136,17 +136,13 @@ namespace MonsterTrainAccessibility.Screens
                     if (hellforgedType != null)
                     {
                         var genericMethod = getDlcMethod.MakeGenericMethod(hellforgedType);
-                        // DLC enum: Hellforged = 1
-                        Type dlcType = null;
-                        foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+                        // The DLC enum is namespaced (ShinyShoe.DLC), so a bare
+                        // assembly GetType("DLC") lookup never finds it - take
+                        // the enum type from the method's own parameter instead
+                        var dlcType = genericMethod.GetParameters()[0].ParameterType;
+                        if (dlcType.IsEnum)
                         {
-                            dlcType = asm.GetType("DLC");
-                            if (dlcType != null && dlcType.IsEnum) break;
-                            dlcType = null;
-                        }
-                        if (dlcType != null)
-                        {
-                            var hellforgedValue = Enum.ToObject(dlcType, 1); // Hellforged = 1
+                            var hellforgedValue = Enum.ToObject(dlcType, 1); // ShinyShoe.DLC.Hellforged = 1
                             var dlcSaveData = genericMethod.Invoke(saveManager, new object[] { hellforgedValue });
                             if (dlcSaveData != null)
                             {
@@ -178,9 +174,9 @@ namespace MonsterTrainAccessibility.Screens
                 string threat = GetThreatLevelName(saveManager, crystals);
                 if (!string.IsNullOrEmpty(threat))
                 {
-                    return $"Crystals: {crystals}. Threat: {threat}";
+                    return $"Pact shards: {crystals}. Threat: {threat}";
                 }
-                return $"Crystals: {crystals}";
+                return $"Pact shards: {crystals}";
             }
             catch (Exception ex)
             {

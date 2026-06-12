@@ -487,6 +487,19 @@ namespace MonsterTrainAccessibility.Screens
                         return enhancerInfo;
                 }
 
+                // RewardData subclasses expose localized RewardTitle and
+                // RewardDescription PROPERTIES, not GetName()/GetDescription()
+                // methods - the Divine Temple's Engage Pact
+                // (UnitSynthesisRewardData) has only these, and without them
+                // the reader fell back to the RelicInfoUI prefab placeholder
+                // ("Artifact Name Is Long")
+                if (typeName.EndsWith("RewardData"))
+                {
+                    string rewardInfo = ExtractRewardTitleAndDescription(data, dataType);
+                    if (!string.IsNullOrEmpty(rewardInfo))
+                        return rewardInfo;
+                }
+
                 // Check if this is RelicData or a type that contains relic info
                 bool isRelicType = typeName.Contains("Relic") || typeName.Contains("Artifact");
 
@@ -623,6 +636,37 @@ namespace MonsterTrainAccessibility.Screens
             return null;
         }
 
+
+        /// <summary>
+        /// Read the localized RewardTitle/RewardDescription properties that
+        /// every RewardData subclass inherits. The catch-all for reward goods
+        /// with no specific extractor (e.g. the Divine Temple's Engage Pact).
+        /// The buy-button price (the pact shard gain) is inserted by the
+        /// caller, so it is not repeated here.
+        /// </summary>
+        private static string ExtractRewardTitleAndDescription(object data, Type dataType)
+        {
+            try
+            {
+                string title = dataType.GetProperty("RewardTitle")?.GetValue(data) as string;
+                if (string.IsNullOrEmpty(title) || title.Contains("_"))
+                    return null;
+
+                var parts = new List<string> { TextUtilities.StripRichTextTags(title) };
+                string desc = dataType.GetProperty("RewardDescription")?.GetValue(data) as string;
+                if (!string.IsNullOrEmpty(desc))
+                    parts.Add(TextUtilities.StripRichTextTags(desc));
+
+                string result = string.Join(". ", parts);
+                MonsterTrainAccessibility.LogInfo($"RewardTitle result: {result}");
+                return result;
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error reading RewardTitle: {ex.Message}");
+                return null;
+            }
+        }
 
         /// <summary>
         /// Extract info from EnhancerRewardData (upgrade stones like Surgestone, Emberstone, etc.)
