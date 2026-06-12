@@ -312,20 +312,15 @@ namespace MonsterTrainAccessibility.Patches
                     currentType = currentType.BaseType;
                 }
 
-                // Also try to get the title label text directly
+                // Also try to get the title label text directly. Rendered text
+                // only: .text holds the prefab placeholder ("VICTORY") even on
+                // defeat, and the victoryType inference below is the safe fallback
                 string titleText = null;
                 var titleField = screenType?.GetField("titleLabel", bindingFlags);
                 if (titleField != null)
                 {
-                    var labelObj = titleField.GetValue(screen);
-                    if (labelObj != null)
-                    {
-                        var textProp = labelObj.GetType().GetProperty("text");
-                        if (textProp != null)
-                        {
-                            titleText = textProp.GetValue(labelObj) as string;
-                        }
-                    }
+                    titleText = Utilities.UITextHelper.GetRenderedTMPLabelText(
+                        titleField.GetValue(screen), fallbackToTextProperty: false);
                 }
 
                 // Build announcement

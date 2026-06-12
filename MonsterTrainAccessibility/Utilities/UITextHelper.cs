@@ -75,9 +75,12 @@ namespace MonsterTrainAccessibility.Utilities
         /// updates the rendered char buffer but NOT the text property - so
         /// reading .text returns the prefab's placeholder (e.g. "12345").
         /// GetParsedText() returns what is actually on screen; .text is the
-        /// fallback for labels that haven't been rendered yet.
+        /// fallback for labels that haven't been rendered yet. Pass
+        /// fallbackToTextProperty: false for read-the-screen dumps, where a
+        /// label rendered empty shows nothing and the fallback would
+        /// resurrect the prefab placeholder.
         /// </summary>
-        public static string GetRenderedTMPLabelText(object tmpLabel)
+        public static string GetRenderedTMPLabelText(object tmpLabel, bool fallbackToTextProperty = true)
         {
             if (tmpLabel == null) return null;
             var type = tmpLabel.GetType();
@@ -89,10 +92,18 @@ namespace MonsterTrainAccessibility.Utilities
                 {
                     string parsed = getParsed.Invoke(tmpLabel, null) as string;
                     if (!string.IsNullOrWhiteSpace(parsed))
+                    {
+                        // Sprites render as private-use/replacement chars in
+                        // the parsed buffer - silent for speech, just drop them
+                        parsed = Regex.Replace(parsed, "[\uE000-\uF8FF\uFFFD]", " ");
                         return parsed.Trim();
+                    }
                 }
             }
             catch { }
+
+            if (!fallbackToTextProperty)
+                return null;
 
             try
             {
@@ -103,6 +114,31 @@ namespace MonsterTrainAccessibility.Utilities
             }
             catch { }
 
+            return null;
+        }
+
+        /// <summary>
+        /// Get the rendered (on-screen) TMP text from a GameObject's own
+        /// components. Parsed text only, no .text fallback - meant for
+        /// read-all-screen dumps where the .text property would return
+        /// prefab placeholders ("Card text goes here.") for every label
+        /// the game filled via SetText().
+        /// </summary>
+        public static string GetRenderedTMPTextDirect(GameObject go)
+        {
+            try
+            {
+                foreach (var component in go.GetComponents<Component>())
+                {
+                    if (component == null) continue;
+                    var type = component.GetType();
+                    if (type.Name.Contains("TextMeshPro") || type.Name == "TMP_Text")
+                    {
+                        return GetRenderedTMPLabelText(component, fallbackToTextProperty: false);
+                    }
+                }
+            }
+            catch { }
             return null;
         }
 

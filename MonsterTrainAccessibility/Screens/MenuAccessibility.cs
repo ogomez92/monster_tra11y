@@ -2091,9 +2091,6 @@ namespace MonsterTrainAccessibility.Screens
 
                 if (allTMP == null) return;
 
-                var textProperty = tmpTextType.GetProperty("text");
-                if (textProperty == null) return;
-
                 foreach (var tmp in allTMP)
                 {
                     if (tmp == null) continue;
@@ -2102,7 +2099,9 @@ namespace MonsterTrainAccessibility.Screens
                     var component = tmp as Component;
                     if (component == null || !component.gameObject.activeInHierarchy) continue;
 
-                    string text = textProperty.GetValue(tmp) as string;
+                    // Rendered text only: the .text property returns prefab
+                    // placeholders for every label the game fills via SetText()
+                    string text = UITextHelper.GetRenderedTMPLabelText(tmp, fallbackToTextProperty: false);
                     if (!string.IsNullOrEmpty(text))
                     {
                         string cleanText = TextUtilities.StripRichTextTags(text.Trim());
@@ -2139,8 +2138,9 @@ namespace MonsterTrainAccessibility.Screens
                 }
             }
 
-            // Get TMP text
-            string tmpText = UITextHelper.GetTMPTextDirect(transform.gameObject);
+            // Get TMP text (rendered only - .text returns prefab placeholders
+            // for labels the game fills via SetText())
+            string tmpText = UITextHelper.GetRenderedTMPTextDirect(transform.gameObject);
             if (!string.IsNullOrEmpty(tmpText))
             {
                 string cleaned = TextUtilities.StripRichTextTags(tmpText.Trim());
@@ -2323,8 +2323,9 @@ namespace MonsterTrainAccessibility.Screens
             if (objName.Contains("button") && !objName.Contains("label"))
                 return;
 
-            // Get text from this element
-            string text = UITextHelper.GetTMPTextDirect(transform.gameObject);
+            // Get text from this element (rendered only - .text returns prefab
+            // placeholders for labels the game fills via SetText())
+            string text = UITextHelper.GetRenderedTMPTextDirect(transform.gameObject);
             if (!string.IsNullOrEmpty(text))
             {
                 text = TextUtilities.StripRichTextTags(text.Trim());
