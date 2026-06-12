@@ -366,23 +366,28 @@ namespace MonsterTrainAccessibility.Battle
         #region Battle screen frontmost check
 
         private static object _screenManager;
-        private static FieldInfo _activeScreensSortedField;
-        private static FieldInfo _screenDataNameField;
+        private static MethodInfo _getScreenActiveMethod;
+        private static MethodInfo _getScreenMethod;
+        private static object _gameScreenNameBoxed;
+        private static MethodInfo _isInteractableMethod;
         private static int _frontmostFrame = -1;
         private static bool _frontmostResult;
 
-        // ScreenName enum values from the decompiled game source
-        private const int ScreenNameGame = 1; // the battle screen
-        private const int ScreenNameHud = 14; // always-on overlay, never takes the arrows
+        // ScreenName.Game from the decompiled game source - the battle screen
+        private const int ScreenNameGame = 1;
 
         /// <summary>
         /// True when the battle screen itself has input focus: combat is
-        /// active and ScreenName.Game is on top of the game's screen stack,
-        /// ignoring the always-on Hud. The plain Up arrow is only claimed
-        /// then. Walks ScreenManager.activeScreensSorted - the same
-        /// top-down stack the game routes input through - so ANY covering
-        /// screen (pile views, dialogs, pause, rewards, drafts, run
-        /// summary...) gives the arrows back without being known by name.
+        /// active, ScreenName.Game is active, and the game reports it
+        /// interactable. The plain Up arrow is only claimed then.
+        /// IsInteractable is the game's own focus notion:
+        /// ScreenManager.UpdateInteractable walks the active screen stack
+        /// top-down and only screens above the first DoesBlockInteractions
+        /// screen stay interactable - so ANY covering screen (pile views,
+        /// dialogs, pause, rewards, drafts, even Tab-focusing the HUD)
+        /// releases the arrows without being known by name, while the
+        /// permanently-active-but-hidden screens (the loading screen never
+        /// deactivates, it only hides its visuals) don't block.
         /// ScreenStateTracker can't do this: it only sees screens opening,
         /// not closing. Cached per frame - this runs from the input
         /// suppression patches.
@@ -408,32 +413,36 @@ namespace MonsterTrainAccessibility.Battle
                 if (_screenManager == null || _screenManager.Equals(null))
                 {
                     _screenManager = ReflectionHelper.FindManager("ScreenManager");
-                    _activeScreensSortedField = _screenManager?.GetType().GetField(
-                        "activeScreensSorted", BindingFlags.Instance | BindingFlags.NonPublic);
-                    _screenDataNameField = null;
+                    var smType = _screenManager?.GetType();
+                    _getScreenActiveMethod = smType?.GetMethod("GetScreenActive");
+                    _getScreenMethod = smType?.GetMethod("GetScreen");
+                    var screenNameType = ReflectionHelper.FindType("ScreenName");
+                    _gameScreenNameBoxed = screenNameType != null
+                        ? Enum.ToObject(screenNameType, ScreenNameGame) : null;
+                    _isInteractableMethod = null;
                 }
 
-                var stack = _activeScreensSortedField?.GetValue(_screenManager)
-                    as System.Collections.IEnumerable;
-                if (stack == null)
+                if (_screenManager == null || _getScreenActiveMethod == null ||
+                    _getScreenMethod == null || _gameScreenNameBoxed == null)
                 {
                     // Fall back to the tracker (DeckScreenPatch.ClosePostfix
                     // restores it to Battle when a pile view closes mid-battle)
                     return Help.ScreenStateTracker.CurrentScreen == Help.GameScreen.Battle;
                 }
 
-                foreach (var entry in stack)
-                {
-                    if (entry == null)
-                        continue;
-                    if (_screenDataNameField == null)
-                        _screenDataNameField = entry.GetType().GetField("name");
-                    int name = Convert.ToInt32(_screenDataNameField.GetValue(entry));
-                    if (name == ScreenNameHud)
-                        continue;
-                    return name == ScreenNameGame;
-                }
-                return false;
+                var args = new object[] { _gameScreenNameBoxed };
+                if (!(_getScreenActiveMethod.Invoke(_screenManager, args) is bool active && active))
+                    return false;
+
+                // An inactive screen keeps its stale interactable flag, so
+                // only trust IsInteractable while the screen is active
+                var gameScreen = _getScreenMethod.Invoke(_screenManager, args);
+                if (gameScreen == null)
+                    return false;
+                if (_isInteractableMethod == null)
+                    _isInteractableMethod = gameScreen.GetType().GetMethod("IsInteractable", Type.EmptyTypes);
+
+                return _isInteractableMethod?.Invoke(gameScreen, null) is bool interactable && interactable;
             }
             catch (Exception ex)
             {
