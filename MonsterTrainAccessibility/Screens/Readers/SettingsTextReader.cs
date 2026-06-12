@@ -150,6 +150,19 @@ namespace MonsterTrainAccessibility.Screens
             {
                 var type = dropdown.GetType();
 
+                // GameUISelectableDropdown keeps the current value in its
+                // serialized valueLabel (TMP_Text). Read the rendered text -
+                // the .text property returns the prefab placeholder ("60")
+                // for labels the game fills via SetText
+                var valueLabelField = type.GetField("valueLabel",
+                    BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+                if (valueLabelField != null)
+                {
+                    string rendered = UITextHelper.GetRenderedTMPLabelText(valueLabelField.GetValue(dropdown));
+                    if (!string.IsNullOrEmpty(rendered))
+                        return rendered;
+                }
+
                 // Try to get the current selected text
                 var getCurrentTextMethod = type.GetMethod("GetCurrentText") ??
                                            type.GetMethod("GetText") ??

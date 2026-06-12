@@ -194,8 +194,19 @@ namespace MonsterTrainAccessibility.Utilities
 
         /// <summary>
         /// Recursively collect all TMP text from a transform hierarchy.
+        /// Rendered text only (.text returns prefab placeholders for labels
+        /// the game fills via SetText - settings values read "60" while the
+        /// screen shows the real number), and consecutive duplicates are
+        /// skipped (styled labels carry shadow/outline TMP copies of the
+        /// same text, which otherwise read as "60 60 60 60 60").
         /// </summary>
         public static void CollectAllText(Transform transform, StringBuilder sb)
+        {
+            string lastCollected = null;
+            CollectAllTextInner(transform, sb, ref lastCollected);
+        }
+
+        private static void CollectAllTextInner(Transform transform, StringBuilder sb, ref string lastCollected)
         {
             if (transform == null || !transform.gameObject.activeInHierarchy)
                 return;
@@ -206,26 +217,19 @@ namespace MonsterTrainAccessibility.Utilities
                 var type = component.GetType();
                 if (type.Name.Contains("TextMeshPro") || type.Name == "TMP_Text")
                 {
-                    var textProp = type.GetProperty("text");
-                    if (textProp != null)
+                    string text = GetRenderedTMPLabelText(component, fallbackToTextProperty: false);
+                    if (!string.IsNullOrEmpty(text) && text != lastCollected)
                     {
-                        string text = textProp.GetValue(component) as string;
-                        if (!string.IsNullOrEmpty(text))
-                        {
-                            text = text.Trim();
-                            if (text.Length > 0)
-                            {
-                                if (sb.Length > 0) sb.Append(". ");
-                                sb.Append(text);
-                            }
-                        }
+                        if (sb.Length > 0) sb.Append(". ");
+                        sb.Append(text);
+                        lastCollected = text;
                     }
                 }
             }
 
             foreach (Transform child in transform)
             {
-                CollectAllText(child, sb);
+                CollectAllTextInner(child, sb, ref lastCollected);
             }
         }
     }
