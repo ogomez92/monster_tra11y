@@ -5,7 +5,8 @@ using System.Reflection;
 namespace MonsterTrainAccessibility.Patches
 {
     /// <summary>
-    /// Detect battle end (victory)
+    /// Detect battle end (victory or defeat) so combat state is torn down
+    /// before the post-battle victory/reward UI appears.
     /// </summary>
     public static class BattleVictoryPatch
     {
@@ -16,14 +17,26 @@ namespace MonsterTrainAccessibility.Patches
                 var combatType = AccessTools.TypeByName("CombatManager");
                 if (combatType != null)
                 {
-                    var method = AccessTools.Method(combatType, "EndCombat") ??
-                                 AccessTools.Method(combatType, "OnCombatComplete");
+                    // CombatManager.StopCombat(bool combatWon) is the real
+                    // battle-end method. The previous EndCombat/OnCombatComplete
+                    // names never existed on CombatManager, so this patch was a
+                    // silent no-op and IsInBattle never reset after a battle -
+                    // which left the post-battle VictoryUI (part of the still-
+                    // interactable Game screen) wrongly opening floor review.
+                    // StopCombat is an IEnumerator coroutine; Harmony patches the
+                    // kickoff, so the postfix runs the moment combat is told to
+                    // stop, before the victory/reward UI is shown.
+                    var method = AccessTools.Method(combatType, "StopCombat");
 
                     if (method != null)
                     {
                         var postfix = new HarmonyMethod(typeof(BattleVictoryPatch).GetMethod(nameof(Postfix)));
                         harmony.Patch(method, postfix: postfix);
-                        MonsterTrainAccessibility.LogInfo($"Patched battle end: {method.Name}");
+                        MonsterTrainAccessibility.LogInfo($"Patched battle end: CombatManager.{method.Name}");
+                    }
+                    else
+                    {
+                        MonsterTrainAccessibility.LogError("CombatManager.StopCombat not found - battle end detection disabled");
                     }
                 }
             }
@@ -33,17 +46,23 @@ namespace MonsterTrainAccessibility.Patches
             }
         }
 
-        public static void Postfix(bool victory)
+        public static void Postfix(bool combatWon)
         {
             try
             {
-                if (victory)
+                var battle = MonsterTrainAccessibility.BattleHandler;
+                // StopCombat can be reached more than once (its body no-ops when
+                // combat already stopped); only react on the first transition out.
+                if (battle == null || !battle.IsInBattle)
+                    return;
+
+                if (combatWon)
                 {
-                    MonsterTrainAccessibility.BattleHandler?.OnBattleWon();
+                    battle.OnBattleWon();
                 }
                 else
                 {
-                    MonsterTrainAccessibility.BattleHandler?.OnBattleLost();
+                    battle.OnBattleLost();
                 }
             }
             catch (Exception ex)

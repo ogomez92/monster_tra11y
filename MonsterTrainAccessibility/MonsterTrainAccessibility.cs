@@ -127,6 +127,7 @@ namespace MonsterTrainAccessibility
 
             // New screen patches
             RewardScreenPatch.TryPatch(_harmony);
+            VictoryUIPatch.TryPatch(_harmony);
             RelicDraftScreenPatch.TryPatch(_harmony);
             StoryEventScreenPatch.TryPatch(_harmony);
             ChampionUpgradeScreenPatch.TryPatch(_harmony);

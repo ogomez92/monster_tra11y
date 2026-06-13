@@ -107,7 +107,7 @@ namespace MonsterTrainAccessibility.Patches
             }
         }
 
-        private static string GetRewardDisplayName(object reward)
+        internal static string GetRewardDisplayName(object reward)
         {
             if (reward == null) return null;
 
