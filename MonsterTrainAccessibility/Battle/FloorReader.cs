@@ -206,7 +206,7 @@ namespace MonsterTrainAccessibility.Screens
         /// <summary>
         /// Get the armor stacks on a unit
         /// </summary>
-        private static int GetUnitArmor(object characterState)
+        internal static int GetUnitArmor(object characterState)
         {
             try
             {
@@ -732,11 +732,13 @@ namespace MonsterTrainAccessibility.Screens
                     parts.Add(enchantmentInfo);
                 if (enemyUnits.Count > 0)
                 {
-                    parts.Add($"Enemies: {string.Join(", ", enemyUnits)}");
+                    string label = enemyUnits.Count == 1 ? "1 enemy" : $"{enemyUnits.Count} enemies";
+                    parts.Add($"{label}: {string.Join(", ", enemyUnits)}");
                 }
                 if (friendlyUnits.Count > 0)
                 {
-                    parts.Add($"Your units: {string.Join(", ", friendlyUnits)}");
+                    string label = friendlyUnits.Count == 1 ? "your 1 unit" : $"your {friendlyUnits.Count} units";
+                    parts.Add($"{label}: {string.Join(", ", friendlyUnits)}");
                 }
 
                 return string.Join(". ", parts);

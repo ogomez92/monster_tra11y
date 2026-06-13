@@ -44,6 +44,7 @@ namespace MonsterTrainAccessibility.Core
         public ConfigEntry<bool> AnnounceCardDraws { get; private set; }
         public ConfigEntry<bool> AnnounceStatusEffects { get; private set; }
         public ConfigEntry<bool> AnnounceDamage { get; private set; }
+        public ConfigEntry<bool> CombatSummaryMode { get; private set; }
         public ConfigEntry<bool> AnnounceDeaths { get; private set; }
         public ConfigEntry<bool> AnnounceSpawns { get; private set; }
         public ConfigEntry<bool> AnnounceDialogue { get; private set; }
@@ -248,6 +249,13 @@ namespace MonsterTrainAccessibility.Core
                 "Damage",
                 true,
                 "Announce damage dealt during combat"
+            );
+
+            CombatSummaryMode = config.Bind(
+                "Announcements",
+                "CombatSummaryMode",
+                true,
+                "During automated combat, stay silent and speak one per-floor summary (damage exchanged, who survived, pyre damage) at the start of your next turn instead of narrating each hit/spawn/death/move. Suppressed events are still logged to the Events buffer and combat log. Off = live blow-by-blow with no summary."
             );
 
             AnnounceDeaths = config.Bind(

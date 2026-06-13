@@ -19,6 +19,9 @@ namespace MonsterTrainAccessibility.Screens
         // Shared manager cache used by all reader classes
         private readonly BattleManagerCache _cache = new BattleManagerCache();
 
+        // Accumulates automated-combat damage for the end-of-turn summary (CombatSummaryMode).
+        private readonly CombatTurnSummary _turnSummary = new CombatTurnSummary();
+
         /// <summary>
         /// Shared manager cache, exposed for the review buffer providers.
         /// </summary>
@@ -38,6 +41,8 @@ namespace MonsterTrainAccessibility.Screens
             IsInBattle = true;
             _cache.FindManagers();
             Patches.PreviewModeDetector.Reset();
+            _turnSummary.Reset();
+            Patches.CombatPhaseChangePatch.CurrentPhase = -1;
 
             MonsterTrainAccessibility.LogInfo("Battle entered");
             MonsterTrainAccessibility.ScreenReader?.AnnounceScreen("Battle started");
@@ -52,6 +57,8 @@ namespace MonsterTrainAccessibility.Screens
         public void OnBattleExited()
         {
             IsInBattle = false;
+            _turnSummary.Reset();
+            Patches.CombatPhaseChangePatch.CurrentPhase = -1;
             Core.Buffers.FocusBuffers.ClearCreature();
             MonsterTrainAccessibility.FloorReview?.Close(announce: false);
             MonsterTrainAccessibility.LogInfo("Battle exited");
@@ -96,6 +103,7 @@ namespace MonsterTrainAccessibility.Screens
         public void OnBattleWon()
         {
             IsInBattle = false;
+            _turnSummary.Reset();
             MonsterTrainAccessibility.FloorReview?.Close(announce: false);
             MonsterTrainAccessibility.ScreenReader?.Speak("Victory! Battle won.", false);
         }
@@ -106,6 +114,7 @@ namespace MonsterTrainAccessibility.Screens
         public void OnBattleLost()
         {
             IsInBattle = false;
+            _turnSummary.Reset();
             MonsterTrainAccessibility.FloorReview?.Close(announce: false);
             MonsterTrainAccessibility.ScreenReader?.Speak("Defeat. The pyre has been destroyed.", false);
         }
@@ -244,8 +253,45 @@ namespace MonsterTrainAccessibility.Screens
             string prefix = isEnemy ? "Enemy" : "Your";
             string floorInfo = roomIndex >= 0 ? $" on {RoomIndexToFloorName(roomIndex).ToLower()}" : "";
             string message = $"{prefix} {unitName} died{floorInfo}";
-            MonsterTrainAccessibility.ScreenReader?.Queue(message);
-            MonsterTrainAccessibility.ScreenReader?.LogCombatEvent(message);
+
+            // During automated combat the death is folded into the end-of-turn summary
+            // (per floor, and logged silently); your own spell-kills during MonsterTurn stay live.
+            if (IsAutoEventSuppressed())
+                _turnSummary.AddDeath(unitName, isEnemy, roomIndex);
+
+            SpeakOrLogAutoEvent(message);
+        }
+
+        /// <summary>
+        /// True when CombatSummaryMode is on and we are NOT in the player's card-play
+        /// phase — i.e. an automated-combat event that should be deferred to the summary.
+        /// </summary>
+        private static bool IsAutoEventSuppressed()
+            => MonsterTrainAccessibility.AccessibilitySettings.CombatSummaryMode.Value
+               && !Patches.CombatPhaseChangePatch.IsMonsterTurn;
+
+        /// <summary>Armor churns constantly as it absorbs hits; it's reported via the hp+armor briefs.</summary>
+        private static bool IsArmorEffect(string effectName)
+            => !string.IsNullOrEmpty(effectName)
+               && effectName.Trim().Equals("armor", StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Speak a combat event live, OR — when <see cref="IsAutoEventSuppressed"/> — log it
+        /// silently so the blow-by-blow stays available in the Events buffer / combat log
+        /// while only the end-of-turn summary is spoken.
+        /// </summary>
+        private void SpeakOrLogAutoEvent(string message)
+        {
+            var output = MonsterTrainAccessibility.ScreenReader;
+            if (IsAutoEventSuppressed())
+            {
+                output?.LogCombatEvent(message);
+            }
+            else
+            {
+                output?.Queue(message);
+                output?.LogCombatEvent(message);
+            }
         }
 
         /// <summary>
@@ -259,8 +305,15 @@ namespace MonsterTrainAccessibility.Screens
             // Keyword explanations are reviewable via the buffers, so the live
             // announcement stays short
             string message = $"{unitName} gains {effectName} {stacks}";
-            MonsterTrainAccessibility.ScreenReader?.Queue(message);
-            MonsterTrainAccessibility.ScreenReader?.LogCombatEvent(message);
+            // Armor changes are suppressed during automated combat (reflected in the
+            // hp+armor briefs); other "powers" still announce live.
+            if (IsArmorEffect(effectName))
+                SpeakOrLogAutoEvent(message);
+            else
+            {
+                MonsterTrainAccessibility.ScreenReader?.Queue(message);
+                MonsterTrainAccessibility.ScreenReader?.LogCombatEvent(message);
+            }
         }
 
         /// <summary>
@@ -300,8 +353,9 @@ namespace MonsterTrainAccessibility.Screens
             {
                 message = $"{unitName} summoned on {floorName}";
             }
-            MonsterTrainAccessibility.ScreenReader?.Queue(message);
-            MonsterTrainAccessibility.ScreenReader?.LogCombatEvent(message);
+            // Enemy wave spawns (PreCombat) and auto-spawns are folded into the turn-start
+            // board listing; your own summons during MonsterTurn stay live.
+            SpeakOrLogAutoEvent(message);
         }
 
         /// <summary>
@@ -325,8 +379,7 @@ namespace MonsterTrainAccessibility.Screens
                 return;
 
             string message = $"{enemyName} ascends to {RoomIndexToFloorName(roomIndex).ToLower()}";
-            MonsterTrainAccessibility.ScreenReader?.Queue(message);
-            MonsterTrainAccessibility.ScreenReader?.LogCombatEvent(message);
+            SpeakOrLogAutoEvent(message);
         }
 
         /// <summary>
@@ -368,6 +421,11 @@ namespace MonsterTrainAccessibility.Screens
         public void OnCombatResolutionStarted()
         {
             if (!IsInBattle)
+                return;
+
+            // In summary mode the "Combat!" framing cue is suppressed (user wants minimal
+            // cues; the end-of-turn summary is the only spoken combat output).
+            if (MonsterTrainAccessibility.AccessibilitySettings.CombatSummaryMode.Value)
                 return;
 
             // Only announce if there are units to fight
@@ -442,8 +500,15 @@ namespace MonsterTrainAccessibility.Screens
             string message = stacks > 1
                 ? $"{unitName} loses {stacks} {effectName}"
                 : $"{unitName} loses {effectName}";
-            MonsterTrainAccessibility.ScreenReader?.Queue(message);
-            MonsterTrainAccessibility.ScreenReader?.LogCombatEvent(message);
+            // Armor loss spams during combat (it absorbs every hit); suppress it during
+            // automated combat - the surviving units' briefs report current armor instead.
+            if (IsArmorEffect(effectName))
+                SpeakOrLogAutoEvent(message);
+            else
+            {
+                MonsterTrainAccessibility.ScreenReader?.Queue(message);
+                MonsterTrainAccessibility.ScreenReader?.LogCombatEvent(message);
+            }
         }
 
         /// <summary>
@@ -455,8 +520,7 @@ namespace MonsterTrainAccessibility.Screens
                 return;
 
             string message = $"{enemyName} descends to {RoomIndexToFloorName(roomIndex).ToLower()}";
-            MonsterTrainAccessibility.ScreenReader?.Queue(message);
-            MonsterTrainAccessibility.ScreenReader?.LogCombatEvent(message);
+            SpeakOrLogAutoEvent(message);
         }
 
         /// <summary>
@@ -494,6 +558,104 @@ namespace MonsterTrainAccessibility.Screens
             string message = $"{unitName} gains {amount} max health";
             MonsterTrainAccessibility.ScreenReader?.Queue(message);
             MonsterTrainAccessibility.ScreenReader?.LogCombatEvent(message);
+        }
+
+        #endregion
+
+        #region Combat Summary (CombatSummaryMode)
+
+        /// <summary>Record pyre damage taken during automated combat for the summary.</summary>
+        internal void AccumulatePyre(int damage, int remaining)
+            => _turnSummary.AddPyre(damage, remaining);
+
+        /// <summary>
+        /// Speak the accumulated automated-combat summary — who died on each side, then who
+        /// stayed alive per floor (current board state), then any pyre damage — and reset the
+        /// accumulator. Called when the player regains control (entering MonsterTurn). Leads
+        /// with "Combat summary." Speaks nothing on a turn with nothing to report.
+        /// </summary>
+        internal void AnnounceCombatSummary()
+        {
+            try
+            {
+                if (!IsInBattle)
+                    return;
+
+                var parts = new List<string>();
+
+                // Per floor (0..2 = bottom..top): who was defeated/lost there, then who is
+                // still standing (current board state). Side blocks are enemies-first.
+                for (int roomIndex = 0; roomIndex <= 2; roomIndex++)
+                {
+                    var yourUnits = new List<string>();
+                    var enemyUnits = new List<string>();
+
+                    var room = FloorReader.GetRoom(_cache, roomIndex);
+                    if (room != null)
+                    {
+                        foreach (var unit in FloorReader.GetUnitsInRoom(room))
+                        {
+                            if (unit == null) continue;
+                            int hp = FloorReader.GetUnitHP(_cache, unit);
+                            if (hp <= 0) continue; // skip corpses not yet removed
+                            int armor = FloorReader.GetUnitArmor(unit);
+                            string brief = armor > 0
+                                ? $"{FloorReader.GetUnitName(_cache, unit)} {hp} hp, {armor} armor"
+                                : $"{FloorReader.GetUnitName(_cache, unit)} {hp} hp";
+                            if (FloorReader.IsEnemyUnit(_cache, unit))
+                                enemyUnits.Add(brief);
+                            else
+                                yourUnits.Add(brief);
+                        }
+                    }
+
+                    var enemyDead = _turnSummary.EnemyDeathsOnFloor(roomIndex);
+                    var yourDead = _turnSummary.YourDeathsOnFloor(roomIndex);
+
+                    if (yourUnits.Count == 0 && enemyUnits.Count == 0
+                        && enemyDead.Count == 0 && yourDead.Count == 0)
+                        continue;
+
+                    var floorParts = new List<string>();
+                    if (enemyDead.Count > 0)
+                        floorParts.Add($"enemies defeated {string.Join(", ", enemyDead)}");
+                    if (enemyUnits.Count > 0)
+                        floorParts.Add($"enemy {string.Join(", ", enemyUnits)}");
+                    if (yourDead.Count > 0)
+                        floorParts.Add($"your units lost {string.Join(", ", yourDead)}");
+                    if (yourUnits.Count > 0)
+                        floorParts.Add($"your {string.Join(", ", yourUnits)}");
+
+                    parts.Add($"{RoomIndexToFloorName(roomIndex)}: {string.Join("; ", floorParts)}");
+                }
+
+                // Deaths whose floor couldn't be pinned down (e.g. on the pyre).
+                var enemyDeadElsewhere = _turnSummary.EnemyDeathsOffFloor();
+                if (enemyDeadElsewhere.Count > 0)
+                    parts.Add($"Enemies defeated: {string.Join(", ", enemyDeadElsewhere)}");
+                var yourDeadElsewhere = _turnSummary.YourDeathsOffFloor();
+                if (yourDeadElsewhere.Count > 0)
+                    parts.Add($"Your units lost: {string.Join(", ", yourDeadElsewhere)}");
+
+                // Pyre damage stays gated by the Damage announcement toggle.
+                if (MonsterTrainAccessibility.AccessibilitySettings.AnnounceDamage.Value && _turnSummary.PyreTouched)
+                    parts.Add($"Pyre took {_turnSummary.PyreDamageTotal} damage, {_turnSummary.PyreRemaining} remaining");
+
+                if (parts.Count > 0)
+                {
+                    string text = "Combat summary. " + string.Join(". ", parts) + ".";
+                    MonsterTrainAccessibility.ScreenReader?.Speak(text, false);
+                    MonsterTrainAccessibility.ScreenReader?.LogCombatEvent(text);
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error in AnnounceCombatSummary: {ex.Message}");
+            }
+            finally
+            {
+                _turnSummary.Reset();
+            }
         }
 
         #endregion

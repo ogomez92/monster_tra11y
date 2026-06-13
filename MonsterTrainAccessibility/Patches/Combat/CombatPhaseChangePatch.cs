@@ -14,6 +14,24 @@ namespace MonsterTrainAccessibility.Patches
     {
         private static string _lastPhase = "";
 
+        // CombatManager.Phase enum int values (game/CombatManager.cs:14-27).
+        private const int Phase_MonsterTurn = 3;
+        private const int Phase_Combat = 6;
+        private const int Phase_HeroTurn = 7;
+
+        /// <summary>
+        /// The raw current combat phase, updated on every SetCombatPhase transition
+        /// (including ones we don't announce). Read by the damage/spawn/death/movement
+        /// patches to decide live-vs-summarize. -1 outside combat.
+        /// </summary>
+        public static int CurrentPhase = -1;
+
+        /// <summary>True during the automated unit-fighting phases (Combat, HeroTurn).</summary>
+        public static bool IsAutoCombatPhase => CurrentPhase == Phase_Combat || CurrentPhase == Phase_HeroTurn;
+
+        /// <summary>True while the player is in control playing cards (MonsterTurn).</summary>
+        public static bool IsMonsterTurn => CurrentPhase == Phase_MonsterTurn;
+
         public static void TryPatch(Harmony harmony)
         {
             try
@@ -42,28 +60,46 @@ namespace MonsterTrainAccessibility.Patches
             try
             {
                 if (__0 == null) return;
+
+                // Capture the raw phase for EVERY transition, before the dedup return,
+                // so the damage/spawn/death/movement patches can read it this frame.
+                try { CurrentPhase = Convert.ToInt32(__0); } catch { }
+
                 string phaseName = __0.ToString();
 
                 if (phaseName == _lastPhase) return;
                 _lastPhase = phaseName;
 
-                // Map phases to user-friendly names
-                // Skip "Combat" - already announced by existing CombatPhasePatch
-                // Skip Start, Placement, PreCombat, MonsterTurnQueueClear - too noisy / not useful
+                bool summaryMode = MonsterTrainAccessibility.AccessibilitySettings?.CombatSummaryMode?.Value ?? false;
+
+                // Entering MonsterTurn = the player has regained control. In summary mode
+                // the prior turn's automated combat has fully resolved (and this turn's
+                // PreCombat spawns have landed), so speak the accumulated per-floor summary.
+                // The old "Your units attack" cue fired here too but was mistimed; it is
+                // removed in both modes.
+                if (phaseName == "MonsterTurn")
+                {
+                    if (summaryMode)
+                        MonsterTrainAccessibility.BattleHandler?.AnnounceCombatSummary();
+                    return;
+                }
+
+                // Map remaining phases to user-friendly names.
+                // Skip "Combat" - "Combat!" handled by CombatPhasePatch (silenced in summary mode).
+                // Skip Start, Placement, PreCombat, MonsterTurnQueueClear, EndMonsterTurn.
                 string announcement = null;
                 switch (phaseName)
                 {
-                    case "MonsterTurn":
-                        announcement = "Your units attack";
-                        break;
                     case "HeroTurn":
-                        announcement = "Enemy turn";
+                        // Lightweight phase chatter; silenced in summary mode (user wants minimal cues).
+                        if (!summaryMode) announcement = "Enemy turn";
                         break;
                     case "EndOfCombat":
-                        announcement = "Combat ended";
+                        if (!summaryMode) announcement = "Combat ended";
                         break;
                     case "BossActionPreCombat":
                     case "BossActionPostCombat":
+                        // Boss actions are "powers" - kept live in both modes.
                         announcement = GetBossActionAnnouncement(__instance);
                         break;
                 }

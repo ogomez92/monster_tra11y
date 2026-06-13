@@ -52,7 +52,21 @@ namespace MonsterTrainAccessibility.Patches
                         if (_lastPyreHP > 0 && currentHP < _lastPyreHP)
                         {
                             int damage = _lastPyreHP - currentHP;
-                            MonsterTrainAccessibility.BattleHandler?.OnPyreDamaged(damage, currentHP);
+                            bool summaryMode = MonsterTrainAccessibility.AccessibilitySettings.CombatSummaryMode.Value;
+                            bool inBattle = MonsterTrainAccessibility.BattleHandler?.IsInBattle ?? false;
+                            // Pyre hits arrive via the pyre heart's HP-changed listener, which can
+                            // fire after the phase has advanced past Combat/HeroTurn - so fold in any
+                            // pyre damage outside the player's own turn, not just the fight phases.
+                            if (summaryMode && inBattle && !CombatPhaseChangePatch.IsMonsterTurn)
+                            {
+                                MonsterTrainAccessibility.BattleHandler?.AccumulatePyre(damage, currentHP);
+                                MonsterTrainAccessibility.ScreenReader?.LogCombatEvent(
+                                    $"Pyre takes {damage} damage! {currentHP} health remaining");
+                            }
+                            else
+                            {
+                                MonsterTrainAccessibility.BattleHandler?.OnPyreDamaged(damage, currentHP);
+                            }
                         }
                         else if (_lastPyreHP > 0 && currentHP > _lastPyreHP)
                         {

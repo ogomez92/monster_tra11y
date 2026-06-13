@@ -491,6 +491,9 @@ namespace MonsterTrainAccessibility.Patches
     {
         // Store old HP per character for computing damage in postfix
         private static Dictionary<int, int> _preHpTracker = new Dictionary<int, int>();
+        // Store the room index BEFORE the hit, so a fatal blow that clears the unit's
+        // spawn point still attributes the death to the floor it happened on.
+        private static Dictionary<int, int> _preRoomTracker = new Dictionary<int, int>();
         // Dedup: track last announcement to avoid repeats
         private static string _lastAnnounceKey = "";
         private static float _lastAnnounceTime = 0f;
@@ -535,6 +538,7 @@ namespace MonsterTrainAccessibility.Patches
                 int hash = __instance.GetHashCode();
                 int currentHP = CharacterStateHelper.GetCurrentHP(__instance);
                 _preHpTracker[hash] = currentHP;
+                _preRoomTracker[hash] = CharacterStateHelper.GetRoomIndex(__instance);
             }
             catch { }
         }
@@ -597,12 +601,28 @@ namespace MonsterTrainAccessibility.Patches
                         announcement += $", {newHP} HP left";
                     }
 
-                    MonsterTrainAccessibility.ScreenReader?.Queue(announcement);
+                    bool summaryMode = MonsterTrainAccessibility.AccessibilitySettings.CombatSummaryMode.Value;
+                    bool announceDamage = MonsterTrainAccessibility.AccessibilitySettings.AnnounceDamage.Value;
+
+                    if (summaryMode && CombatPhaseChangePatch.IsAutoCombatPhase)
+                    {
+                        // Automated combat (Combat / HeroTurn): don't speak. Log the per-hit
+                        // line for buffer review. Damage totals are no longer summarized -
+                        // the summary reports deaths and survivors, not damage numbers.
+                        MonsterTrainAccessibility.ScreenReader?.LogCombatEvent(announcement);
+                    }
+                    else if (announceDamage)
+                    {
+                        // Live: your spell/card damage during MonsterTurn, boss actions, etc.
+                        MonsterTrainAccessibility.ScreenReader?.Queue(announcement);
+                    }
 
                     // Death detection
                     if (newHP <= 0)
                     {
                         int roomIndex = CharacterStateHelper.GetRoomIndex(__instance);
+                        if (roomIndex < 0 && _preRoomTracker.TryGetValue(hash, out int preRoom))
+                            roomIndex = preRoom; // fatal hit cleared the room; use pre-hit floor
                         RecentDeaths[hash] = currentTime;
                         MonsterTrainAccessibility.BattleHandler?.OnUnitDied(targetName, isEnemy, roomIndex);
 
