@@ -49,7 +49,8 @@
       "Bash(\"/c/Program Files/Python314/python\" \"T:/code/mods/monstertrain/remove_methods.py\")",
       "Bash(for f:*)",
       "Bash(do wc:*)",
-      "Bash(head -5 \"C:\\\\Program Files \\(x86\\)\\\\Steam\\\\steamapps\\\\common\\\\Monster Train\\\\BepInEx\\\\LogOutput.log\")"
+      "Bash(head -5 \"C:\\\\Program Files \\(x86\\)\\\\Steam\\\\steamapps\\\\common\\\\Monster Train\\\\BepInEx\\\\LogOutput.log\")",
+      "Bash(git push *)"
     ]
   }
 }
