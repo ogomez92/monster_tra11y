@@ -600,6 +600,7 @@ namespace MonsterTrainAccessibility.Screens
                     MonsterTrainAccessibility.LogInfo($"Unit card detected, looking for stats. cardData is {(cardData != null ? "not null" : "NULL")}");
                     int attack = -1;
                     int health = -1;
+                    int size = -1;
 
                     // Try to get stats from CardState
                     // CardState has GetTotalAttackDamage() (not GetAttackDamage) which includes upgrades
@@ -626,9 +627,21 @@ namespace MonsterTrainAccessibility.Screens
                         MonsterTrainAccessibility.LogInfo($"Health from CardState: {health}");
                     }
 
+                    // CardState.GetSize(bool ignoreTempUpgrade = false) includes upgrade
+                    // modifiers and returns 0 for non-spawner cards. It has a defaulted
+                    // parameter, so GetMethod(..., Type.EmptyTypes) would miss it.
+                    var getSizeMethod = type.GetMethod("GetSize");
+                    if (getSizeMethod != null)
+                    {
+                        object[] sizeArgs = getSizeMethod.GetParameters().Length == 0 ? null : new object[] { false };
+                        var sizeResult = getSizeMethod.Invoke(cardState, sizeArgs);
+                        if (sizeResult is int s && s > 0) size = s;
+                        MonsterTrainAccessibility.LogInfo($"Size from CardState: {size}");
+                    }
+
                     // If not found on CardState, try GetSpawnCharacterData directly on CardState
-                    MonsterTrainAccessibility.LogInfo($"Stats after CardState check: attack={attack}, health={health}");
-                    if (attack < 0 || health < 0)
+                    MonsterTrainAccessibility.LogInfo($"Stats after CardState check: attack={attack}, health={health}, size={size}");
+                    if (attack < 0 || health < 0 || size < 0)
                     {
                         // GetSpawnCharacterData is directly on CardState, not CardData
                         var getSpawnCharMethod = type.GetMethod("GetSpawnCharacterData", Type.EmptyTypes);
@@ -673,6 +686,17 @@ namespace MonsterTrainAccessibility.Screens
                                     }
                                 }
 
+                                if (size < 0)
+                                {
+                                    var charSizeMethod = charDataType.GetMethod("GetSize", Type.EmptyTypes);
+                                    if (charSizeMethod != null)
+                                    {
+                                        var sizeResult = charSizeMethod.Invoke(charData, null);
+                                        if (sizeResult is int s && s > 0) size = s;
+                                        MonsterTrainAccessibility.LogInfo($"Size from CharacterData: {size}");
+                                    }
+                                }
+
                                 // Log what methods are available if still not found
                                 if (attack < 0 || health < 0)
                                 {
@@ -687,12 +711,15 @@ namespace MonsterTrainAccessibility.Screens
                         }
                     }
 
-                    // Collect unit stats
-                    if (attack >= 0 || health >= 0)
+                    // Collect unit stats. Size is tactically critical before a unit
+                    // is summoned (floor capacity planning), so it is announced on the
+                    // card just like attack and health.
+                    if (attack >= 0 || health >= 0 || size >= 0)
                     {
                         var stats = new List<string>();
                         if (attack >= 0) stats.Add($"{attack} attack");
                         if (health >= 0) stats.Add($"{health} health");
+                        if (size >= 0) stats.Add($"size {size}");
                         statsText = string.Join(", ", stats);
                     }
                 }

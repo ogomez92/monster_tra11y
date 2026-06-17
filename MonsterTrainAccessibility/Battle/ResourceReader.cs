@@ -109,24 +109,58 @@ namespace MonsterTrainAccessibility.Screens
         {
             try
             {
-                if (saveManager == null) return null;
+                if (saveManager == null)
+                {
+                    MonsterTrainAccessibility.LogInfo("Pact shards: SaveManager not found");
+                    return null;
+                }
 
                 var saveType = saveManager.GetType();
 
-                // Check if DLC crystals are shown (ShowPactCrystals)
-                var showMethod = saveType.GetMethod("ShowPactCrystals", Type.EmptyTypes);
-                if (showMethod != null)
+                // Resolve the namespaced ShinyShoe.DLC enum and its Hellforged value
+                // (=1) from a method parameter - a bare GetType("DLC") never finds it.
+                Type dlcType = null;
+                var isEnabledMethod = saveType.GetMethod("IsDlcEnabledForCurrentRun");
+                if (isEnabledMethod != null && isEnabledMethod.GetParameters().Length == 1)
+                    dlcType = isEnabledMethod.GetParameters()[0].ParameterType;
+                object hellforgedValue = (dlcType != null && dlcType.IsEnum)
+                    ? Enum.ToObject(dlcType, 1) // ShinyShoe.DLC.Hellforged = 1
+                    : null;
+
+                // Gate on the documented "DLC run feature active" condition - the
+                // same check the game uses everywhere before reading crystals.
+                // ShowPactCrystals() additionally requires covenant rank > 0 (and no
+                // shard-disabling mutator), which wrongly reported "unavailable" for
+                // valid DLC runs - this hotkey just needs to know the DLC is on.
+                if (isEnabledMethod != null && hellforgedValue != null)
                 {
-                    bool show = (bool)showMethod.Invoke(saveManager, null);
-                    if (!show) return null;
+                    bool enabled = isEnabledMethod.Invoke(saveManager, new[] { hellforgedValue }) is bool b && b;
+                    if (!enabled)
+                    {
+                        MonsterTrainAccessibility.LogInfo("Pact shards: Hellforged DLC not enabled for current run");
+                        return null;
+                    }
+                }
+                else
+                {
+                    // Couldn't resolve the DLC enum/method - fall back to the game's
+                    // own HUD-visibility check so we still gate correctly.
+                    var showMethod = saveType.GetMethod("ShowPactCrystals", Type.EmptyTypes);
+                    if (showMethod != null && !((bool)showMethod.Invoke(saveManager, null)))
+                    {
+                        MonsterTrainAccessibility.LogInfo("Pact shards: ShowPactCrystals returned false (DLC enum lookup failed)");
+                        return null;
+                    }
                 }
 
-                // Get crystal count via GetDlcSaveData<HellforgedSaveData>
-                int crystals = -1;
+                // Crystal count via GetDlcSaveData<HellforgedSaveData>(Hellforged).
+                // When the DLC is enabled but the save data isn't populated yet, the
+                // game treats the count as 0 (SaveData.GetCrystals), so we do too -
+                // never report "unavailable" once the DLC run feature is active.
+                int crystals = 0;
                 var getDlcMethod = saveType.GetMethod("GetDlcSaveData");
-                if (getDlcMethod != null && getDlcMethod.IsGenericMethod)
+                if (getDlcMethod != null && getDlcMethod.IsGenericMethod && hellforgedValue != null)
                 {
-                    // Find HellforgedSaveData type
                     Type hellforgedType = null;
                     foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
                     {
@@ -136,39 +170,19 @@ namespace MonsterTrainAccessibility.Screens
                     if (hellforgedType != null)
                     {
                         var genericMethod = getDlcMethod.MakeGenericMethod(hellforgedType);
-                        // The DLC enum is namespaced (ShinyShoe.DLC), so a bare
-                        // assembly GetType("DLC") lookup never finds it - take
-                        // the enum type from the method's own parameter instead
-                        var dlcType = genericMethod.GetParameters()[0].ParameterType;
-                        if (dlcType.IsEnum)
+                        var dlcSaveData = genericMethod.Invoke(saveManager, new[] { hellforgedValue });
+                        if (dlcSaveData != null)
                         {
-                            var hellforgedValue = Enum.ToObject(dlcType, 1); // ShinyShoe.DLC.Hellforged = 1
-                            var dlcSaveData = genericMethod.Invoke(saveManager, new object[] { hellforgedValue });
-                            if (dlcSaveData != null)
-                            {
-                                var getCrystalsMethod = dlcSaveData.GetType().GetMethod("GetCrystals", Type.EmptyTypes);
-                                if (getCrystalsMethod != null)
-                                {
-                                    crystals = (int)getCrystalsMethod.Invoke(dlcSaveData, null);
-                                }
-                            }
+                            var getCrystalsMethod = dlcSaveData.GetType().GetMethod("GetCrystals", Type.EmptyTypes);
+                            if (getCrystalsMethod != null && getCrystalsMethod.Invoke(dlcSaveData, null) is int c)
+                                crystals = c;
+                        }
+                        else
+                        {
+                            MonsterTrainAccessibility.LogInfo("Pact shards: HellforgedSaveData null, defaulting count to 0");
                         }
                     }
                 }
-
-                // Fallback: try direct methods on SaveManager
-                if (crystals < 0)
-                {
-                    var getPactMethod = saveType.GetMethod("GetPactCrystalCount", Type.EmptyTypes) ??
-                                        saveType.GetMethod("GetCrystalCount", Type.EmptyTypes) ??
-                                        saveType.GetMethod("GetShardCount", Type.EmptyTypes);
-                    if (getPactMethod != null)
-                    {
-                        crystals = (int)getPactMethod.Invoke(saveManager, null);
-                    }
-                }
-
-                if (crystals < 0) return null;
 
                 int band = GetThreatBand(saveManager, crystals);
                 string result = $"Pact shards: {crystals}. Threat: {GetThreatLevelName(band)}";
@@ -183,6 +197,7 @@ namespace MonsterTrainAccessibility.Screens
                     if (!string.IsNullOrEmpty(_threatBody))
                         result += $". {_threatBody}";
                 }
+                MonsterTrainAccessibility.LogInfo($"Pact shards info: {result}");
                 return result;
             }
             catch (Exception ex)
